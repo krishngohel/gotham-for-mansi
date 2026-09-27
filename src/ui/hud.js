@@ -23,6 +23,7 @@ export function createHud(root) {
     </svg>
     <div class="hud-layer"></div>
     <div class="hud-hint"></div>
+    <div class="hud-card"><div class="card-title"></div><div class="card-text"></div></div>
     <div class="hud-flash"></div>`;
   root.appendChild(el);
   const combo = el.querySelector('.hud-combo');
@@ -35,6 +36,8 @@ export function createHud(root) {
   const hintEl = el.querySelector('.hud-hint');
   const flashEl = el.querySelector('.hud-flash');
   let hintTimer = null;
+  const cardEl = el.querySelector('.hud-card');
+  let cardTimer = null;
 
   return {
     setHealth(f) { bar.setAttribute('stroke-dasharray', arcDash(f)); },
@@ -46,7 +49,22 @@ export function createHud(root) {
       void combo.offsetWidth;
       if (n > 0) combo.classList.add('pop');
     },
-    setObjective(text) { obj.textContent = text; },
+    setObjective(text) {
+      if (obj.textContent === text) return;
+      obj.textContent = text;
+      const cap = el.querySelector('.hud-caption');
+      cap.style.display = text ? '' : 'none';
+      cap.classList.remove('new');
+      void cap.offsetWidth;
+      cap.classList.add('new');
+    },
+    card(title, text, ms = 7000) {
+      cardEl.querySelector('.card-title').textContent = title;
+      cardEl.querySelector('.card-text').textContent = text;
+      cardEl.classList.add('show');
+      clearTimeout(cardTimer);
+      cardTimer = setTimeout(() => cardEl.classList.remove('show'), ms);
+    },
     setBalloons(n, total) { balloons.textContent = `${n}/${total}`; },
     glyph(id, x, y, visible, color = 'blue') {
       let g = glyphs.get(id);

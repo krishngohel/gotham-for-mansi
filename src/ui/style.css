@@ -48,3 +48,47 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0 6px; margin: 0 2px; bo
 .hud-flash { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, transparent 45%, rgba(200, 30, 40, 0.85) 100%); }
 .hud-flash.fade { animation: flash 0.5s ease-out forwards; }
 @keyframes flash { to { opacity: 0; } }
+
+.waypoint { position: absolute; width: 40px; height: 40px; transform: translate(-50%, -50%); pointer-events: none; z-index: 4; }
+.waypoint svg { position: absolute; inset: 0; width: 40px; height: 40px; }
+.waypoint .wp-diamond path { fill: var(--signal); stroke: var(--ink); stroke-width: 3; }
+.waypoint .wp-diamond .wp-core { fill: var(--ink); }
+.waypoint .wp-arrow { display: none; }
+.waypoint .wp-arrow path { fill: var(--signal); stroke: var(--ink); stroke-width: 3; }
+.waypoint.off .wp-diamond { display: none; }
+.waypoint.off .wp-arrow { display: block; }
+.waypoint .wp-dist { position: absolute; top: 42px; left: 50%; transform: translateX(-50%); font: 800 18px 'Barlow Condensed', sans-serif; color: var(--paper); text-shadow: 2px 2px 0 var(--ink), -1px -1px 0 var(--ink); white-space: nowrap; }
+.waypoint.off .wp-dist { top: 38px; }
+
+/* ---- comic cutscenes ---- */
+.comic { position: fixed; inset: 0; z-index: 20; display: none; place-items: center; background: rgba(11, 11, 18, 0.92); }
+.comic.show { display: grid; }
+.comic-page { width: min(1180px, 94vw); height: min(700px, 84vh); background: var(--paper); padding: 14px; box-shadow: 12px 12px 0 #000; display: grid; gap: 12px; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, 1fr); transform: rotate(-0.4deg); }
+.comic-page.layout-single { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+.comic-page.layout-duo { grid-template-columns: 1.3fr 1fr; grid-template-rows: 1fr; }
+.comic-page.layout-trio { grid-template-columns: repeat(3, 1fr); grid-template-rows: 1fr; }
+.panel { position: relative; overflow: hidden; background: #1a2436; border: 5px solid var(--ink); opacity: 0; transform: translateY(18px) scale(0.97); transition: opacity 0.35s, transform 0.35s; }
+.panel.in { opacity: 1; transform: rotate(var(--tilt, 0deg)); }
+.panel.wide { grid-column: span 2; }
+.panel.full { grid-column: 1 / -1; }
+.panel.tall { grid-row: span 2; }
+.panel img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.caption { position: absolute; left: 10px; max-width: 72%; padding: 6px 12px; background: var(--signal); color: var(--ink); border: 3px solid var(--ink); font: 20px/1.2 'Patrick Hand SC', cursive; box-shadow: 3px 3px 0 var(--ink); }
+.caption.top { top: 10px; }
+.caption.bottom { bottom: 10px; }
+.balloon { position: absolute; transform: translate(-50%, 0); max-width: 44%; padding: 10px 16px; background: #fffdf5; color: var(--ink); border: 3px solid var(--ink); border-radius: 50% / 42%; font: 19px/1.2 'Patrick Hand SC', cursive; text-align: center; }
+.balloon::after { content: ''; position: absolute; width: 0; height: 0; border: 12px solid transparent; }
+.balloon.tail-down::after { left: 30%; bottom: -24px; border-top: 16px solid var(--ink); }
+.balloon.tail-left::after { left: -22px; top: 55%; border-right: 16px solid var(--ink); }
+.balloon.tail-right::after { right: -22px; top: 55%; border-left: 16px solid var(--ink); }
+.balloon.joker { background: #f3ffe8; border-color: #2a1a3a; font-family: 'Bangers', cursive; letter-spacing: 1px; font-size: 21px; color: #3a1a4a; }
+.balloon.shout { border-radius: 8px; clip-path: none; }
+.panel-sfx { position: absolute; right: 8%; bottom: 10%; font: 64px 'Bangers', cursive; color: var(--signal); -webkit-text-stroke: 3px var(--ink); paint-order: stroke fill; text-shadow: 4px 4px 0 var(--ink); transform: rotate(-8deg); }
+.comic-help { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); font: 600 15px 'Barlow Condensed', sans-serif; color: rgba(239, 230, 207, 0.7); letter-spacing: 1px; }
+
+.hud-caption.new { animation: newobj 0.6s ease-out; }
+@keyframes newobj { 0% { transform: rotate(-1deg) scale(1.25); background: #fff; } 100% { transform: rotate(-1deg) scale(1); } }
+.hud-card { position: absolute; left: 50%; top: 110px; width: min(520px, 80vw); transform: translate(-50%, -20px) rotate(0.8deg); padding: 14px 20px 16px; background: #fffdf5; border: 4px solid var(--ink); box-shadow: 8px 8px 0 var(--balloon); color: var(--ink); opacity: 0; transition: opacity 0.35s, transform 0.35s; text-align: center; }
+.hud-card.show { opacity: 1; transform: translate(-50%, 0) rotate(0.8deg); }
+.hud-card .card-title { font: 34px 'Bangers', cursive; letter-spacing: 1.5px; color: var(--balloon); -webkit-text-stroke: 1.5px var(--ink); }
+.hud-card .card-text { font: 23px/1.3 'Patrick Hand SC', cursive; margin-top: 4px; }

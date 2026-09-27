@@ -77,6 +77,7 @@ function freighter(ctx) {
   solid(ctx, 'painted', box(18, 0.4, 16, x0, deck + 13.2, sz), { color: 0x6a7489 });
   solid(ctx, 'painted', box(6, 4, 6, x0, deck + 15.4, sz), { color: PALETTE.stripe });
   solid(ctx, 'painted', cylinder(1.5, 1.8, 7, x0, deck + 20, sz + 1.5, 12), { color: PALETTE.containerRed });
+  ctx.grapple.push({ x: x0, y: deck + 23.5, z: sz + 1.5, nx: 0, nz: 1, perch: true });
   for (let k = 0; k < 5; k++) {
     glow(ctx, box(1.8, 0.9, 0.1, x0 - 6 + k * 3, deck + 10.5, sz + 7.05), PALETTE.window);
     ctx.halos.add(x0 - 6 + k * 3, deck + 10.5, sz + 7.2, PALETTE.window, 1.2);
@@ -101,6 +102,7 @@ function lighthouse(ctx) {
   for (let k = 0; k < 6; k++) solid(ctx, 'painted', cylinder(2.6 - k * 0.12, 2.72 - k * 0.12, 4, x, 2 + k * 4 + 2, z, 16), { color: k % 2 ? PALETTE.stripe : PALETTE.containerRed });
   glow(ctx, cylinder(1.6, 1.6, 2.2, x, 27.1, z, 12), PALETTE.window);
   solid(ctx, 'roof', cylinder(0.2, 2.2, 1.6, x, 29, z, 12));
+  ctx.grapple.push({ x, y: 29.8, z, nx: 0, nz: -1, perch: true });
   ctx.halos.add(x, 27.1, z, PALETTE.window, 10);
   lightSpot(ctx, x, 26, z, PALETTE.window, 60, 50);
   // Rotating beam.
@@ -226,6 +228,8 @@ function aceChemicals(ctx) {
     for (let k = 0; k < 3; k++) ctx.buckets.add('painted', cylinder(2.3, 2.3, 1.2, x, 48 + k * 2.6, -191, 16, true), k % 2 ? PALETTE.stripe : PALETTE.containerRed);
     const i = ctx.halos.add(x, 56.5, -191, PALETTE.balloon, 3.5);
     ctx.blinkers.push({ i, size: 3.5, phase: x });
+    ctx.collision.addBox(x - 2.2, 55.6, -193.2, x + 2.2, 56, -188.8, 'stackTop');
+    ctx.grapple.push({ x, y: 56, z: -191, nx: 0, nz: 1, perch: true });
   }
   tank(ctx, 60, -185, 6, 18);
   tank(ctx, 60, -160, 6, 18);

@@ -122,7 +122,7 @@ export const SITES = {
   wh3Roof: { x: -60, y: 16, z: 180 },
   yard: { x: 0, y: 0.15, z: 178 },
   freighter: { x: -44, y: 9, z: 238 },
-  presents: { x: -44, y: 9, z: 222 },
+  presents: { x: -44, y: 9, z: 232 },
   gazetteRoof: { x: 120, y: 30, z: 0 },
   neonStreet: { x: 150, y: 0, z: 62 },
   monarchRoof: { x: 180, y: 22, z: -60 },

@@ -303,7 +303,7 @@ function building(ctx, b) {
     ctx.collision.addBox(x - w * 0.3, h + 3, z - d / 2, x + w * 0.3, h + 6, z + d / 2, 'roof');
     ctx.collision.addBox(x - w * 0.12, h + 6, z - d / 2, x + w * 0.12, h + 9, z + d / 2, 'roof');
   }
-  const roofY = b.roof === 'sawtooth' ? h + 1.1 : b.roof === 'pitched' ? h + 9 : h;
+  const roofY = b.roof === 'sawtooth' ? h + 1.1 : h;
   edgeGrapples(ctx, x, z, w, d, roofY);
 
   let top = h;
