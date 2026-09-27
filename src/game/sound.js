@@ -1,5 +1,11 @@
 // Maps game events to the synthesized audio: effects, stingers and which music plays when.
-export function wireAudio({ audio, events, hero, combat, flow, voice = null }) {
+export function wireAudio({ audio, events, hero, combat, flow, voice = null, settings }) {
+  // The recorded orchestral Happy Birthday (CC0, VOLE.wtf) plays over the finale; the synth
+  // birthday waltz carries on afterwards.
+  const track = new Audio('./assets/music/birthday-orchestral.mp3');
+  track.preload = 'auto';
+  let trackPlaying = false;
+  track.addEventListener('ended', () => { trackPlaying = false; });
   const on = (ev, fn) => events.on(ev, fn);
   const vary = (p = 0.12) => 1 - p / 2 + Math.random() * p;
   let fighting = false;
@@ -39,6 +45,14 @@ export function wireAudio({ audio, events, hero, combat, flow, voice = null }) {
     if (starting && ['presents', 'party', 'cake'].includes(name)) audio.stinger('districtClear');
   });
   on('signal', () => audio.play('signal'));
+  on('finaleStart', () => {
+    const v = settings?.volume ?? { master: 0.8, music: 0.6 };
+    track.volume = Math.min(1, v.master * v.music * 1.4);
+    track.currentTime = 0;
+    trackPlaying = true;
+    audio.music('none');
+    track.play().catch(() => { trackPlaying = false; });
+  });
   on('thunder', () => audio.play('thunder', { gain: 0.8 }));
   on('bossPhase', () => audio.stinger('bossPhase'));
   on('laugh', () => { if (!voice || voice.speaking || !voice.say('laugh', { interrupt: false })) audio.play('laugh'); });
@@ -52,7 +66,8 @@ export function wireAudio({ audio, events, hero, combat, flow, voice = null }) {
   return {
     update() {
       const step = flow.objectives.step;
-      const want = step?.type === 'boss' ? 'boss'
+      const want = trackPlaying ? 'none'
+        : step?.type === 'boss' ? 'boss'
         : step?.scene === 'finale' || step?.type === 'credits' ? 'finale'
         : flow.mode === 'cutscene' ? 'title'
         : fighting || combat.active ? 'combat' : 'explore';

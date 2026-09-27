@@ -106,6 +106,7 @@ export function createFinale({ scene, world, hero, boss, camera, events, rng, ha
       world.sky.setSignalTexture(signalText(MANSI.finaleSignal), 2.6);
       world.sky.setSignalPoint(new THREE.Vector3(-60, 190, -220), 58);
       events.emit('signal');
+      events.emit('finaleStart');
       return new Promise((r) => { resolve = r; });
     },
     freeRoam() { freeRoam = true; playing = false; },

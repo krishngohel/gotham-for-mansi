@@ -210,7 +210,8 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
       <h3>Made by</h3><p>${MANSI.fromName}</p>
       <h3>Characters and animation</h3><p>Universal Base Characters and Universal Animation Library 1 and 2 by Quaternius (CC0)</p>
       <h3>Type</h3><p>Bangers, Patrick Hand SC and Barlow Condensed via Google Fonts (SIL Open Font License)</p>
-      <h3>Everything else</h3><p>City, comics, music and sound are built in code, in the browser.</p>
+      <h3>Music and voice</h3><p>Finale: "Happy Birthday To You" (orchestral) by Tom Kincaid / VOLE.wtf (CC0). The Joker's voice: Seed Audio 1.0 on Higgsfield.</p>
+      <h3>Everything else</h3><p>City, comics, score and sound effects are built in code, in the browser.</p>
       <p class="legal">Batman, Batgirl, the Joker and Gotham City belong to DC. This is a non-commercial fan-made birthday gift.</p>`;
     node.appendChild(roll);
     node.appendChild(button(final ? 'Keep exploring Gotham' : 'Back', onClose, final ? 'primary' : 'small'));

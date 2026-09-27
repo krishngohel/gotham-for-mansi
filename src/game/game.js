@@ -159,7 +159,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const balloons = createBalloons(scene, progress.balloons);
     const pickups = createPickups(scene, world.halos, SITES);
     const neonParty = createNeonParty(scene, world.halos);
-    const comic = createComic(document.body, { onSound: (n) => audio.play(n), onVoice: (id) => voice.say(id), onEnd: () => voice.stop() });
+    const comic = createComic(document.body, { onSound: (n) => audio.play(n), onVoice: (id) => voice.say(id) });
     const prompts = createPromptQueue(hud, () => settings.bindings, () => settings.hints);
     const waypoint = createWaypoint(hudRoot.querySelector('.hud') ?? hudRoot);
     const beacon = createBeacon(scene);
@@ -353,7 +353,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   window.addEventListener('mousedown', () => audio.unlock(), { once: true });
   window.addEventListener('keydown', () => audio.unlock(), { once: true });
 
-  window.__game = { state, camera, scene, world, input, events, audio, settings, get progress() { return progress; }, begin };
+  window.__game = { state, camera, scene, world, input, events, audio, voice, settings, get progress() { return progress; }, begin };
 
   // ---------------- frame loop ----------------
   let last = performance.now(), fpsT = 0, fpsN = 0, errors = 0;
