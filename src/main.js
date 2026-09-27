@@ -1,6 +1,5 @@
 import './ui/style.css';
 import MANSI from './mansi.config.js';
-import { startLookTest } from './lookTest.js';
 import { startGame } from './game/game.js';
 
 const params = new URLSearchParams(location.search);
@@ -11,8 +10,7 @@ if (matchMedia('(pointer: coarse)').matches && !params.has('force')) {
   loading.classList.add('mobile');
 } else {
   const bar = loading.querySelector('.bar i');
-  const start = params.has('look') ? startLookTest : startGame;
-  start({
+  startGame({
     canvas: document.getElementById('game'),
     hudRoot: document.body,
     params,

@@ -12,6 +12,7 @@ import { createBatsignal } from '../world/batsignal.js';
 import { createWater } from '../world/water.js';
 import { createLightPool } from '../world/lightPool.js';
 import { createRain } from '../render/rain.js';
+import { createCityLife } from '../world/cityLife.js';
 
 export const SIGNAL_LAMP = new THREE.Vector3(SITES.signal.x, SITES.signal.y + 1.3, SITES.signal.z);
 export const SIGNAL_POINT = new THREE.Vector3(-110, 210, -215);
@@ -63,6 +64,7 @@ export function createWorld(scene, quality) {
   const rain = createRain(quality.rainCount);
   scene.add(rain.mesh);
   const pool = createLightPool(scene, ctx.lights, 4);
+  const life = createCityLife(scene, ctx.halos, rng);
 
   const snap = new THREE.Vector3();
   return {
@@ -76,8 +78,9 @@ export function createWorld(scene, quality) {
     moon,
     data,
     setFlash(k) { moon.intensity = 2.1 + 9 * k; },
-    update(t, dt, focus, camera) {
+    update(t, dt, focus, camera, hero = null) {
       for (const u of ctx.updaters) u(t);
+      life.update(t, dt, hero);
       sky.update(t, camera.position);
       water.update(t, camera.position);
       rain.update(t, camera.position);

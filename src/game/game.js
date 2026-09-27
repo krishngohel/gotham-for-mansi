@@ -299,7 +299,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       winFight: () => { for (const e of combat.enemies) if (e.alive && e.type !== 'joker') { e.health = 0; e.applyHit({ outcome: 'ko' }, hero.pos); } },
     };
     if (params.get('god') === '1') events.on('heroHurt', () => { hero.health = hero.maxHealth; hud.setHealth(1); });
-    Object.assign(window.__game, api, { get enemies() { return combat.enemies; }, teleport: (site) => hero.teleport(SITES[site] ?? site), jump: (id) => flow.jumpTo(STEPS.findIndex((s) => s.id === id)) });
+    Object.assign(window.__game, api, { teleport: (site) => hero.teleport(SITES[site] ?? site), jump: (id) => flow.jumpTo(STEPS.findIndex((s) => s.id === id)) });
+    Object.defineProperty(window.__game, 'enemies', { get: () => combat.enemies, configurable: true });
     return api;
   }
 
@@ -345,6 +346,20 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   // ---------------- frame loop ----------------
   let last = performance.now(), fpsT = 0, fpsN = 0, errors = 0;
   let orbit = 0;
+  const weather = { next: 6, flashT: 0 };
+  function lightning(real) {
+    weather.next -= real;
+    if (weather.next <= 0) {
+      weather.next = 9 + Math.random() * 12;
+      weather.flashT = 0.26;
+      setTimeout(() => events.emit('thunder'), 300 + Math.random() * 900);
+    }
+    if (weather.flashT > 0) weather.flashT -= real;
+    const t = weather.flashT;
+    const k = (t > 0.2 && t <= 0.26) || (t > 0.06 && t <= 0.1) ? 1 : 0;
+    ink.uniforms.uFlash.value = k;
+    world.setFlash(k);
+  }
   function frame(now) {
     requestAnimationFrame(frame);
     try { step(now); } catch (err) { if (errors++ < 5) console.error(err); }
@@ -364,7 +379,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       game.update(real);
       focus = game.hero.pos;
     }
-    world.update(state.t, real, focus, camera);
+    lightning(real);
+    world.update(state.t, real, focus, camera, game?.hero ?? null);
     ink.render(scene, camera, state.t);
     input.endFrame();
     audio.update(real);
