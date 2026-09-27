@@ -1,0 +1,31 @@
+import { describe, it, expect } from 'vitest';
+import { ACTIONS, DEFAULT_BINDINGS, keyLabel, rebind, bindingLabel } from '../../src/core/bindings.js';
+
+describe('bindings', () => {
+  it('binds every action by default', () => {
+    for (const a of ACTIONS) expect(DEFAULT_BINDINGS[a.id]?.length, a.id).toBeGreaterThan(0);
+  });
+  it('never binds one code to two actions by default', () => {
+    const seen = new Map();
+    for (const [action, codes] of Object.entries(DEFAULT_BINDINGS))
+      for (const c of codes) { expect(seen.has(c), `${c} on ${action} and ${seen.get(c)}`).toBe(false); seen.set(c, action); }
+  });
+  it('labels codes for people', () => {
+    expect(keyLabel('Mouse0')).toBe('LMB');
+    expect(keyLabel('Mouse2')).toBe('RMB');
+    expect(keyLabel('KeyE')).toBe('E');
+    expect(keyLabel('ShiftLeft')).toBe('Shift');
+    expect(keyLabel('Space')).toBe('Space');
+    expect(keyLabel('Digit3')).toBe('3');
+    expect(keyLabel('ArrowUp')).toBe('Up');
+  });
+  it('rebinding moves a code off any other action and replaces the primary key', () => {
+    const b = rebind(DEFAULT_BINDINGS, 'kick', 'KeyQ');
+    expect(b.kick[0]).toBe('KeyQ');
+    expect(b.cape).not.toContain('KeyQ');
+    expect(DEFAULT_BINDINGS.cape).toContain('KeyQ');
+  });
+  it('joins labels for display', () => {
+    expect(bindingLabel({ ...DEFAULT_BINDINGS, punch: ['Mouse0'] }, 'punch')).toBe('LMB');
+  });
+});

@@ -69,3 +69,22 @@ describe('palette', () => {
     expect(hex(PALETTE.ink)).toMatch(/^#[0-9a-f]{6}$/);
   });
 });
+
+import { createFixedStep } from '../../src/core/loop.js';
+
+describe('fixed step', () => {
+  it('runs one step per 60 Hz frame', () => {
+    const f = createFixedStep();
+    expect(f.advance(1 / 60).steps).toBe(1);
+  });
+  it('accumulates short frames', () => {
+    const f = createFixedStep();
+    expect(f.advance(1 / 120).steps).toBe(0);
+    expect(f.advance(1 / 120).steps).toBe(1);
+  });
+  it('caps catch-up after a long stall', () => {
+    const f = createFixedStep();
+    expect(f.advance(2).steps).toBe(5);
+    expect(f.advance(0).steps).toBe(0);
+  });
+});

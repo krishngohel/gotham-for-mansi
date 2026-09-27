@@ -1,22 +1,137 @@
-// Keyboard and mouse state, polled once per frame. Mouse deltas count only while pointer-locked.
-export function createInput(target = window) {
+// Action-based input over keyboard, mouse (pointer lock) and the Gamepad API.
+// Keyboard and mouse follow the rebindable settings; the gamepad uses a fixed Xbox layout.
+
+const PAD_BUTTONS = {
+  jump: [0], kick: [1], punch: [2], block: [3], grapple: [4], cape: [5], dodge: [6], batarang: [7],
+  detective: [8], pause: [9], sprint: [10], special: [11], help: [13],
+};
+const DEADZONE = 0.18;
+
+export function createInput({ target = window, bindings }) {
   const held = new Set();
-  const pressed = new Set();
-  const clicked = new Set();
-  const mouse = { dx: 0, dy: 0 };
-  target.addEventListener('keydown', (e) => { if (!held.has(e.code)) pressed.add(e.code); held.add(e.code); });
-  target.addEventListener('keyup', (e) => held.delete(e.code));
-  target.addEventListener('mousedown', (e) => clicked.add(e.button));
-  target.addEventListener('mousemove', (e) => {
-    if (document.pointerLockElement) { mouse.dx += e.movementX; mouse.dy += e.movementY; }
-  });
-  target.addEventListener('contextmenu', (e) => e.preventDefault());
-  window.addEventListener('blur', () => held.clear());
+  const pressedCodes = new Set();
+  const releasedCodes = new Set();
+  const padHeld = new Set();
+  const padPressed = new Set();
+  const padReleased = new Set();
+  let codeToActions = new Map();
+  let capture = null;
+  let device = 'kbm';
+  const move = { x: 0, y: 0 };
+  const look = { dx: 0, dy: 0 };
+  const stick = { mx: 0, my: 0, lx: 0, ly: 0 };
+
+  function setBindings(b) {
+    codeToActions = new Map();
+    for (const [action, codes] of Object.entries(b)) {
+      for (const c of codes) {
+        if (!codeToActions.has(c)) codeToActions.set(c, []);
+        codeToActions.get(c).push(action);
+      }
+    }
+  }
+  setBindings(bindings);
+
+  function codeDown(code, e) {
+    device = 'kbm';
+    if (capture) {
+      e?.preventDefault();
+      const cb = capture;
+      capture = null;
+      cb(code === 'Escape' ? null : code);
+      return;
+    }
+    if (codeToActions.has(code) && e && code !== 'Escape' && !e.ctrlKey && !e.metaKey) e.preventDefault();
+    if (!held.has(code)) pressedCodes.add(code);
+    held.add(code);
+  }
+  function codeUp(code) {
+    if (held.delete(code)) releasedCodes.add(code);
+  }
+
+  const onKeyDown = (e) => { if (!e.repeat) codeDown(e.code, e); else if (codeToActions.has(e.code)) e.preventDefault(); };
+  const onKeyUp = (e) => codeUp(e.code);
+  const onMouseDown = (e) => {
+    if (e.target?.closest?.('.menu, .rebind')) { if (capture) codeDown('Mouse' + e.button, e); return; }
+    codeDown('Mouse' + e.button, e);
+  };
+  const onMouseUp = (e) => codeUp('Mouse' + e.button);
+  const onMouseMove = (e) => {
+    if (document.pointerLockElement) { look.dx += e.movementX; look.dy += e.movementY; device = 'kbm'; }
+  };
+  const onBlur = () => { for (const c of held) releasedCodes.add(c); held.clear(); };
+  const onContext = (e) => e.preventDefault();
+
+  target.addEventListener('keydown', onKeyDown);
+  target.addEventListener('keyup', onKeyUp);
+  target.addEventListener('mousedown', onMouseDown);
+  target.addEventListener('mouseup', onMouseUp);
+  target.addEventListener('mousemove', onMouseMove);
+  target.addEventListener('contextmenu', onContext);
+  window.addEventListener('blur', onBlur);
+
+  const anyCode = (set, action) => {
+    for (const [code, actions] of codeToActions) if (actions.includes(action) && set.has(code)) return true;
+    return false;
+  };
+
+  const dz = (v) => (Math.abs(v) < DEADZONE ? 0 : (v - Math.sign(v) * DEADZONE) / (1 - DEADZONE));
+
+  function pollPad() {
+    const pads = navigator.getGamepads?.() ?? [];
+    const pad = [...pads].find((p) => p && p.connected);
+    const now = new Set();
+    if (pad) {
+      for (const [action, idx] of Object.entries(PAD_BUTTONS)) if (idx.some((i) => pad.buttons[i]?.pressed)) now.add(action);
+      stick.mx = dz(pad.axes[0] ?? 0); stick.my = dz(pad.axes[1] ?? 0);
+      stick.lx = dz(pad.axes[2] ?? 0); stick.ly = dz(pad.axes[3] ?? 0);
+      if (now.size || stick.mx || stick.my || stick.lx || stick.ly) device = 'pad';
+    } else {
+      stick.mx = stick.my = stick.lx = stick.ly = 0;
+    }
+    for (const a of now) if (!padHeld.has(a)) padPressed.add(a);
+    for (const a of padHeld) if (!now.has(a)) padReleased.add(a);
+    padHeld.clear();
+    for (const a of now) padHeld.add(a);
+  }
+
   return {
-    held: (code) => held.has(code),
-    pressed: (code) => pressed.has(code),
-    clicked: (button) => clicked.has(button),
-    mouse,
-    endFrame() { pressed.clear(); clicked.clear(); mouse.dx = 0; mouse.dy = 0; },
+    get device() { return device; },
+    move,
+    look,
+    down: (a) => anyCode(held, a) || padHeld.has(a),
+    pressed: (a) => anyCode(pressedCodes, a) || padPressed.has(a),
+    released: (a) => anyCode(releasedCodes, a) || padReleased.has(a),
+    setBindings,
+    captureNext(cb) { capture = cb; },
+    cancelCapture() { capture = null; },
+    get capturing() { return capture !== null; },
+    // Call once per frame before reading actions.
+    update(dt) {
+      pollPad();
+      const kx = (anyCode(held, 'right') ? 1 : 0) - (anyCode(held, 'left') ? 1 : 0);
+      const ky = (anyCode(held, 'forward') ? 1 : 0) - (anyCode(held, 'back') ? 1 : 0);
+      move.x = kx + stick.mx;
+      move.y = ky - stick.my;
+      const len = Math.hypot(move.x, move.y);
+      if (len > 1) { move.x /= len; move.y /= len; }
+      // Right stick feels like ~900 px/s of mouse at full tilt.
+      look.dx += stick.lx * 900 * dt;
+      look.dy += stick.ly * 700 * dt;
+    },
+    endFrame() {
+      pressedCodes.clear(); releasedCodes.clear(); padPressed.clear(); padReleased.clear();
+      look.dx = 0; look.dy = 0;
+    },
+    releaseAll() { onBlur(); padHeld.clear(); },
+    dispose() {
+      target.removeEventListener('keydown', onKeyDown);
+      target.removeEventListener('keyup', onKeyUp);
+      target.removeEventListener('mousedown', onMouseDown);
+      target.removeEventListener('mouseup', onMouseUp);
+      target.removeEventListener('mousemove', onMouseMove);
+      target.removeEventListener('contextmenu', onContext);
+      window.removeEventListener('blur', onBlur);
+    },
   };
 }

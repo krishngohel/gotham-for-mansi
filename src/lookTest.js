@@ -9,7 +9,7 @@ import { loadAssets } from './actors/assets.js';
 import { createBat, createGoon } from './actors/characters.js';
 import { createCape } from './actors/cape.js';
 import { createHud } from './ui/hud.js';
-import { createInput } from './core/input.js';
+import { createInput } from './lookInput.js';
 import { createTimeControl } from './core/time.js';
 import { createRng } from './core/rng.js';
 
