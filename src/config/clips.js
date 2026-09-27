@@ -11,6 +11,6 @@ export const CLIP_SET = {
     'NinjaJump_Start', 'NinjaJump_Idle_Loop', 'NinjaJump_Land', 'OverhandThrow', 'Idle_FoldArms_Loop',
     'Idle_No_Loop', 'Sword_Regular_A', 'Sword_Regular_B', 'Sword_Regular_C', 'Sword_Dash',
     'Slide_Start', 'Slide_Loop', 'Slide_Exit', 'Idle_Shield_Break', 'Yes', 'Zombie_Scratch',
-    'Idle_Shield_Loop', 'Shield_OneShot', 'Shield_Dash', 'Sword_Heavy_Combo', 'Idle_Rail_Call', 'Idle_TalkingPhone_Loop', 'Zombie_Walk_Fwd_Loop', 'Sword_Regular_A_Rec',
+    'Idle_Shield_Loop', 'Sword_Block', 'Shield_OneShot', 'Shield_Dash', 'Sword_Heavy_Combo', 'Idle_Rail_Call', 'Idle_TalkingPhone_Loop', 'Zombie_Walk_Fwd_Loop', 'Sword_Regular_A_Rec',
   ],
 };

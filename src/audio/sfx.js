@@ -1,5 +1,5 @@
 import {
-  tone, noise, metal, env, filter, drive, noiseSource, bell, brass, drum, mtof, rand,
+  tone, noise, metal, env, filter, drive, noiseSource, bell, brass, mtof, rand,
 } from './synth.js';
 
 // Each SFX builds into (ctx, out, t, p) where p is a pitch multiplier, and returns its end time.

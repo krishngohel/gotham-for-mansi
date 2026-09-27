@@ -127,63 +127,96 @@ export function createBat(assets, suit = 'm') {
   return ch;
 }
 
-function clownMaskTexture() {
+// Mask art: a few grins so a crowd of goons doesn't look cloned.
+function maskTexture(kind) {
   const c = document.createElement('canvas');
   c.width = c.height = 256;
   const g = c.getContext('2d');
   g.fillStyle = '#efe6cf';
   g.fillRect(0, 0, 256, 256);
   g.fillStyle = '#0b0b12';
-  for (const x of [88, 168]) {
-    g.beginPath();
-    g.moveTo(x, 70); g.lineTo(x + 20, 104); g.lineTo(x, 138); g.lineTo(x - 20, 104);
-    g.closePath(); g.fill();
-  }
-  g.lineWidth = 10;
   g.strokeStyle = '#0b0b12';
-  g.fillStyle = '#c8323c';
-  g.beginPath();
-  g.moveTo(64, 160);
-  g.quadraticCurveTo(128, 238, 192, 160);
-  g.quadraticCurveTo(128, 196, 64, 160);
-  g.fill(); g.stroke();
+  g.lineWidth = 10;
+  if (kind === 'hockey') {
+    for (const [x, y, r] of [[88, 104, 16], [168, 104, 16], [128, 170, 7], [104, 190, 6], [152, 190, 6], [128, 140, 6]]) { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); }
+    g.fillStyle = '#c8323c';
+    for (const x of [70, 186]) { g.beginPath(); g.moveTo(x, 60); g.lineTo(x + 14, 84); g.lineTo(x - 14, 84); g.closePath(); g.fill(); }
+  } else {
+    const diamond = (x) => { g.beginPath(); g.moveTo(x, 70); g.lineTo(x + 20, 104); g.lineTo(x, 138); g.lineTo(x - 20, 104); g.closePath(); g.fill(); };
+    if (kind === 'sad') { for (const x of [88, 168]) { g.beginPath(); g.arc(x, 104, 16, 0, Math.PI * 2); g.fill(); g.fillRect(x - 3, 118, 6, 40); } }
+    else diamond(88), diamond(168);
+    g.fillStyle = '#c8323c';
+    g.beginPath();
+    if (kind === 'sad') { g.moveTo(70, 205); g.quadraticCurveTo(128, 150, 186, 205); g.quadraticCurveTo(128, 175, 70, 205); }
+    else if (kind === 'zigzag') { g.moveTo(60, 170); for (let i = 0; i <= 8; i++) g.lineTo(60 + i * 17, 170 + (i % 2 ? 22 : 0)); g.lineTo(196, 200); g.lineTo(60, 200); }
+    else { g.moveTo(64, 160); g.quadraticCurveTo(128, 238, 192, 160); g.quadraticCurveTo(128, 196, 64, 160); }
+    g.closePath();
+    g.fill(); g.stroke();
+  }
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
+const MASK_TEXTURES = new Map();
+const maskTex = (k) => { if (!MASK_TEXTURES.has(k)) MASK_TEXTURES.set(k, maskTexture(k)); return MASK_TEXTURES.get(k); };
 
-export function createGoon(assets) {
+const STRIPE_ALTS = [PALETTE.jokerPurple, PALETTE.jokerGreen, 0x8a2a2a];
+const BEANIES = [PALETTE.pants, 0x3a2a24, 0x2f3f5a, 0x4a3a52];
+
+// type: 'grunt' | 'knife' | 'brute'
+export function createGoon(assets, { type = 'grunt', rng = null } = {}) {
+  const pick = (arr) => arr[Math.floor((rng ? rng.next() : Math.random()) * arr.length)];
   const ch = makeCharacter(assets, 'm');
   const { body, eyes, brows, lm } = ch;
-  paintRegions(body, classifyGoonVertex, GOON_COLORS, lm);
+  const brute = type === 'brute';
+  const colors = brute ? { ...GOON_COLORS, shirt: 0x3a3f4a } : GOON_COLORS;
+  paintRegions(body, classifyGoonVertex, colors, lm);
   body.material = toonMaterial({
-    vertexColors: true, normalMap: body.material.normalMap, normalScale: 0.5,
-    palette: Object.values(GOON_COLORS), stripes: GOON_STRIPES,
+    vertexColors: true, normalMap: body.material.normalMap, normalScale: brute ? 0.9 : 0.5,
+    palette: Object.values(colors), stripes: brute ? null : { ...GOON_STRIPES, alt: type === 'knife' ? PALETTE.jokerGreen : pick(STRIPE_ALTS) },
   });
   body.castShadow = true;
   eyes.visible = false;
   brows.visible = false;
-  addHullOutline(body, 0.011);
+  addHullOutline(body, brute ? 0.013 : 0.011);
   ch.xray = addXray(body);
+  if (brute) ch.root.scale.setScalar(1.25);
 
   const r = lm.headRadius * 1.12;
   const maskGeo = new THREE.SphereGeometry(r, 24, 16, Math.PI * 0.025, Math.PI * 0.95, Math.PI * 0.2, Math.PI * 0.55);
+  const kind = brute ? 'hockey' : pick(['smile', 'smile', 'sad', 'zigzag']);
   const mask = rigidMesh(
-    maskGeo, toonMaterial({ map: clownMaskTexture() }),
+    maskGeo, toonMaterial({ map: maskTex(kind) }),
     lm.headCenter.clone().add(new THREE.Vector3(0, -0.01, 0.012 * lm.fwd)),
     new THREE.Euler(0, lm.fwd < 0 ? Math.PI : 0, 0),
   );
   attachRigid(body, 'Head', mask);
   addHullOutline(mask, 0.005);
 
-  const beanie = rigidMesh(
-    new THREE.SphereGeometry(r * 1.02, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.42),
-    toonMaterial({ color: PALETTE.pants }),
-    lm.headCenter.clone().add(new THREE.Vector3(0, 0.03, 0)),
-  );
-  attachRigid(body, 'Head', beanie);
-  addHullOutline(beanie, 0.006);
-
+  if (type === 'knife') {
+    // Bandana instead of a beanie, and the knife itself.
+    const band = rigidMesh(new THREE.CylinderGeometry(r * 1.03, r * 1.05, 0.06, 20, 1, true), toonMaterial({ color: PALETTE.balloon, side: THREE.DoubleSide }), lm.headCenter.clone().add(new THREE.Vector3(0, 0.045, 0)));
+    attachRigid(body, 'Head', band);
+    const hand = ch.bone('hand_r');
+    const handPos = new THREE.Vector3().setFromMatrixPosition(body.skeleton.boneInverses[body.skeleton.bones.indexOf(hand)].clone().invert());
+    const knife = new THREE.Group();
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.035, 0.26).translate(0, 0, 0.17), toonMaterial({ color: 0xd8dde6 }));
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.035, 0.1), toonMaterial({ color: PALETTE.ink }));
+    knife.add(blade, grip);
+    knife.position.copy(handPos).add(new THREE.Vector3(-0.05 * lm.fwd, -0.02, 0.02 * lm.fwd));
+    if (lm.fwd < 0) knife.rotation.y = Math.PI;
+    attachRigid(body, 'hand_r', knife);
+    addHullOutline(blade, 0.004);
+  } else if (!brute) {
+    const beanie = rigidMesh(
+      new THREE.SphereGeometry(r * 1.02, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.42),
+      toonMaterial({ color: pick(BEANIES) }),
+      lm.headCenter.clone().add(new THREE.Vector3(0, 0.03, 0)),
+    );
+    attachRigid(body, 'Head', beanie);
+    addHullOutline(beanie, 0.006);
+  }
+  ch.type = type;
   ch.animator.play('Idle_Loop');
   return ch;
 }

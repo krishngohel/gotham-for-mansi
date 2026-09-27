@@ -24,7 +24,10 @@ for (const s of steps) {
   if (s.up) for (const k of s.up) await page.keyboard.up(k);
   if (s.press) await page.keyboard.press(s.press);
   if (s.click !== undefined) { await page.mouse.move(640, 360); await page.mouse.down({ button: s.click === 2 ? 'right' : 'left' }); await page.waitForTimeout(40); await page.mouse.up({ button: s.click === 2 ? 'right' : 'left' }); }
-  if (s.eval) { const r = await page.evaluate(s.eval); if (r !== undefined) console.log('eval:', JSON.stringify(r)); }
+  if (s.eval) {
+    const r = await page.evaluate(`(async () => { const v = await (0, eval)(${JSON.stringify(s.eval)}); try { return JSON.parse(JSON.stringify(v)); } catch { return '[object]'; } })()`).catch((e) => 'eval error: ' + e.message);
+    if (r !== undefined && r !== '[object]') console.log('eval:', JSON.stringify(r));
+  }
   if (s.wait) await page.waitForTimeout(s.wait);
   if (s.shot) await page.screenshot({ path: `${outDir}/${s.shot}.png` });
 }

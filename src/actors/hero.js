@@ -33,7 +33,7 @@ export function createHero({ assets, suit, scene, collision, events }) {
   const before = new THREE.Vector3();
 
   const h = {
-    bat, cape, pos, vel,
+    bat, cape, pos, vel, collision, dead: false,
     state: 'ground', stateT: 0, grounded: true, airT: 0, coyote: 0, jumpBuffer: 0,
     health: 100, maxHealth: 100,
     glide: { speed: 0, heading: 0 },

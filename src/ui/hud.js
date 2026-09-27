@@ -21,7 +21,9 @@ export function createHud(root) {
       <circle class="bar" cx="60" cy="60" r="${R}" stroke-dasharray="${arcDash(1)}" transform="rotate(135 60 60)"/>
       <path class="bat" d="${batSvgPath(0.62, 60, 62)}"/>
     </svg>
-    <div class="hud-layer"></div>`;
+    <div class="hud-layer"></div>
+    <div class="hud-hint"></div>
+    <div class="hud-flash"></div>`;
   root.appendChild(el);
   const combo = el.querySelector('.hud-combo');
   const comboN = combo.querySelector('.n');
@@ -30,6 +32,9 @@ export function createHud(root) {
   const balloons = el.querySelector('.balloons span');
   const layer = el.querySelector('.hud-layer');
   const glyphs = new Map();
+  const hintEl = el.querySelector('.hud-hint');
+  const flashEl = el.querySelector('.hud-flash');
+  let hintTimer = null;
 
   return {
     setHealth(f) { bar.setAttribute('stroke-dasharray', arcDash(f)); },
@@ -43,12 +48,14 @@ export function createHud(root) {
     },
     setObjective(text) { obj.textContent = text; },
     setBalloons(n, total) { balloons.textContent = `${n}/${total}`; },
-    glyph(id, x, y, visible) {
+    glyph(id, x, y, visible, color = 'blue') {
       let g = glyphs.get(id);
       if (!visible) { if (g) { g.remove(); glyphs.delete(id); } return; }
+      if (g && g.dataset.color !== color) { g.remove(); glyphs.delete(id); g = null; }
       if (!g) {
         g = document.createElement('div');
-        g.className = 'glyph';
+        g.className = `glyph ${color}`;
+        g.dataset.color = color;
         g.innerHTML = `<svg viewBox="0 0 38 54"><path d="${BOLT}"/></svg>`;
         layer.appendChild(g);
         glyphs.set(id, g);
@@ -56,6 +63,22 @@ export function createHud(root) {
       g.style.left = `${x}px`;
       g.style.top = `${y}px`;
     },
+    clearGlyphs() { for (const g of glyphs.values()) g.remove(); glyphs.clear(); },
+    // A caption at the bottom of the screen. html may contain <kbd> key labels.
+    hint(html, ms = 3500) {
+      hintEl.innerHTML = html;
+      hintEl.classList.add('show');
+      clearTimeout(hintTimer);
+      if (ms > 0) hintTimer = setTimeout(() => hintEl.classList.remove('show'), ms);
+    },
+    hideHint() { hintEl.classList.remove('show'); },
+    damage(amount) {
+      flashEl.style.opacity = String(Math.min(0.75, 0.25 + amount / 40));
+      flashEl.classList.remove('fade');
+      void flashEl.offsetWidth;
+      flashEl.classList.add('fade');
+    },
+    setVisible(v) { el.style.display = v ? '' : 'none'; },
     sfx(word, x, y) {
       const s = document.createElement('div');
       s.className = 'sfx';
