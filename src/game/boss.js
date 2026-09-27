@@ -19,10 +19,10 @@ const WAVES = [
 ];
 const LINES = {
   phase1: ['Welcome to the party, birthday bat!', 'Careful, the floor is ticklish!', 'Boys! Our guest of honor is here!', 'Is it hot up here, or is it just the buzzers?', 'I planned games. So many games!'],
-  drop: 'Fine! If you want a job done right...',
-  phase2: ['Catch! HA HA!', 'Laughing gas! Doctor recommended!', 'Hold your breath, birthday bat!', 'Party favors for everyone!'],
+  drop: 'Fine! I will do it myself!',
+  phase2: ['Catch! Laughing gas! Doctor recommended!', 'Catch! HA HA!', 'Hold your breath, birthday bat!', 'Party favors for everyone!'],
   stunned: ['Ow! Cheater!', 'That is not how we play!', 'My hat! I am not even wearing a hat!'],
-  phase3: 'Enough games. Let us dance!',
+  phase3: "Enough games. Let's dance!",
   chain: ['Lucky!', 'Okay, okay, not bad!', 'You fight like a birthday cake. Sweet!'],
   hurt: ['Is that all?', 'Again! Again!'],
 };
@@ -172,10 +172,12 @@ export function createBoss({ assets, scene, rng, combat, events, hud, spawn, des
     return 1 - Math.min(1, (p1 + cycles + chains) / 7);
   };
 
+  // Recorded lines for the texts that have one.
+  const VOICED = { [LINES.drop]: 'drop', [LINES.phase2[0]]: 'gas', [LINES.stunned[0]]: 'stunned', [LINES.phase3]: 'dance' };
   function say(text, secs = 2.5) {
     speech = { text, t: secs };
     hud.speech(text);
-    events.emit('laughMaybe');
+    if (VOICED[text]) events.emit('jokerVoice', { id: VOICED[text] });
   }
 
   function faceHero(rate, dt) {

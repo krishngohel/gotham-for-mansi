@@ -1,7 +1,7 @@
 // Comic-page cutscenes: panels slide in one at a time with captions and speech balloons.
 // Click, Space, Enter or E advances; Esc skips the scene.
 
-export function createComic(root, { onSound = () => {} } = {}) {
+export function createComic(root, { onSound = () => {}, onVoice = () => {}, onEnd = () => {} } = {}) {
   const el = document.createElement('div');
   el.className = 'comic';
   el.innerHTML = '<div class="comic-page"></div><div class="comic-help">Click or press Space to continue. Esc skips.</div>';
@@ -58,6 +58,8 @@ export function createComic(root, { onSound = () => {} } = {}) {
   function reveal() {
     panelEls[panelIndex]?.classList.add('in');
     onSound('uiMove');
+    const v = pages[pageIndex]?.panels[panelIndex]?.voice;
+    if (v) onVoice(v);
   }
 
   function advance() {
@@ -68,6 +70,7 @@ export function createComic(root, { onSound = () => {} } = {}) {
   }
 
   function finish() {
+    onEnd();
     el.classList.remove('show');
     const r = resolver;
     resolver = null;

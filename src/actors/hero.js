@@ -12,6 +12,9 @@ const RUN = 6.8;
 const SPRINT = 11.5;
 const RADIUS = 0.35;
 const HEIGHT = 1.8;
+const GLIDE_G = 20;       // how hard gravity pulls along a dive
+const GLIDE_MAX = 48;     // m/s
+const GLIDE_CRUISE = 17;  // m/s
 
 export function createHero({ assets, suit, scene, collision, events }) {
   const bat = createBat(assets, ['m', 'f', 'gold'].includes(suit) ? suit : 'm');
@@ -96,7 +99,7 @@ export function createHero({ assets, suit, scene, collision, events }) {
   function startGlide() {
     setState('glide');
     const hs = Math.hypot(vel.x, vel.z);
-    h.glide.speed = Math.max(12, hs);
+    h.glide.speed = Math.max(14, hs);
     h.glide.heading = hs > 1 ? Math.atan2(vel.x, vel.z) : bat.yaw;
     cape.setWings(true);
     bat.animator.play('A_TPose', { fade: 0.2 });
@@ -162,12 +165,30 @@ export function createHero({ assets, suit, scene, collision, events }) {
       else if (h.airT > 0.35 && bat.animator.currentName !== 'Jump_Loop' && bat.animator.currentName !== 'Jump_Start') bat.animator.play('Jump_Loop', { fade: 0.2 });
     } else if (h.state === 'glide') {
       const g = h.glide;
-      // Look down to dive (faster, steeper), level out to trade speed for lift.
-      const dive = THREE.MathUtils.clamp((cam.state.pitch - 0.3) / 0.6, 0, 1);
-      const target = 15 + dive * 20;
-      g.speed += (target - g.speed) * Math.min(1, dt * (dive > 0 ? 1.4 : 0.6));
-      const lift = dive === 0 && g.speed > 17 ? (g.speed - 17) * 0.55 : 0;
-      const sink = 3 + dive * 11 - lift;
+      // Pitch control: sprint key or looking down dives, back key or looking up pulls up.
+      let ctrl = THREE.MathUtils.clamp((cam.state.pitch - 0.25) / 0.45, -1, 1);
+      if (input.down('sprint')) ctrl = 1;
+      else if (input.move.y < -0.3) ctrl = -1;
+      else if (Math.abs(ctrl) < 0.12) ctrl = 0;
+      g.ctrl = ctrl;
+      let vyTarget;
+      if (ctrl > 0) {
+        // Dive: gravity turns height into speed.
+        // Arcade physics: a dive buys more speed per meter than real gravity would.
+        const angle = ctrl * 0.75;
+        g.speed = Math.min(GLIDE_MAX, g.speed + (GLIDE_G * 1.35 * Math.sin(angle) - g.speed * 0.02) * dt);
+        vyTarget = -g.speed * Math.sin(angle) * 0.55;
+      } else if (ctrl < 0 && g.speed > GLIDE_CRUISE - 2) {
+        // Swoop: spend speed to climb. v^2 = 2gh, with some loss.
+        const climb = Math.min(20, (g.speed - GLIDE_CRUISE + 6) * 0.85) * -ctrl;
+        vyTarget = climb;
+        g.speed = Math.max(GLIDE_CRUISE - 4, g.speed - ((climb * GLIDE_G * 1.25) / Math.max(8, g.speed) + 2.5) * dt);
+      } else {
+        // Level: a slow bleed toward cruising speed and a gentle sink; faster sink when stalling.
+        g.speed += (GLIDE_CRUISE - g.speed) * Math.min(1, dt * (g.speed > GLIDE_CRUISE ? 0.25 : 0.8));
+        vyTarget = g.speed < 11 ? -7 : -2.4 + Math.max(0, g.speed - 22) * 0.12;
+      }
+      const sink = -vyTarget;
       // Steer toward where the camera faces, plus left/right input.
       const camYaw = Math.atan2(f.x, f.z);
       const want = camYaw - input.move.x * 0.9;
@@ -176,9 +197,9 @@ export function createHero({ assets, suit, scene, collision, events }) {
       g.heading += turn;
       vel.x = Math.sin(g.heading) * g.speed;
       vel.z = Math.cos(g.heading) * g.speed;
-      vel.y += (-sink - vel.y) * Math.min(1, dt * 3);
+      vel.y += (-sink - vel.y) * Math.min(1, dt * 4);
       bat.face(g.heading);
-      const lean = 1.05 + dive * 0.35;
+      const lean = 1.0 + ctrl * 0.45;
       bat.tilt.rotation.x += (lean * bat.lm.fwd - bat.tilt.rotation.x) * Math.min(1, dt * 5);
       bat.tilt.rotation.z += (-turn / dt * 0.12 - bat.tilt.rotation.z) * Math.min(1, dt * 4);
       if (!input.down('jump')) {

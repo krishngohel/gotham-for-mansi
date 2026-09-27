@@ -1,11 +1,11 @@
 // Rebindable actions. Codes are KeyboardEvent.code values, or Mouse0/1/2 for mouse buttons.
 export const ACTIONS = [
   { id: 'forward', label: 'Move forward', group: 'Move' },
-  { id: 'back', label: 'Move back', group: 'Move' },
+  { id: 'back', label: 'Move back (gliding: pull up)', group: 'Move' },
   { id: 'left', label: 'Move left', group: 'Move' },
   { id: 'right', label: 'Move right', group: 'Move' },
   { id: 'jump', label: 'Jump / glide (hold in the air)', group: 'Move' },
-  { id: 'sprint', label: 'Sprint', group: 'Move' },
+  { id: 'sprint', label: 'Sprint (gliding: dive)', group: 'Move' },
   { id: 'dodge', label: 'Dodge roll', group: 'Move' },
   { id: 'grapple', label: 'Grapple', group: 'Move' },
   { id: 'punch', label: 'Punch', group: 'Fight' },

@@ -25,6 +25,7 @@ import { createMenus } from '../ui/menus.js';
 import { createPromptQueue } from '../ui/prompts.js';
 import { createWaypoint, createBeacon } from '../ui/waypoint.js';
 import { createAudio } from '../audio/audio.js';
+import { createVoice } from '../audio/voice.js';
 import { createWorld } from './world.js';
 import { createFollowCamera } from './camera.js';
 import { createFx } from './fx.js';
@@ -69,6 +70,11 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     if (i >= 0) progress = { ...progress, step: i };
   }
 
+  // Recorded Joker lines; the music ducks while he talks.
+  const voice = createVoice({
+    getVolume: () => settings.volume,
+    duck: (on) => audio.setVolumes(on ? { ...settings.volume, music: settings.volume.music * 0.35 } : settings.volume),
+  });
   const menus = createMenus({ root: document.body, settings, storage, input, sound: (n) => audio.play(n), onChange: () => applySettings() });
   const fpsEl = Object.assign(document.createElement('div'), { className: 'fps' });
   document.body.appendChild(fpsEl);
@@ -153,7 +159,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const balloons = createBalloons(scene, progress.balloons);
     const pickups = createPickups(scene, world.halos, SITES);
     const neonParty = createNeonParty(scene, world.halos);
-    const comic = createComic(document.body, { onSound: (n) => audio.play(n) });
+    const comic = createComic(document.body, { onSound: (n) => audio.play(n), onVoice: (id) => voice.say(id), onEnd: () => voice.stop() });
     const prompts = createPromptQueue(hud, () => settings.bindings, () => settings.hints);
     const waypoint = createWaypoint(hudRoot.querySelector('.hud') ?? hudRoot);
     const beacon = createBeacon(scene);
@@ -230,7 +236,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     events.on('swing', ({ kind }) => prompts.done(kind === 'kick' ? 'kick' : 'punch'));
     events.on('step', ({ step }) => { if (step.id === 'toDocks') setTimeout(() => prompts.show(['detective', 'balloons']), 30000); });
 
-    const sound = wireAudio({ audio, events, hero, combat, flow, settings });
+    const sound = wireAudio({ audio, events, hero, combat, flow, settings, voice });
     sound.start();
 
     // ---- grapple targeting ----

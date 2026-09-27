@@ -10,8 +10,8 @@ export const SCENES = {
       panels: [
         { span: 'wide', img: stage.shot({ cam: [34, 74, 70], look: [-30, 30, -70] }), caption: 'Gotham City. Another night of rain.' },
         { img: stage.shot({ cam: [-5, 44.2, -2], look: [-12, 43.6, -12], hero: null }), caption: 'The Batsignal is lit. Somebody wants attention.', captionPos: 'bottom' },
-        { img: jokerTV('grin'), balloons: [J(`Good evening, Gotham! And a very happy birthday to ${MANSI.name.toUpperCase()}!`, 50, 5, { w: 80 })] },
-        { span: 'wide', img: jokerTV('smug'), balloons: [J('I borrowed the cake, the presents and the whole party. Come and get them, if you can! HA HA HA!', 50, 5, { w: 70 })] },
+        { voice: 'intro1', img: jokerTV('grin'), balloons: [J(`Good evening, Gotham! And a very happy birthday to ${MANSI.name.toUpperCase()}!`, 50, 5, { w: 80 })] },
+        { voice: 'intro2', span: 'wide', img: jokerTV('smug'), balloons: [J('I borrowed the cake, the presents and the whole party. Come and get them, if you can! HA HA HA!', 50, 5, { w: 70 })] },
       ],
     },
     {
@@ -35,7 +35,7 @@ export const SCENES = {
       layout: 'duo',
       panels: [
         { img: stage.shot({ cam: [-40.5, 10.9, 236.5], look: [-44, 9.7, 232], hero: { at: [-42.6, 9, 233.6], yaw: -2.4, anim: 'Yes' } }), caption: 'The presents: recovered. Every bow still tied.' },
-        { img: jokerTV('smug'), balloons: [J('Lucky break, birthday bat! But you will never find the PARTY. It is somewhere very... neon.', 50, 5, { w: 78 })] },
+        { voice: 'presents', img: jokerTV('smug'), balloons: [J('Lucky break, birthday bat! But you will never find the PARTY. It is somewhere very... neon.', 50, 5, { w: 78 })] },
       ],
     },
   ],
@@ -46,7 +46,7 @@ export const SCENES = {
       panels: [
         { img: stage.shot({ cam: [182.5, 24.2, -58], look: [186, 22.9, -66], hero: { at: [184.4, 22, -62.5], yaw: 2.9, anim: 'Dance_Loop', time: 1.2 } }), caption: 'The party is back on.' },
         { img: stage.shot({ cam: [150, 2.5, 24], look: [150, 9, 62] }), caption: 'Neon Row lights up again.', captionPos: 'bottom' },
-        { img: jokerTV('angry'), balloons: [J('Fine, keep the disco ball! The CAKE stays with me!', 50, 5, { w: 80 })] },
+        { voice: 'party', img: jokerTV('angry'), balloons: [J('Fine, keep the disco ball! The CAKE stays with me!', 50, 5, { w: 80 })] },
       ],
     },
   ],
@@ -56,7 +56,7 @@ export const SCENES = {
       layout: 'duo',
       panels: [
         { img: stage.shot({ cam: [180.8, 11.6, -107.6], look: [184, 10.8, -112], hero: { at: [182, 10, -109.8], yaw: 2.4, anim: 'Yes' } }), caption: 'The cake survived. Barely.' },
-        { img: jokerTV('angry'), balloons: [J('ENOUGH! The clock tower. Midnight. Let us finish this with a BANG!', 50, 5, { w: 78 })] },
+        { voice: 'cake', img: jokerTV('angry'), balloons: [J('ENOUGH! The clock tower. Midnight. Let us finish this with a BANG!', 50, 5, { w: 78 })] },
       ],
     },
   ],
@@ -66,7 +66,7 @@ export const SCENES = {
       layout: 'duo',
       panels: [
         { img: stage.shot({ cam: [-66.5, 67.2, -147.5], look: [-62, 68.9, -163.5], hero: { at: [-63.5, 58, -148], yaw: Math.PI, anim: 'Idle_Loop' }, setup: (s) => s.boss.pose([-62, 68, -161.7], 0, 'Idle_Rail_Call', 0.8) }), caption: 'The clock tower. One minute to midnight.' },
-        { img: stage.shot({ cam: [-60.2, 69.4, -160], look: [-62, 69.2, -163.5], hero: null, setup: (s) => s.boss.pose([-62, 68, -161.7], 0.3, 'Idle_Rail_Call', 1.4) }), balloons: [J('Welcome to my party, birthday bat! Games first. Cake never. HA HA HA!', 50, 5, { w: 80 })] },
+        { img: stage.shot({ cam: [-60.2, 69.4, -160], look: [-62, 69.2, -163.5], hero: null, setup: (s) => s.boss.pose([-62, 68, -161.7], 0.3, 'Idle_Rail_Call', 1.4) }), voice: 'bossIntro', balloons: [J('Welcome to my party, birthday bat! Games first. Cake never. HA HA HA!', 50, 5, { w: 80 })] },
       ],
     },
   ],
@@ -76,7 +76,7 @@ export const SCENES = {
       layout: 'duo',
       panels: [
         { img: stage.shot({ cam: [-58, 59.8, -146], look: [-62, 58.4, -152], hero: { at: [-61, 58, -149.5], yaw: Math.PI, anim: 'Idle_Loop' }, setup: (s) => s.boss.pose([-62, 58, -153.5], 0, 'Death01', 3) }), caption: 'The Joker is done laughing. For tonight.' },
-        { img: jokerTV('smug'), balloons: [J(`Okay, okay, you win! The cake is safe, the party is back, and... happy birthday, ${MANSI.name}. I mean it. Mostly.`, 50, 5, { w: 84 })] },
+        { voice: 'bossEnd', img: jokerTV('smug'), balloons: [J(`Okay, okay, you win! The cake is safe, the party is back, and... happy birthday, ${MANSI.name}. I mean it. Mostly.`, 50, 5, { w: 84 })] },
       ],
     },
   ],

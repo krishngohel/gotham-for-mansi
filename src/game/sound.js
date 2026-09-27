@@ -1,5 +1,5 @@
 // Maps game events to the synthesized audio: effects, stingers and which music plays when.
-export function wireAudio({ audio, events, hero, combat, flow }) {
+export function wireAudio({ audio, events, hero, combat, flow, voice = null }) {
   const on = (ev, fn) => events.on(ev, fn);
   const vary = (p = 0.12) => 1 - p / 2 + Math.random() * p;
   let fighting = false;
@@ -41,7 +41,8 @@ export function wireAudio({ audio, events, hero, combat, flow }) {
   on('signal', () => audio.play('signal'));
   on('thunder', () => audio.play('thunder', { gain: 0.8 }));
   on('bossPhase', () => audio.stinger('bossPhase'));
-  on('laugh', () => audio.play('laugh'));
+  on('laugh', () => { if (!voice || voice.speaking || !voice.say('laugh', { interrupt: false })) audio.play('laugh'); });
+  on('jokerVoice', ({ id }) => voice?.say(id));
   on('gas', () => audio.play('gas'));
   on('buzzer', () => audio.play('buzzer'));
   on('firework', () => audio.play('firework', { pitch: vary(0.3) }));

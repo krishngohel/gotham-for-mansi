@@ -8,7 +8,7 @@ export function promptText(id, bindings) {
     move: `Move with <kbd>${move}</kbd>. Click the screen to aim the camera with your mouse.`,
     look: `Follow the yellow beacon and the marker to your next objective. ${k('help')} shows every control.`,
     glide: `Run off the edge and hold ${k('jump')} in the air to glide.`,
-    dive: `While gliding, look down to dive and pick up speed. Level out to stretch the glide.`,
+    dive: `Gliding: hold ${k('sprint')} to dive and build speed, then hold ${k('back')} to swoop back up. Speed buys height.`,
     grapple: `Look at a ledge until the blue marker appears, then press ${k('grapple')} to grapple up.`,
     grappleBoost: `Tap ${k('jump')} during a grapple to launch over the ledge and keep gliding.`,
     punch: `Click ${k('punch')} to punch. You leap to whichever goon you steer toward.`,
