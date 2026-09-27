@@ -1,7 +1,7 @@
 # Gotham Needs You, Mansi: Design Spec
 
 Date: 2026-09-27
-Status: Draft, awaiting user review
+Status: Approved. Look test signed off 2026-09-27 ("love the vibe"); revision 2 below adds the user's feedback
 
 ## Purpose
 
@@ -39,7 +39,7 @@ Arkham-inspired, thin and sleek, drawn in ink style.
 - Detective vision: world desaturates to blue ink wash with scan lines; enemies and balloons glow through walls.
 - Balloon count and current objective: small caption box, top right.
 - Title screen: live 3D rainy rooftop with the Batsignal, logo, Start / Settings / Credits.
-- Settings: quality preset (High / Low), mouse sensitivity, invert Y, volume.
+- Settings (Esc): tabs for Controls (rebinding), Camera (sensitivity, invert Y, field of view, camera shake), Video (quality High / Low, render scale, halftone strength, show FPS), Audio (master, music, effects), Gameplay (difficulty, tutorial prompts).
 
 ## Characters and animation
 
@@ -57,28 +57,33 @@ Assets are built by `scripts/build-assets.mjs` into `public/assets/` (stripped a
 
 ## Controls
 
-Mouse and keyboard, plus gamepad via the Gamepad API (Xbox layout). Desktop only; phones show a "play on a computer" screen.
+Mouse and keyboard, plus gamepad via the Gamepad API (Xbox layout). Desktop only; phones show a "play on a computer" screen. Every keyboard and mouse binding can be rebound in Settings > Controls (click an action, press a key or mouse button; Esc cancels; "Reset to defaults"). Bindings are saved.
 
-| Action | Keyboard / mouse | Gamepad |
+| Action | Default key | Gamepad |
 |---|---|---|
-| Move | WASD | Left stick |
+| Move | W A S D | Left stick |
 | Camera | Mouse | Right stick |
 | Jump / glide (hold in air) | Space | A |
-| Strike | Left click | X |
-| Counter | Right click | Y |
-| Cape stun | Q | B |
-| Dodge roll | Shift (while moving) | A x2 |
-| Batarang | E | RB |
-| Grapple | F (when prompt shows) | LB |
-| Detective vision | V | LT |
-| Special takedown (combo 8+) | Left + right click together | X + Y |
+| Sprint | Shift | L3 |
+| Punch | Left mouse | X |
+| Kick (in the air: jump-kick) | E | B |
+| Block (hold) / counter (tap on the blue glyph) | Right mouse | Y |
+| Cape stun | Q | RB |
+| Batarang | R | RT |
+| Grapple | F (when the prompt shows) | LB |
+| Dodge roll | C | LT |
+| Special takedown (combo 8+) | X | R3 |
+| Detective vision | V | View |
+| Controls help | H | D-pad down |
+| Pause and settings | Esc or P | Menu |
 
 ## Traversal
 
 - Run, jump, and glide (hold jump in the air). Glide trades height for speed; diving (look down while gliding) builds speed, pulling up converts it back into lift.
 - Grapple: ledges within range and view show a grapple prompt; the hero zips up and vaults onto the ledge.
 - Dive-bomb: attack while gliding over an enemy slams into them and starts combat with a combo of 1.
-- Falling off the map respawns at the last rooftop checkpoint with no damage.
+- Streets are walkable. There is no fall damage: long falls end in a landing roll. Falling into the harbor respawns at the last checkpoint.
+- Grapple boost: pressing jump during a grapple zip launches the hero up over the ledge and straight into a glide.
 
 ## Freeflow combat
 
@@ -88,14 +93,20 @@ The core of the game. Rules:
 - **Combo:** each landed hit adds 1. Taking damage, missing (striking with no target), or 1.5 s without a hit resets it to 0.
 - **Counter:** an enemy winds up for 0.6 s before an attack, showing the blue glyph. Pressing counter during the wind-up does a counter animation, knocks the enemy down, and adds 1 to the combo. Pressing counter with nothing incoming does nothing and does not reset the combo.
 - **Enemy attack pacing:** at most 2 enemies can be in wind-up at once; the rest circle at 4 to 6 m and taunt. This keeps fights readable.
-- **Cape stun:** stuns enemies in a short cone for 1.5 s. Required for knife goons and brutes.
+- **Punch and kick:** punches deal 1 damage and chain jab, cross, hook. Kicks deal 2, lunge farther (up to 9 m), and knock a knife goon's guard aside. Grunts have 4 health, knife goons 4, brutes 10.
+- **Jump-kick:** kicking while airborne (jump or glide) at an enemy up to 10 m away does a flying kick that knocks them down.
+- **Block:** holding block raises a guard. It cuts grunt damage by 80% and knife damage by 50%; it does not stop a brute's charge. You move at walking pace while guarding.
+- **Counter:** tapping block while an enemy's blue glyph is up counters instead (see below). Two enemies winding up at once get a double counter.
+- **Cape stun:** stuns enemies in a short cone for 1.5 s. Required for brutes.
 - **Brute beatdown:** after a cape stun, repeated strikes on a brute do a rapid flurry; 6 flurry hits knocks it down.
 - **Dodge roll:** short invulnerable roll; hopping over an enemy if rolling toward one.
 - **Batarang:** quick throw at the targeted enemy, stuns 1 s, adds 1 to combo.
 - **Special takedown:** at combo 8 or more, instantly takes down one enemy (not the Joker) with a slow-motion camera, and spends the combo back to 0.
-- **Knockdowns:** grunts take 3 hits to knock down (fewer if countered or dive-bombed); knocked-down enemies get back up after 3 s unless hit on the ground (ground takedown, 1 hit).
+- **Knockdowns and KOs:** counters, dive-bombs and jump-kicks knock enemies down for 2.5 s; a punch on a downed enemy is a ground takedown (instant KO). An enemy whose health reaches 0 is KO'd and stays down.
+- **Knife goons** parry punches with their knife until stunned by a kick, cape or batarang. **Brutes** cannot be countered (their glyph is red: dodge instead) and can only be hurt while stunned.
 - **Feel:** 60 ms hit-stop on every hit, 120 ms on counters and knockdowns, small camera shake, ink-splat particle, SFX word on heavy hits, and a short slow-motion on the last enemy of each fight with a close camera.
-- **Health:** hero has 100; grunt hits do 10, knife 15, brute 20. Health refills after each fight. Death restarts the current fight.
+- **Health:** hero has 100; grunt hits do 10, knife 15, brute 20, brute charge 25. Health refills after each fight. Death shows a comic panel and restarts the current fight.
+- **Difficulty** (Settings > Gameplay): Story (enemy damage x0.5, wind-ups 0.9 s), Normal (x1, 0.6 s), Hard (x1.5, 0.45 s). Defaults to Normal.
 
 ## Levels
 
@@ -110,6 +121,31 @@ Gotham is one connected rooftop map with three districts and the clock tower. Di
    3. One-on-one melee. The Joker attacks with fast 3-hit combos that each need a counter. After 3 successful counter chains he is staggered; a special takedown prompt ends the fight with a scripted comic-panel beat.
 
 Estimated playtime: 20 to 30 minutes.
+
+## Knowing where to go
+
+- **Objective caption** (top right) always says what to do next in plain words.
+- **Waypoint:** a diamond marker with the distance in meters over the current objective; when it is off screen it sticks to the screen edge as an arrow.
+- **Beacon:** a tall yellow ink column of light rises from the objective so it can be spotted across the city.
+- **Tutorial prompts:** comic captions at the bottom of the screen introduce each move the first time it is needed, showing the player's actual bound key ("Hold [Space] in the air to glide"). Can be turned off in Settings > Gameplay.
+- **Controls help** (H): a full list of moves and current bindings over the paused game.
+- **Detective vision** also highlights the objective, grapple points and birthday balloons.
+
+## The city
+
+One connected, fully walkable map about 450 m across, framed by the harbor and the distant skyline.
+
+- **GCPD rooftop** (start, center): the Batsignal itself stands here.
+- **The Docks** (south): warehouses with sawtooth roofs, gantry cranes, stacked shipping containers, a moored freighter, a lighthouse sweeping the harbor, water with ink reflections of the lights.
+- **Neon Row** (east): narrow streets under neon signs and billboards, a theater marquee, a diner, fire escapes, magenta and cyan light.
+- **Ace Chemicals** (north-west): vats glowing green, pipes, catwalks, smokestacks, the giant ACE sign.
+- **Clock tower** (north): a gothic tower with a glowing clock face, gargoyles and a cathedral beside it; the boss arena is its upper platform.
+- **Everywhere:** varied facades (brick, stone, art deco setbacks, gothic spires), cornices, water towers, antennas with blinking lights, wires strung between roofs, steam from vents and manholes, streetlamps with light pools, parked and moving cars with headlights, a police blimp with a searchlight, searchlights sweeping the clouds, lightning.
+- Real dynamic lights are limited to the few nearest the player; everything else glows with emissive color and ink halo sprites so it stays fast.
+
+## Browser support
+
+Runs from the production build in the latest Chrome, Edge and Firefox on Windows and macOS. Requires WebGL2; without it the loading cover shows a clear message. Tested on the production build (`vite build` + `vite preview`), not only the dev server.
 
 ## Collectibles: birthday balloons
 
@@ -184,4 +220,4 @@ All synthesized in the browser with Web Audio, no downloaded or AI-generated aud
 
 ## Out of scope
 
-Mobile and touch controls, online features, voice acting, open-world side content beyond balloons, save slots (one progress save only), difficulty settings.
+Mobile and touch controls, online features, voice acting, open-world side content beyond balloons, save slots (one progress save only), gamepad rebinding.
