@@ -24,6 +24,7 @@ export function classifyGoonVertex(p, lm) {
 
 export const SUIT_COLORS = {
   m: { suit: PALETTE.suitGrey, cowl: PALETTE.cowl, skin: PALETTE.skin, belt: PALETTE.belt, glove: PALETTE.cowl, boot: PALETTE.cowl, emblem: PALETTE.ink, cape: PALETTE.cowl },
+  gold: { suit: PALETTE.belt, cowl: 0x3a2a0a, skin: PALETTE.skin, belt: PALETTE.signal, glove: 0x3a2a0a, boot: 0x3a2a0a, emblem: PALETTE.ink, cape: 0x3a2a0a },
   f: { suit: PALETTE.suitDark, cowl: PALETTE.cowl, skin: PALETTE.skin, belt: PALETTE.belt, glove: PALETTE.belt, boot: PALETTE.cowl, emblem: PALETTE.signal, cape: PALETTE.cowl },
 };
 

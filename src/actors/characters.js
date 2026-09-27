@@ -61,7 +61,7 @@ function rigidMesh(geometry, material, pos, rotation = new THREE.Euler()) {
 }
 
 export function createBat(assets, suit = 'm') {
-  const ch = makeCharacter(assets, suit);
+  const ch = makeCharacter(assets, suit === 'f' ? 'f' : 'm');
   const { body, eyes, brows, lm } = ch;
   const colors = SUIT_COLORS[suit];
   paintRegions(body, classifySuitVertex, colors, lm);

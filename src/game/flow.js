@@ -64,11 +64,21 @@ export function createFlow(d) {
     if (s.tutorial) prompts.show(s.tutorial);
     events.emit('step', { step: s, index: objectives.index });
     if (s.type === 'fight') encounters.begin(s.fight);
-    if (s.type === 'cutscene') {
+    if (s.type === 'cutscene' && s.scene === 'finale') {
+      mode = 'finale';
+      document.exitPointerLock?.();
+      hud.setVisible(false);
+      d.finale.play().then(() => { hud.setVisible(true); mode = 'play'; advance({ type: 'cutsceneDone', scene: 'finale' }); });
+    } else if (s.type === 'cutscene') {
       playScene(s.scene).then(() => advance({ type: 'cutsceneDone', scene: s.scene }));
     }
     if (s.type === 'boss') playScene('bossIntro').then(() => d.boss?.begin());
-    if (s.type === 'credits') { mode = 'credits'; d.onCredits?.(); }
+    if (s.type === 'credits') {
+      progress.finished = true;
+      save();
+      mode = 'credits';
+      d.onCredits?.();
+    }
   }
 
   function advance(ev) {
@@ -118,6 +128,10 @@ export function createFlow(d) {
     const n = progress.balloons.length;
     const text = MANSI.balloonMessages[Math.min(n, BALLOON_COUNT) - 1];
     hud.setBalloons(n, BALLOON_COUNT);
+    if (objectives.done || STEPS[objectives.index]?.type === 'credits') {
+      const left = BALLOON_COUNT - n;
+      hud.setObjective(left > 0 ? `Explore Gotham. ${left} birthday balloon${left === 1 ? '' : 's'} still hidden.` : 'All twelve found! The gold suit is waiting on the title screen.');
+    }
     hud.card(`Balloon ${n} of ${BALLOON_COUNT}`, text);
     if (n >= BALLOON_COUNT) progress.goldUnlocked = true;
     save();
@@ -129,6 +143,13 @@ export function createFlow(d) {
     get objectives() { return objectives; },
     get target() { return target; },
     start() {
+      if (objectives.done || STEPS[objectives.index]?.type === 'credits') {
+        hud.setBalloons(progress.balloons.length, BALLOON_COUNT);
+        pickups.restore(['presents', 'party', 'cake']);
+        hero.teleport(SITES.start, hero.bat.yaw);
+        this.freeRoam();
+        return;
+      }
       if (objectives.index > 0) hero.teleport(respawnPoint(), hero.bat.yaw);
       pickups.restore(STEPS.slice(0, objectives.index).filter((s) => s.type === 'collect').map((s) => s.item));
       hud.setBalloons(progress.balloons.length, BALLOON_COUNT);
@@ -155,6 +176,16 @@ export function createFlow(d) {
       if (b >= 0) collectBalloon(b);
       pickups.update(t);
       prompts.update(dt);
+    },
+    // After the credits: roam the city, finish the balloon hunt, watch the fireworks.
+    freeRoam() {
+      mode = 'play';
+      target = null;
+      beacon.set(null);
+      const left = BALLOON_COUNT - progress.balloons.length;
+      hud.setObjective(left > 0 ? `Explore Gotham. ${left} birthday balloon${left === 1 ? '' : 's'} still hidden.` : 'Gotham is safe. Enjoy the fireworks!');
+      if (left > 0) prompts.show(['detective']);
+      d.finale.freeRoam();
     },
     jumpTo(index) { objectives.jump(index); encounters.end(); enterStep(); hero.teleport(respawnPoint(), hero.bat.yaw); },
     respawn,

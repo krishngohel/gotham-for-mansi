@@ -14,7 +14,7 @@ const RADIUS = 0.35;
 const HEIGHT = 1.8;
 
 export function createHero({ assets, suit, scene, collision, events }) {
-  const bat = createBat(assets, suit === 'f' ? 'f' : 'm');
+  const bat = createBat(assets, ['m', 'f', 'gold'].includes(suit) ? suit : 'm');
   scene.add(bat.root);
   const cape = createCape(bat, bat.colors.cape);
   scene.add(cape.mesh);

@@ -17,6 +17,7 @@ export function createInput({ target = window, bindings }) {
   let codeToActions = new Map();
   let capture = null;
   let device = 'kbm';
+  let enabled = true;
   const move = { x: 0, y: 0 };
   const look = { dx: 0, dy: 0 };
   const stick = { mx: 0, my: 0, lx: 0, ly: 0 };
@@ -34,6 +35,7 @@ export function createInput({ target = window, bindings }) {
 
   function codeDown(code, e) {
     device = 'kbm';
+    if (!enabled && !capture) return;
     if (capture) {
       e?.preventDefault();
       const cb = capture;
@@ -106,6 +108,8 @@ export function createInput({ target = window, bindings }) {
     captureNext(cb) { capture = cb; },
     cancelCapture() { capture = null; },
     get capturing() { return capture !== null; },
+    // While a menu is open, the game ignores keys so buttons get Space and Enter.
+    setEnabled(v) { enabled = v; if (!v) onBlur(); },
     // Call once per frame before reading actions.
     update(dt) {
       pollPad();
