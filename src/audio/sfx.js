@@ -81,23 +81,26 @@ export const SFX = {
   } },
 
   heavy: { wet: 0.2, max: 2, fn(ctx, out, t, p) {
-    const crunch = drive(ctx, out, 5);
+    const post = ctx.createGain();
+    post.gain.value = 0.5;
+    post.connect(out);
+    const crunch = drive(ctx, post, 5);
     const pre = ctx.createGain();
     pre.gain.value = 0.9;
     pre.connect(crunch);
     thump(ctx, pre, t, p, { from: 140, to: 32, d: 0.55, gain: 0.55 });
     noise(ctx, pre, t, { type: 'lowpass', freq: 700 * p, to: 150, d: 0.45, gain: 0.45 });
     noise(ctx, out, t, { type: 'bandpass', freq: 1800 * p, Q: 0.8, d: 0.09, gain: 0.45 });
-    tone(ctx, out, t, { freq: 48 * p, to: 28, d: 0.7, gain: 0.35 });
+    tone(ctx, out, t, { freq: 48 * p, to: 28, d: 0.7, gain: 0.3 });
     return t + 0.72;
   } },
 
   counter: { wet: 0.15, max: 2, fn(ctx, out, t, p) {
     swish(ctx, out, t, p, { from: 400, peak: 3200, to: 900, dur: 0.16, gain: 0.45, Q: 2 });
     const h = t + 0.14;
-    noise(ctx, out, h, { type: 'highpass', freq: 2500 * p, d: 0.035, gain: 0.8 });
-    tone(ctx, out, h, { type: 'square', freq: 900 * p, to: 300 * p, d: 0.03, gain: 0.2 });
-    thump(ctx, out, h, p, { from: 200, to: 70, d: 0.12, gain: 0.6 });
+    noise(ctx, out, h, { type: 'highpass', freq: 2500 * p, d: 0.035, gain: 0.55 });
+    tone(ctx, out, h, { type: 'square', freq: 900 * p, to: 300 * p, d: 0.03, gain: 0.15 });
+    thump(ctx, out, h, p, { from: 200, to: 70, d: 0.12, gain: 0.45 });
     return h + 0.14;
   } },
 
@@ -120,7 +123,7 @@ export const SFX = {
 
   batarangThrow: { wet: 0.12, max: 2, fn(ctx, out, t, p) {
     const dur = 0.6;
-    const g = env(ctx, out, t, { a: 0.03, d: dur - 0.03, peak: 0.5 });
+    const g = env(ctx, out, t, { a: 0.03, d: dur - 0.03, peak: 0.9 });
     const am = ctx.createGain();
     am.gain.value = 0.55;
     am.connect(g);
@@ -260,8 +263,8 @@ export const SFX = {
 
   gas: { wet: 0.1, max: 2, fn(ctx, out, t, p) {
     const dur = 1.2;
-    noise(ctx, out, t, { type: 'highpass', freq: 3500 * p, Q: 0.6, a: 0.1, hold: 0.6, d: 0.5, gain: 0.4 });
-    noise(ctx, out, t, { type: 'bandpass', freq: 6000 * p, to: 4000 * p, Q: 2, a: 0.15, hold: 0.5, d: 0.5, gain: 0.3 });
+    noise(ctx, out, t, { type: 'highpass', freq: 3500 * p, Q: 0.6, a: 0.1, hold: 0.6, d: 0.5, gain: 0.26 });
+    noise(ctx, out, t, { type: 'bandpass', freq: 6000 * p, to: 4000 * p, Q: 2, a: 0.15, hold: 0.5, d: 0.5, gain: 0.2 });
     return t + dur + 0.02;
   } },
 
@@ -270,7 +273,7 @@ export const SFX = {
   } },
 
   pop: { wet: 0.1, max: 3, fn(ctx, out, t, p) {
-    noise(ctx, out, t, { type: 'highpass', freq: 1500 * p, d: 0.045, gain: 0.8 });
+    noise(ctx, out, t, { type: 'highpass', freq: 1500 * p, d: 0.045, gain: 0.6 });
     tone(ctx, out, t, { type: 'triangle', freq: 1400 * p, to: 500 * p, d: 0.04, gain: 0.35 });
     thump(ctx, out, t, p, { from: 300, to: 120, d: 0.05, gain: 0.35 });
     return t + 0.07;
@@ -278,7 +281,7 @@ export const SFX = {
 
   balloon: { wet: 0.35, max: 2, fn(ctx, out, t, p) {
     const semi = 12 * Math.log2(p);
-    [84, 88, 91, 93, 96, 100].forEach((m, i) => bell(ctx, out, t + i * 0.055, m + semi, { gain: 0.12, d: 0.7, ratio: 2.01, index: 1.2 }));
+    [84, 88, 91, 93, 96, 100].forEach((m, i) => bell(ctx, out, t + i * 0.055, m + semi, { gain: 0.2, d: 0.7, ratio: 2.01, index: 1.2 }));
     crackle(ctx, out, t + 0.1, { dur: 0.7, count: 18, freq: 7000, gain: 0.18 });
     return t + 1.05;
   } },
@@ -412,16 +415,16 @@ export const SFX = {
     o.start(t);
     o.stop(t + s + 0.01);
     const h = t + s;
-    tone(ctx, out, h, { freq: 110 * p, to: 24, glide: 1.0, d: 1.15, gain: 0.8 });
-    noise(ctx, out, h, { type: 'lowpass', freq: 900 * p, to: 80, d: 0.9, gain: 0.6 });
-    noise(ctx, out, h, { type: 'bandpass', freq: 1600 * p, Q: 0.8, d: 0.08, gain: 0.5 });
+    tone(ctx, out, h, { freq: 110 * p, to: 24, glide: 1.0, d: 1.15, gain: 0.7 });
+    noise(ctx, out, h, { type: 'lowpass', freq: 900 * p, to: 80, d: 0.9, gain: 0.45 });
+    noise(ctx, out, h, { type: 'bandpass', freq: 1600 * p, Q: 0.8, d: 0.08, gain: 0.35 });
     return h + 1.2;
   } },
 
   signal: { wet: 0.35, max: 1, fn(ctx, out, t, p) {
-    thump(ctx, out, t, p, { from: 120, to: 55, d: 0.25, gain: 0.7 });
+    thump(ctx, out, t, p, { from: 120, to: 55, d: 0.25, gain: 0.5 });
     metal(ctx, out, t, { base: 310 * p, ratios: [1, 1.52, 2.64, 3.7], d: 0.5, gain: 0.22 });
-    noise(ctx, out, t, { type: 'bandpass', freq: 1500 * p, Q: 1, d: 0.05, gain: 0.5 });
+    noise(ctx, out, t, { type: 'bandpass', freq: 1500 * p, Q: 1, d: 0.05, gain: 0.35 });
     crackle(ctx, out, t + 0.05, { dur: 0.35, count: 20, freq: 4000, gain: 0.25 });
     // mains hum and a rising glow
     const h = t + 0.1, dur = 1.6;
@@ -448,18 +451,19 @@ export const SFX = {
   pickup: { wet: 0.25, max: 2, fn(ctx, out, t, p) {
     const semi = 12 * Math.log2(p);
     [72, 76, 79].forEach((m, i) => {
-      tone(ctx, out, t + i * 0.07, { type: 'square', freq: mtof(m + semi), d: 0.1, gain: 0.08 });
-      bell(ctx, out, t + i * 0.07, m + 12 + semi, { gain: 0.08, d: 0.3, ratio: 2, index: 1 });
+      tone(ctx, out, t + i * 0.07, { type: 'square', freq: mtof(m + semi), d: 0.1, gain: 0.12 });
+      bell(ctx, out, t + i * 0.07, m + 12 + semi, { gain: 0.12, d: 0.3, ratio: 2, index: 1 });
     });
     const f = t + 0.21;
-    brass(ctx, out, f, 84 + semi - 12, 0.25, { gain: 0.1, a: 0.02, r: 0.3, bright: 1 });
-    brass(ctx, out, f, 79 + semi - 12, 0.25, { gain: 0.07, a: 0.02, r: 0.3, bright: 1 });
-    bell(ctx, out, f, 96 + semi, { gain: 0.1, d: 0.6, ratio: 3.01, index: 1.5 });
+    brass(ctx, out, f, 84 + semi - 12, 0.25, { gain: 0.15, a: 0.02, r: 0.3, bright: 1 });
+    brass(ctx, out, f, 79 + semi - 12, 0.25, { gain: 0.1, a: 0.02, r: 0.3, bright: 1 });
+    bell(ctx, out, f, 96 + semi, { gain: 0.15, d: 0.6, ratio: 3.01, index: 1.5 });
     return f + 0.6;
   } },
 };
 
 export const SFX_NAMES = Object.keys(SFX);
+const TRIM = 0.8; // headroom: noise-based hits vary a little in peak from play to play
 
 // Builds one SFX voice (gain + optional pan + reverb send) into a mixer and schedules it.
 export function triggerSfx(mix, name, t, { gain = 1, pitch = 1, pan = 0 } = {}) {
@@ -467,7 +471,7 @@ export function triggerSfx(mix, name, t, { gain = 1, pitch = 1, pan = 0 } = {}) 
   if (!def) return null;
   const { ctx } = mix;
   const v = ctx.createGain();
-  v.gain.value = Math.max(0, Number(gain) || 0);
+  v.gain.value = TRIM * Math.max(0, Number(gain) || 0);
   const pn = Math.max(-1, Math.min(1, Number(pan) || 0));
   if (pn && ctx.createStereoPanner) {
     const sp = ctx.createStereoPanner();

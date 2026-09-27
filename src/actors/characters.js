@@ -32,13 +32,18 @@ function paintRegions(mesh, classify, colors, lm) {
 
 function makeCharacter(assets, bodyKey) {
   const root = new THREE.Group();
+  // root (position, yaw) -> tilt (pitch/roll around the hips) -> model
+  const tilt = new THREE.Group();
+  tilt.position.y = 1;
+  root.add(tilt);
   const model = SkeletonUtils.clone(assets.bodies[bodyKey]);
-  root.add(model);
+  model.position.y = -1;
+  tilt.add(model);
   const parts = splitMeshes(model);
   const lm = measureBody(parts.body, parts.eyes);
   const animator = createAnimator(model, assets.clips);
   const ch = {
-    root, model, lm, animator, ...parts, yaw: 0,
+    root, tilt, model, lm, animator, ...parts, yaw: 0,
     bone: (name) => model.getObjectByName(name),
     face(yaw) { ch.yaw = yaw; root.rotation.y = yaw + (lm.fwd < 0 ? Math.PI : 0); },
     forward: (out = new THREE.Vector3()) => out.set(Math.sin(ch.yaw), 0, Math.cos(ch.yaw)),

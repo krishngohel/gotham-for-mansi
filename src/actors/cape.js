@@ -26,6 +26,7 @@ export function createCape(ch, color) {
   mesh.castShadow = true;
 
   const b = {
+    hl: ch.bone('hand_l'), hr: ch.bone('hand_r'),
     ul: ch.bone('upperarm_l'), ur: ch.bone('upperarm_r'),
     s2: ch.bone('spine_02'), s3: ch.bone('spine_03'), pelvis: ch.bone('pelvis'),
     tl: ch.bone('thigh_l'), tr: ch.bone('thigh_r'), cl: ch.bone('calf_l'), cr: ch.bone('calf_r'), fl: ch.bone('foot_l'), fr: ch.bone('foot_r'),
@@ -38,6 +39,10 @@ export function createCape(ch, color) {
   // Which way the shoulder line's cross product points relative to the chest, fixed from the bind pose.
   const flip = Math.sign(bindPosition(ch.body, 'upperarm_l').x - bindPosition(ch.body, 'upperarm_r').x) * ch.lm.fwd;
   const up = new THREE.Vector3(0, 1, 0), side = new THREE.Vector3();
+  // Gliding: the bottom corners are held by the hands so the cape spreads into wings.
+  const cornerL = (ROWS - 1) * COLS, cornerR = ROWS * COLS - 1;
+  let wings = false;
+  const hand = new THREE.Vector3();
 
   const setSphere = (s, v, r, push = 0) => { s.x = v.x + fwd.x * push; s.y = v.y; s.z = v.z + fwd.z * push; s.r = r; };
   const mid = (a, bb) => a.getWorldPosition(va).add(bb.getWorldPosition(vb)).multiplyScalar(0.5);
@@ -70,6 +75,16 @@ export function createCape(ch, color) {
     setSphere(colliders[4], mid(b.tr, b.cr), 0.1);
     setSphere(colliders[5], mid(b.cl, b.fl), 0.075);
     setSphere(colliders[6], mid(b.cr, b.fr), 0.075);
+    if (wings) {
+      // Column 0 sits on the upperarm_r side of the shoulder line.
+      for (const [i, bone] of [[cornerL, b.hr], [cornerR, b.hl]]) {
+        bone.getWorldPosition(hand);
+        cloth.pinned[i] = 1;
+        cloth.pos[i * 3] = cloth.prev[i * 3] = hand.x;
+        cloth.pos[i * 3 + 1] = cloth.prev[i * 3 + 1] = hand.y;
+        cloth.pos[i * 3 + 2] = cloth.prev[i * 3 + 2] = hand.z;
+      }
+    }
     if (dt <= 0) return;
     const steps = Math.min(4, Math.ceil(dt / (1 / 120)));
     for (let s = 0; s < steps; s++) stepCloth(cloth, dt / steps, { wind, damping: 0.04, iterations: 8, colliders, pins });
@@ -77,5 +92,14 @@ export function createCape(ch, color) {
     geo.computeVertexNormals();
   }
 
-  return { mesh, update };
+  return {
+    mesh,
+    update,
+    setWings(on) {
+      if (on === wings) return;
+      wings = on;
+      if (!on) { cloth.pinned[cornerL] = 0; cloth.pinned[cornerR] = 0; }
+    },
+    reset() { placed = false; },
+  };
 }

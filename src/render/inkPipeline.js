@@ -13,7 +13,7 @@ uniform sampler2D tColor;
 uniform sampler2D tDepth;
 uniform sampler2D tNormal;
 uniform vec2 uTexel;
-uniform float uNear, uFar, uTime, uFlash, uDetective, uHalftone;
+uniform float uNear, uFar, uTime, uFlash, uDetective, uHalftone, uHalftoneAmount;
 uniform vec3 uInk, uPaper, uDetectiveTint;
 varying vec2 vUv;
 
@@ -22,21 +22,24 @@ float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
 float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 
 void main() {
+  // Depth edges from the Laplacian of inverse depth: 1/z is linear across any plane in screen
+  // space, so flat floors seen at grazing angles produce no false lines.
   float dc = viewDepth(vUv);
-  float gxD = 0.0, gyD = 0.0;
+  float ic = 1.0 / dc;
+  float lap = 0.0;
   vec3 gxN = vec3(0.0), gyN = vec3(0.0);
   for (int i = -1; i <= 1; i++) {
     for (int j = -1; j <= 1; j++) {
       vec2 uv = vUv + vec2(float(i), float(j)) * uTexel;
       float kx = float(i) * (j == 0 ? 2.0 : 1.0);
       float ky = float(j) * (i == 0 ? 2.0 : 1.0);
-      float d = viewDepth(uv);
+      lap += 1.0 / viewDepth(uv);
       vec3 n = texture2D(tNormal, uv).xyz * 2.0 - 1.0;
-      gxD += d * kx; gyD += d * ky;
       gxN += n * kx; gyN += n * ky;
     }
   }
-  float depthEdge = smoothstep(0.35, 0.8, length(vec2(gxD, gyD)) / max(dc, 0.1));
+  lap -= 9.0 * ic;
+  float depthEdge = smoothstep(0.12, 0.3, abs(lap) / ic);
   float normalEdge = smoothstep(0.6, 1.2, length(gxN) + length(gyN));
   float edge = max(depthEdge, normalEdge) * (1.0 - smoothstep(70.0, 180.0, dc));
 
@@ -46,7 +49,7 @@ void main() {
   // Halftone: dots grow as the tone darkens.
   vec2 frag = gl_FragCoord.xy;
   vec2 cell = mat2(0.7071, -0.7071, 0.7071, 0.7071) * frag / uHalftone;
-  float r = smoothstep(0.30, 0.04, L) * 0.6 * step(dc, 400.0);
+  float r = smoothstep(0.2, 0.03, L) * 0.6 * step(dc, 400.0) * uHalftoneAmount;
   float dotMask = 1.0 - smoothstep(r - 0.06, r + 0.06, length(fract(cell) - 0.5));
   col = mix(col, uInk, dotMask * step(0.001, r) * 0.9);
 
@@ -70,7 +73,7 @@ void main() {
 
 export function createInkPipeline(renderer, quality) {
   const colorRT = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });
-  colorRT.depthTexture = new THREE.DepthTexture(1, 1);
+  colorRT.depthTexture = new THREE.DepthTexture(1, 1, THREE.FloatType);
   const normalRT = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });
   const normalMat = new THREE.MeshNormalMaterial({ side: THREE.DoubleSide });
 
@@ -85,6 +88,7 @@ export function createInkPipeline(renderer, quality) {
     uFlash: { value: 0 },
     uDetective: { value: 0 },
     uHalftone: { value: 5 },
+    uHalftoneAmount: { value: 1 },
     uInk: { value: new THREE.Color(PALETTE.ink) },
     uPaper: { value: new THREE.Color(PALETTE.paper) },
     uDetectiveTint: { value: new THREE.Color(PALETTE.detective) },

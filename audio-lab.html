@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Audio Lab</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; padding: 20px; background: #0d0e14; color: #d8d6cc; font: 14px/1.4 system-ui, sans-serif; }
+    h1 { margin: 0 0 4px; font-size: 20px; color: #f2c230; }
+    p { margin: 0 0 16px; color: #8d8b84; }
+    h2 { margin: 18px 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: #8d8b84; }
+    .row { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+    button { background: #1c1e28; color: #e8e6dc; border: 1px solid #333645; border-radius: 4px; padding: 6px 10px; cursor: pointer; font: inherit; }
+    button:hover { border-color: #f2c230; }
+    button:disabled { opacity: .5; }
+    label { display: flex; gap: 8px; align-items: center; min-width: 280px; }
+    label span { width: 130px; }
+    output { width: 36px; color: #8d8b84; }
+    pre { background: #15161e; padding: 10px; border-radius: 4px; overflow-x: auto; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Gotham audio lab</h1>
+  <p>Every sound here is synthesized live with Web Audio. Click anything to start audio.</p>
+  <div id="app"></div>
+  <script type="module" src="/src/audio/lab.js"></script>
+</body>
+</html>

@@ -48,15 +48,19 @@ function flatUV(g) {
   return g;
 }
 
-export function createSkyline(rng) {
+export function createSkyline(rng, { count = 190, minDist = 40, maxDist = 230, backdrop = false } = {}) {
   const geos = [];
-  for (let i = 0; i < 190; i++) {
+  for (let i = 0; i < count; i++) {
     const a = rng.range(0, Math.PI * 2);
-    const dist = rng.range(40, 230);
+    // As a backdrop, buildings to the south stand on the far shore across the bay.
+    const dist = backdrop && Math.sin(a) > 0.25 ? rng.range(720, 950) : rng.range(minDist, maxDist);
     const x = Math.cos(a) * dist, z = Math.sin(a) * dist;
-    const w = rng.range(7, 18), d = rng.range(7, 18);
+    const scale = backdrop ? 2.2 : 1;
+    const w = rng.range(7, 18) * scale, d = rng.range(7, 18) * scale;
     // Mostly at or below the roof so the sky stays open; a few landmark towers.
-    const top = rng.chance(0.08) ? rng.range(35, 75) : rng.range(-26, dist < 80 ? 8 : 22);
+    const top = backdrop
+      ? (rng.chance(0.12) ? rng.range(70, 140) : rng.range(15, 70))
+      : rng.chance(0.08) ? rng.range(35, 75) : rng.range(-26, dist < 80 ? 8 : 22);
     const h = top + 40;
     geos.push(tower(w, h, d).translate(x, top - h / 2, z));
     if (rng.chance(0.3)) {

@@ -30,7 +30,8 @@ void main() {
 `;
 
 const fragmentShader = /* glsl */ `
-uniform vec3 uTop, uHorizon, uGlow, uSignal, uInk, uSignalDir;
+uniform vec3 uTop, uHorizon, uGlow, uSignal, uInk, uSignalDir, uMoonDir, uPaper;
+uniform float uSignalSize, uSignalOn, uSignalAspect;
 uniform sampler2D tBat;
 uniform float uTime;
 varying vec3 vDir;
@@ -59,17 +60,23 @@ void main() {
   vec3 cloudCol = mix(uHorizon * 1.5, uGlow, 1.0 - smoothstep(0.05, 0.45, h));
   col = mix(col, cloudCol, cloud * 0.85);
 
+  // Moon behind the clouds.
+  float md = acos(clamp(dot(d, normalize(uMoonDir)), -1.0, 1.0));
+  col = mix(col, uPaper * 0.9, smoothstep(0.045, 0.04, md) * (1.0 - cloud * 0.7));
+  col += uPaper * 0.12 * smoothstep(0.25, 0.0, md) * (1.0 - cloud * 0.5);
+
   vec3 sd = normalize(uSignalDir);
   float cosA = dot(d, sd);
   vec3 right = normalize(cross(sd, vec3(0.0, 1.0, 0.0)));
   vec3 up = cross(right, sd);
   vec2 q = vec2(dot(d, right), dot(d, up)) / max(cosA, 0.001);
-  vec2 e = q / 0.17 * vec2(1.0, 1.3);
+  vec2 e = q / uSignalSize * vec2(1.0 / uSignalAspect, 1.3);
   float rad = length(e);
   float front = step(0.0, cosA);
   float inside = step(rad, 1.0) * front;
   float bat = texture2D(tBat, e * 0.5 + 0.5).r;
-  float haze = smoothstep(1.6, 0.9, rad) * front;
+  inside *= uSignalOn; 
+  float haze = smoothstep(1.6, 0.9, rad) * front * uSignalOn;
   col = mix(col, uSignal * 0.55, haze * 0.3 * (0.4 + cloud));
   col = mix(col, mix(uSignal, uInk, bat), inside * (0.6 + 0.4 * cloud));
 
@@ -86,6 +93,11 @@ export function createSkyDome() {
     uSignal: { value: new THREE.Color(PALETTE.signal) },
     uInk: { value: new THREE.Color(PALETTE.ink) },
     uSignalDir: { value: SIGNAL_DIR.clone() },
+    uSignalSize: { value: 0.17 },
+    uSignalOn: { value: 1 },
+    uSignalAspect: { value: 1 },
+    uMoonDir: { value: new THREE.Vector3(0.55, 0.42, -0.72).normalize() },
+    uPaper: { value: new THREE.Color(PALETTE.paper) },
     tBat: { value: batTexture() },
     uTime: { value: 0 },
   };
@@ -96,5 +108,24 @@ export function createSkyDome() {
   mesh.layers.set(LAYER_FX);
   mesh.renderOrder = -1;
   mesh.frustumCulled = false;
-  return { mesh, update(t, cameraPos) { uniforms.uTime.value = t; mesh.position.copy(cameraPos); } };
+  let point = null;
+  let radius = 40;
+  return {
+    mesh,
+    uniforms,
+    // Anchor the emblem to a world point in the clouds so it lines up with the beam from anywhere.
+    setSignalPoint(p, r = 40) { point = p.clone(); radius = r; },
+    setSignalTexture(texture, aspect = 1) { uniforms.tBat.value = texture; uniforms.uSignalAspect.value = aspect; },
+    setSignalOn(k) { uniforms.uSignalOn.value = k; },
+    update(t, cameraPos) {
+      uniforms.uTime.value = t;
+      mesh.position.copy(cameraPos);
+      if (point) {
+        const d = uniforms.uSignalDir.value.subVectors(point, cameraPos);
+        const dist = d.length();
+        d.normalize();
+        uniforms.uSignalSize.value = Math.atan(radius / dist);
+      }
+    },
+  };
 }
