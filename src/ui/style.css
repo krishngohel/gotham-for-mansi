@@ -13,3 +13,29 @@ canvas#game { display: block; width: 100vw; height: 100vh; }
 .loading.mobile .mobile-note { display: block; }
 .loading.error .bar i { background: var(--balloon); animation: none; width: 100%; }
 @keyframes load { to { width: 100%; } }
+
+.hud { position: fixed; inset: 0; pointer-events: none; font-family: 'Barlow Condensed', sans-serif; color: var(--paper); z-index: 5; }
+.hud-health { position: absolute; left: 28px; bottom: 24px; width: 120px; height: 120px; filter: drop-shadow(3px 3px 0 var(--ink)); }
+.hud-health .track { fill: none; stroke: rgba(11, 11, 18, 0.85); stroke-width: 12; }
+.hud-health .bar { fill: none; stroke: var(--paper); stroke-width: 7; transition: stroke-dasharray 0.25s; }
+.hud-health .bat { fill: var(--paper); stroke: var(--ink); stroke-width: 2; }
+.hud-combo { position: absolute; left: 34px; top: 22px; transform: skewX(-12deg); font-weight: 800; font-style: italic; line-height: 0.8; text-shadow: 3px 3px 0 var(--ink); transition: opacity 0.4s; }
+.hud-combo .x { font-size: 34px; opacity: 0.8; }
+.hud-combo .n { display: inline-block; font-size: 88px; }
+.hud-combo.hidden { opacity: 0; }
+.hud-combo.pop .n { animation: pop 0.18s ease-out; }
+.hud-combo.ready .n { color: var(--signal); }
+@keyframes pop { from { transform: scale(1.45); } to { transform: scale(1); } }
+.hud-caption { position: absolute; right: 28px; top: 24px; max-width: 320px; padding: 10px 14px; background: var(--signal); color: var(--ink); border: 3px solid var(--ink); box-shadow: 5px 5px 0 var(--ink); font: 22px/1.1 'Patrick Hand SC', cursive; transform: rotate(-1deg); }
+.hud-caption .balloons { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 18px; }
+.glyph { position: absolute; width: 48px; height: 68px; margin: -74px 0 0 -24px; filter: drop-shadow(0 0 8px var(--detective)) drop-shadow(2px 2px 0 var(--ink)); animation: glyph 0.6s linear; }
+.glyph path { fill: var(--detective); stroke: var(--ink); stroke-width: 3; }
+@keyframes glyph { 0% { transform: scale(1.6); opacity: 0; } 15% { transform: scale(1); opacity: 1; } }
+.sfx { position: absolute; font: 64px 'Bangers', cursive; letter-spacing: 2px; color: var(--signal); -webkit-text-stroke: 3px var(--ink); paint-order: stroke fill; text-shadow: 5px 5px 0 var(--ink); white-space: nowrap; animation: sfx 0.7s ease-out forwards; }
+@keyframes sfx {
+  0% { transform: translate(-50%, -50%) rotate(var(--r)) scale(0.3); }
+  18% { transform: translate(-50%, -50%) rotate(var(--r)) scale(1.15); }
+  30% { transform: translate(-50%, -50%) rotate(var(--r)) scale(1); }
+  80% { opacity: 1; }
+  100% { transform: translate(-50%, -62%) rotate(var(--r)) scale(1.05); opacity: 0; }
+}
