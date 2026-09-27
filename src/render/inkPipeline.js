@@ -46,7 +46,7 @@ void main() {
   // Halftone: dots grow as the tone darkens.
   vec2 frag = gl_FragCoord.xy;
   vec2 cell = mat2(0.7071, -0.7071, 0.7071, 0.7071) * frag / uHalftone;
-  float r = smoothstep(0.42, 0.10, L) * 0.62;
+  float r = smoothstep(0.30, 0.04, L) * 0.6 * step(dc, 400.0);
   float dotMask = 1.0 - smoothstep(r - 0.06, r + 0.06, length(fract(cell) - 0.5));
   col = mix(col, uInk, dotMask * step(0.001, r) * 0.9);
 
@@ -105,7 +105,7 @@ export function createInkPipeline(renderer, quality) {
     colorRT.setSize(w, h);
     normalRT.setSize(Math.max(1, Math.floor(w * quality.normalScale)), Math.max(1, Math.floor(h * quality.normalScale)));
     uniforms.uTexel.value.set(1 / w, 1 / h).multiplyScalar(Math.max(1, pr * 0.75));
-    uniforms.uHalftone.value = 5 * pr;
+    uniforms.uHalftone.value = 7 * pr;
   }
 
   function render(scene, camera, time) {
@@ -135,10 +135,12 @@ export function createInkPipeline(renderer, quality) {
 
     if (uniforms.uDetective.value > 0.01) {
       camera.layers.set(LAYER_XRAY);
+      scene.background = null;
       renderer.autoClear = false;
       renderer.clearDepth();
       renderer.render(scene, camera);
       renderer.autoClear = true;
+      scene.background = background;
     }
     camera.layers.set(0);
     camera.layers.enable(LAYER_FX);

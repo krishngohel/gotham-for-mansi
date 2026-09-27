@@ -16,13 +16,45 @@ export function toonGradient() {
 }
 
 export function toonMaterial({
-  color = 0xffffff, map = null, normalMap = null, vertexColors = false,
+  color = 0xffffff, map = null, normalMap = null, normalScale = 1, vertexColors = false,
   emissive = 0x000000, emissiveMap = null, emissiveIntensity = 1, side = THREE.FrontSide,
+  palette = null, stripes = null,
 } = {}) {
-  return new THREE.MeshToonMaterial({
+  const mat = new THREE.MeshToonMaterial({
     color, map, normalMap, vertexColors, emissive, emissiveMap, emissiveIntensity, side,
     gradientMap: toonGradient(),
   });
+  if (normalMap) mat.normalScale.set(normalScale, normalScale);
+  if (palette) posterize(mat, palette, stripes);
+  return mat;
+}
+
+// Snap interpolated vertex colors to the nearest palette entry so region edges are crisp,
+// and optionally stripe one region using the bind-pose height.
+function posterize(mat, palette, stripes) {
+  const pal = [...new Set(palette)].map((h) => new THREE.Color(h));
+  const stripeIdx = stripes ? pal.findIndex((c) => c.equals(new THREE.Color(stripes.color))) : -1;
+  const period = (stripes?.period ?? 1).toFixed(4);
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uPal = { value: pal };
+    shader.uniforms.uStripeAlt = { value: new THREE.Color(stripes?.alt ?? 0) };
+    shader.vertexShader = 'varying float vBindY;\n' + shader.vertexShader
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvBindY = position.y;');
+    shader.fragmentShader = `#define PAL_N ${pal.length}\n#define STRIPE_IDX ${stripeIdx}\n`
+      + 'uniform vec3 uPal[PAL_N];\nuniform vec3 uStripeAlt;\nvarying float vBindY;\n'
+      + shader.fragmentShader.replace('#include <color_fragment>', `
+	vec3 best = uPal[0];
+	float bestD = 1e9;
+	int bestI = 0;
+	for (int i = 0; i < PAL_N; i++) {
+		vec3 d = vColor.rgb - uPal[i];
+		float dd = dot(d, d);
+		if (dd < bestD) { bestD = dd; best = uPal[i]; bestI = i; }
+	}
+	if (bestI == STRIPE_IDX && fract(vBindY / ${period}) > 0.5) best = uStripeAlt;
+	diffuseColor.rgb *= best;`);
+  };
+  mat.customProgramCacheKey = () => `pal-${pal.length}-${stripeIdx}-${period}`;
 }
 
 // Inverted-hull ink line. Lives on LAYER_FX so it never reaches the normal pass.
