@@ -138,8 +138,8 @@ One connected, fully walkable map about 450 m across, framed by the harbor and t
 - **GCPD rooftop** (start, center): the Batsignal itself stands here.
 - **The Docks** (south): warehouses with sawtooth roofs, gantry cranes, stacked shipping containers, a moored freighter, a lighthouse sweeping the harbor, water with ink reflections of the lights.
 - **Neon Row** (east): narrow streets under neon signs and billboards, a theater marquee, a diner, fire escapes, magenta and cyan light.
-- **Ace Chemicals** (north-west): vats glowing green, pipes, catwalks, smokestacks, the giant ACE sign.
-- **Clock tower** (north): a gothic tower with a glowing clock face, gargoyles and a cathedral beside it; the boss arena is its upper platform.
+- **Ace Chemicals** (north-east): vats glowing green, pipes, catwalks, smokestacks, the giant ACE sign.
+- **Clock tower** (north-west): a gothic tower with a glowing clock face, gargoyles and a cathedral beside it; the boss arena is its upper platform.
 - **Everywhere:** varied facades (brick, stone, art deco setbacks, gothic spires), cornices, water towers, antennas with blinking lights, wires strung between roofs, steam from vents and manholes, streetlamps with light pools, parked and moving cars with headlights, a police blimp with a searchlight, searchlights sweeping the clouds, lightning.
 - Real dynamic lights are limited to the few nearest the player; everything else glows with emissive color and ink halo sprites so it stays fast.
 

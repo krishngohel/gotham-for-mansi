@@ -12,6 +12,8 @@ canvas#game { display: block; width: 100vw; height: 100vh; }
 .loading.mobile .bar { display: none; }
 .loading.mobile .mobile-note { display: block; }
 .loading.error .bar i { background: var(--balloon); animation: none; width: 100%; }
+.loading .error-note { display: none; font: 22px 'Patrick Hand SC', cursive; margin: 18px 0 0; }
+.loading.error .error-note { display: block; }
 @keyframes load { to { width: 100%; } }
 
 .hud { position: fixed; inset: 0; pointer-events: none; font-family: 'Barlow Condensed', sans-serif; color: var(--paper); z-index: 5; }

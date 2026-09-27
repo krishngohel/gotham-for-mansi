@@ -38,6 +38,7 @@ export function createWaypoint(root) {
       }
       // Stay clear of the objective box in the top corner.
       if (off && y > 0.62) y = 0.62;
+      if (off && y < -0.55 && x < -0.6) y = -0.55;
       el.classList.toggle('off', off);
       el.style.left = `${(x * 0.5 + 0.5) * W}px`;
       el.style.top = `${(-y * 0.5 + 0.5) * H}px`;

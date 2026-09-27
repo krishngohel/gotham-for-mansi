@@ -72,9 +72,12 @@ void main() {
 `;
 
 export function createInkPipeline(renderer, quality) {
-  const colorRT = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });
+  // Half-float targets need EXT_color_buffer_float; fall back to 8-bit where it's missing.
+  const floatOK = renderer.extensions.has('EXT_color_buffer_float') || renderer.extensions.has('EXT_color_buffer_half_float');
+  const type = floatOK ? THREE.HalfFloatType : THREE.UnsignedByteType;
+  const colorRT = new THREE.WebGLRenderTarget(1, 1, { type });
   colorRT.depthTexture = new THREE.DepthTexture(1, 1, THREE.FloatType);
-  const normalRT = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });
+  const normalRT = new THREE.WebGLRenderTarget(1, 1, { type });
   const normalMat = new THREE.MeshNormalMaterial({ side: THREE.DoubleSide });
 
   const uniforms = {
