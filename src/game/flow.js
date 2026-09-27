@@ -67,7 +67,7 @@ export function createFlow(d) {
     if (s.type === 'cutscene') {
       playScene(s.scene).then(() => advance({ type: 'cutsceneDone', scene: s.scene }));
     }
-    if (s.type === 'boss') d.boss?.begin();
+    if (s.type === 'boss') playScene('bossIntro').then(() => d.boss?.begin());
     if (s.type === 'credits') { mode = 'credits'; d.onCredits?.(); }
   }
 
@@ -85,7 +85,12 @@ export function createFlow(d) {
     setTimeout(() => encounters.cleanupBodies(), 5000);
     advance({ type: 'fightDone', id });
   });
-  events.on('bossDone', () => advance({ type: 'bossDone' }));
+  events.on('bossDefeated', async () => {
+    hero.health = hero.maxHealth;
+    await playScene('bossEnd');
+    d.boss?.hide();
+    advance({ type: 'bossDone' });
+  });
   events.on('heroDown', () => {
     if (mode !== 'play') return;
     mode = 'dead';
@@ -142,7 +147,8 @@ export function createFlow(d) {
           else advance({ type: 'reached', step: s.id });
         }
       }
-      const showMarker = target && !(s?.type === 'fight' && fightStarted) && s?.type !== 'cutscene';
+      const near = target && Math.hypot(hero.pos.x - target.x, hero.pos.z - target.z) < 7 && Math.abs(hero.pos.y - target.y) < 5;
+      const showMarker = target && !near && !(s?.type === 'fight' && fightStarted) && s?.type !== 'cutscene' && s?.type !== 'boss';
       waypoint.update(showMarker ? target : null, camera, hero.pos);
       beacon.update(t, hero.pos);
       const b = balloons.update(t, hero.pos);

@@ -24,6 +24,8 @@ export function createHud(root) {
     <div class="hud-layer"></div>
     <div class="hud-hint"></div>
     <div class="hud-card"><div class="card-title"></div><div class="card-text"></div></div>
+    <div class="hud-boss"><div class="boss-name">THE JOKER</div><div class="boss-track"><div class="boss-fill"></div></div></div>
+    <div class="hud-speech"></div>
     <div class="hud-flash"></div>`;
   root.appendChild(el);
   const combo = el.querySelector('.hud-combo');
@@ -37,6 +39,9 @@ export function createHud(root) {
   const flashEl = el.querySelector('.hud-flash');
   let hintTimer = null;
   const cardEl = el.querySelector('.hud-card');
+  const bossEl = el.querySelector('.hud-boss');
+  const bossFill = el.querySelector('.boss-fill');
+  const speechEl = el.querySelector('.hud-speech');
   let cardTimer = null;
 
   return {
@@ -97,6 +102,20 @@ export function createHud(root) {
       flashEl.classList.add('fade');
     },
     setVisible(v) { el.style.display = v ? '' : 'none'; },
+    bossBar(visible, fraction = 1) {
+      bossEl.classList.toggle('show', visible);
+      if (visible) bossFill.style.width = `${Math.max(0, Math.min(1, fraction)) * 100}%`;
+    },
+    speech(text) {
+      if (!text) { speechEl.classList.remove('show'); return; }
+      speechEl.textContent = text;
+      speechEl.classList.add('show');
+    },
+    speechPos(x, y, visible = true) {
+      speechEl.style.left = `${x}px`;
+      speechEl.style.top = `${y}px`;
+      speechEl.style.visibility = visible ? 'visible' : 'hidden';
+    },
     sfx(word, x, y) {
       const s = document.createElement('div');
       s.className = 'sfx';

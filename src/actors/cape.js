@@ -3,7 +3,6 @@ import { createCloth, hangFrom, stepCloth } from './verlet.js';
 import { toonMaterial } from '../render/toon.js';
 import { bindPosition } from './rig.js';
 
-const COLS = 9, ROWS = 12;
 
 function gridIndex(cols, rows) {
   const idx = [];
@@ -16,8 +15,11 @@ function gridIndex(cols, rows) {
   return idx;
 }
 
-export function createCape(ch, color) {
-  const cloth = createCloth({ cols: COLS, rows: ROWS, topWidth: 0.5, bottomWidth: 1.15, length: 1.32, pointDrop: 0.12 });
+// anchor 'shoulders' is the cape; 'waist' hangs coat tails from the hips (the Joker's).
+export function createCape(ch, color, {
+  cols: COLS = 9, rows: ROWS = 12, topWidth = 0.5, bottomWidth = 1.15, length = 1.32, pointDrop = 0.12, anchor: mode = 'shoulders',
+} = {}) {
+  const cloth = createCloth({ cols: COLS, rows: ROWS, topWidth, bottomWidth, length, pointDrop });
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(cloth.pos, 3));
   geo.setIndex(gridIndex(COLS, ROWS));
@@ -55,15 +57,27 @@ export function createCape(ch, color) {
     side.subVectors(va, vb).setY(0);
     right.copy(side).normalize();
     fwd.crossVectors(side, up).setY(0).normalize().multiplyScalar(flip);
-    anchor.addVectors(va, vb).multiplyScalar(0.5);
-    anchor.y += 0.1;
-    // Top edge wraps over the shoulders: well behind the neck at the center, near the shoulder tops at the ends.
-    for (let c = 0; c < COLS; c++) {
-      const t = c / (COLS - 1) - 0.5;
-      const back = 0.17 - t * t * 0.5;
-      pins[c * 3] = anchor.x + right.x * t * 0.56 - fwd.x * back;
-      pins[c * 3 + 1] = anchor.y - t * t * 0.3;
-      pins[c * 3 + 2] = anchor.z + right.z * t * 0.56 - fwd.z * back;
+    if (mode === 'waist') {
+      // Coat tails: a straight line across the back of the hips.
+      b.pelvis.getWorldPosition(anchor);
+      anchor.y += 0.1;
+      for (let c = 0; c < COLS; c++) {
+        const t = c / (COLS - 1) - 0.5;
+        pins[c * 3] = anchor.x + right.x * t * topWidth - fwd.x * 0.2;
+        pins[c * 3 + 1] = anchor.y;
+        pins[c * 3 + 2] = anchor.z + right.z * t * topWidth - fwd.z * 0.2;
+      }
+    } else {
+      anchor.addVectors(va, vb).multiplyScalar(0.5);
+      anchor.y += 0.1;
+      // Top edge wraps over the shoulders: well behind the neck at the center, near the shoulder tops at the ends.
+      for (let c = 0; c < COLS; c++) {
+        const t = c / (COLS - 1) - 0.5;
+        const back = 0.17 - t * t * 0.5;
+        pins[c * 3] = anchor.x + right.x * t * 0.56 - fwd.x * back;
+        pins[c * 3 + 1] = anchor.y - t * t * 0.3;
+        pins[c * 3 + 2] = anchor.z + right.z * t * 0.56 - fwd.z * back;
+      }
     }
     if (!placed) { hangFrom(cloth, pins); placed = true; }
     setSphere(colliders[7], b.ul.getWorldPosition(va), 0.11);

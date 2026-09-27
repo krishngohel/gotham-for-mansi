@@ -24,11 +24,16 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
   const alive = () => enemies.filter((e) => e.alive);
   const engaged = () => enemies.filter((e) => e.alive && e.aware);
 
-  function inputDir(ctx) {
+  // Stick direction relative to the camera; without input, melee uses the hero's facing and
+  // ranged throws use where the camera looks.
+  function inputDir(ctx, ranged = false) {
     const f = follow.forward(tmp), r = follow.right(new THREE.Vector3());
     const m = ctx.input.move;
     dir.set(f.x * m.y + r.x * m.x, 0, f.z * m.y + r.z * m.x);
-    if (dir.lengthSq() < 0.04) dir.set(Math.sin(hero.bat.yaw), 0, Math.cos(hero.bat.yaw)).multiplyScalar(0.5);
+    if (dir.lengthSq() < 0.04) {
+      if (ranged) dir.set(f.x, 0, f.z);
+      else dir.set(Math.sin(hero.bat.yaw), 0, Math.cos(hero.bat.yaw)).multiplyScalar(0.5);
+    }
     return dir;
   }
 
@@ -236,7 +241,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
     const to = new THREE.Vector3().lerpVectors(from, target.pos, Math.max(0, (d - 1.1) / (d || 1)));
     to.y = from.y;
     faceTo(target);
-    combo.spend();
+    if (!target.finishable) combo.spend();
     time.slowMo(0.7, 0.3);
     hero.invulnerable = 1;
     hero.bat.animator.play('Kick_Round', { once: true, timeScale: 1.1, fade: 0.05 });
@@ -347,7 +352,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
         }
         return false;
       }
-      const target = selectTarget(hero.pos, inputDir(ctx), list, { range: action === 'kick' ? 9 : 8, allowDown: true });
+      const target = selectTarget(hero.pos, inputDir(ctx), list, { range: action === 'kick' ? 10 : 9, allowDown: true });
       if (!target) { if (engaged().length) { hero.control = whiff(); return true; } return false; }
       if (target.down && target.alive && action === 'punch') events.emit('groundTakedown', { target });
       hero.control = strike(action, target);
@@ -355,12 +360,14 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
     }
     if (action === 'cape' && !inAir) { hero.control = capeStun(); return true; }
     if (action === 'batarang') {
-      const target = selectTarget(hero.pos, inputDir(ctx), list, { range: 26, maxAngle: 0.9 });
+      const target = selectTarget(hero.pos, inputDir(ctx, true), list, { range: 26, maxAngle: 1.2 });
       if (target) { hero.control = batarang(target, ctx.fx); return true; }
       return false;
     }
     if (action === 'dodge' && !inAir) { hero.control = dodge(ctx); return true; }
     if (action === 'special') {
+      const finisher = list.find((e) => e.finishable && e.pos.distanceTo(hero.pos) < 9);
+      if (finisher) { hero.control = special(finisher); return true; }
       if (!combo.ready) { events.emit('hint', { id: 'special-locked' }); return false; }
       const target = selectTarget(hero.pos, inputDir(ctx), list.filter((e) => !e.def.boss), { range: 9 });
       if (target) { hero.control = special(target); return true; }

@@ -32,6 +32,7 @@ import { createBalloons } from './balloons.js';
 import { createFlow } from './flow.js';
 import { STEPS } from './story.js';
 import { wireAudio } from './sound.js';
+import { createBoss } from './boss.js';
 
 async function loadFonts() {
   try {
@@ -75,7 +76,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   const follow = createFollowCamera(camera, world.collision);
   follow.configure(settings);
   follow.snapBehind(hero.bat.yaw);
-  const fill = new THREE.DirectionalLight(0x9fb2d6, 0.9);
+  const fill = new THREE.DirectionalLight(0x9fb2d6, 1.25);
   scene.add(fill, fill.target);
 
   const hud = createHud(hudRoot);
@@ -103,10 +104,13 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   const beacon = createBeacon(scene);
 
   const state = { frame: 0, fps: 0, ready: false, t: 0 };
+  const boss = createBoss({ assets, scene, rng, combat, events, hud, spawn, despawn, hero, time, getDifficulty: () => settings.difficulty });
+  boss.joker.health = 999;
 
   // Renders the live city from a posed camera into an image for comic panels.
   const stage = {
-    shot({ cam, look, fov = 55, hero: pose }) {
+    boss,
+    shot({ cam, look, fov = 55, hero: pose, setup }) {
       const saved = { pos: hero.pos.clone(), yaw: hero.bat.yaw };
       if (pose === null) { hero.bat.root.visible = false; hero.cape.mesh.visible = false; }
       else if (pose) {
@@ -118,10 +122,13 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         hero.cape.reset();
         for (let i = 0; i < 90; i++) hero.cape.update(1 / 60);
       }
+      setup?.(stage);
       camera.position.set(...cam);
       camera.fov = fov;
       camera.updateProjectionMatrix();
       camera.lookAt(...look);
+      fill.position.copy(camera.position);
+      fill.target.position.set(...look);
       world.update(state.t, 0.016, camera.position, camera);
       ink.render(scene, camera, state.t);
       const url = renderer.domElement.toDataURL('image/jpeg', 0.88);
@@ -130,6 +137,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       hero.bat.root.visible = true;
       hero.cape.mesh.visible = true;
       hero.cape.reset();
+      if (setup && !boss.active) boss.hide();
       camera.fov = settings.fov;
       camera.updateProjectionMatrix();
       return url;
@@ -138,7 +146,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
 
   const flow = createFlow({
     hero, encounters, hud, events, progress, storage, comic, stage, prompts, waypoint, beacon, balloons, pickups,
-    collision: world.collision, follow,
+    collision: world.collision, follow, boss,
     onCredits: () => events.emit('credits'),
   });
 
@@ -151,8 +159,13 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     immune: () => `Brutes shrug off hits. ${key('cape')} cape-stun first, then punch away.`,
     'brute-counter': () => `A red bolt can't be countered. ${key('dodge')} dodge out of the way!`,
     'special-locked': () => 'Special takedowns unlock at an 8 hit combo.',
+    joker: () => `The Joker slips every punch. Hit him with a batarang ${key('batarang')} while he winds up a throw!`,
+    'joker-throw': () => `A yellow bolt means he is throwing. ${key('batarang')} batarang him now!`,
+    gas: () => 'Laughing gas! Get out of the green cloud.',
+    finish: () => `He is reeling! ${key('special')} Finish him!`,
   };
-  events.on('blocked', ({ outcome }) => hud.hint(HINTS[outcome](), 3500));
+  events.on('blocked', ({ outcome, target }) => hud.hint((target?.type === 'joker' ? HINTS.joker : HINTS[outcome])(), 3500));
+  events.on('bossStaggered', () => hud.hint(HINTS.finish(), 3500));
   events.on('hint', ({ id }) => HINTS[id] && hud.hint(HINTS[id](), 3000));
   // Tutorial prompts disappear once the player has done the thing.
   const PROMPT_DONE = { glideStart: 'glide', grapple: 'grapple', grappleBoost: 'grappleBoost', counter: 'counter', cape: 'cape', batarangThrow: 'batarang', dodge: 'dodge', special: 'special', jumpKick: 'kick' };
@@ -216,7 +229,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   const ctx = { input, cam: follow, grappleTarget: null, fx };
   let lastCombo = -1;
   window.__game = {
-    state, camera, scene, world, hero, follow, grapple, input, events, combat, hud, flow, encounters, balloons, audio, settings, progress, comic,
+    state, camera, scene, world, hero, follow, grapple, input, events, combat, hud, flow, encounters, balloons, audio, settings, progress, comic, boss,
     get enemies() { return combat.enemies; },
     teleport: (site) => hero.teleport(SITES[site] ?? site),
     winFight: () => { for (const e of combat.enemies) if (e.alive) { e.health = 0; e.applyHit({ outcome: 'ko' }, hero.pos); } },
@@ -250,9 +263,14 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       if (marker.visible) { marker.position.set(ctx.grappleTarget.x, ctx.grappleTarget.y + 1, ctx.grappleTarget.z); marker.rotation.y += real * 3; }
       fill.position.copy(camera.position);
       fill.target.position.copy(hero.pos);
+      boss.update(dt);
+      if (boss.speech) {
+        const p = toScreen(boss.headWorld(new THREE.Vector3()));
+        hud.speechPos(p.x, p.y - 20, !p.behind);
+      }
       for (const e of combat.enemies) {
         e.ch.root.visible = e.pos.distanceTo(camera.position) > 2.4;
-        const show = e.state === 'windup' && e.glyph;
+        const show = !!e.glyph && (e.state === 'windup' || e.state === 'throw');
         if (show) { const p = toScreen(e.ch.headWorld(new THREE.Vector3(), 0.45)); hud.glyph(e.id, p.x, p.y, !p.behind, e.glyph); }
         else hud.glyph(e.id, 0, 0, false);
       }

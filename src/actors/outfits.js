@@ -33,3 +33,25 @@ export const GOON_COLORS = {
 
 // The shirt region is striped in the shader, alternating with this color every half period.
 export const GOON_STRIPES = { color: PALETTE.stripe, alt: PALETTE.jokerPurple, period: 0.13 };
+
+// The Joker: white face with red lips, purple suit, green vest over an orange shirt.
+export function classifyJokerVertex(p, lm) {
+  const front = (p.z - lm.headCenter.z) * lm.fwd;
+  if (p.y > lm.neckY) {
+    const mouth = front > lm.headRadius * 0.55 && p.y < lm.eyeY - 0.055 && p.y > lm.eyeY - 0.1;
+    return mouth ? 'lips' : 'face';
+  }
+  const ax = Math.abs(p.x);
+  if (ax > lm.elbowX + 0.18) return 'face';
+  if (p.y < lm.ankleY + 0.06) return 'boot';
+  const chestFront = (p.z - lm.chestFrontZ) * lm.fwd > -0.09;
+  if (p.y > lm.beltY - 0.05 && p.y < lm.neckY && chestFront) {
+    if (ax < 0.045) return 'shirt';
+    if (ax < 0.13) return 'vest';
+  }
+  return 'suit';
+}
+
+export const JOKER_COLORS = {
+  face: 0xf4f1e8, lips: 0xc8323c, suit: PALETTE.jokerPurple, vest: PALETTE.jokerGreen, shirt: PALETTE.sodium, boot: 0x3a2a24,
+};

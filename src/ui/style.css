@@ -92,3 +92,14 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0 6px; margin: 0 2px; bo
 .hud-card.show { opacity: 1; transform: translate(-50%, 0) rotate(0.8deg); }
 .hud-card .card-title { font: 34px 'Bangers', cursive; letter-spacing: 1.5px; color: var(--balloon); -webkit-text-stroke: 1.5px var(--ink); }
 .hud-card .card-text { font: 23px/1.3 'Patrick Hand SC', cursive; margin-top: 4px; }
+
+.glyph.yellow path { fill: var(--signal); }
+.glyph.yellow { filter: drop-shadow(0 0 10px var(--signal)) drop-shadow(2px 2px 0 var(--ink)); }
+.hud-boss { position: absolute; left: 50%; top: 22px; width: min(560px, 60vw); transform: translateX(-50%); opacity: 0; transition: opacity 0.4s; }
+.hud-boss.show { opacity: 1; }
+.boss-name { font: 30px 'Bangers', cursive; letter-spacing: 3px; text-align: center; color: #9be07a; -webkit-text-stroke: 1.5px var(--ink); text-shadow: 3px 3px 0 var(--ink); }
+.boss-track { height: 16px; margin-top: 4px; background: rgba(11, 11, 18, 0.85); border: 3px solid var(--ink); transform: skewX(-14deg); box-shadow: 4px 4px 0 var(--ink); }
+.boss-fill { height: 100%; width: 100%; background: repeating-linear-gradient(90deg, #6c3fa3 0 14px, #62c141 14px 18px); transition: width 0.4s; }
+.hud-speech { position: absolute; transform: translate(-50%, -100%); max-width: 300px; padding: 8px 14px; background: #f3ffe8; border: 3px solid #2a1a3a; border-radius: 50% / 40%; font: 20px/1.15 'Bangers', cursive; letter-spacing: 1px; color: #3a1a4a; text-align: center; opacity: 0; transition: opacity 0.2s; }
+.hud-speech.show { opacity: 1; }
+.hud-speech::after { content: ''; position: absolute; left: 44%; bottom: -20px; border: 11px solid transparent; border-top: 14px solid #2a1a3a; }

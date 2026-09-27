@@ -34,7 +34,7 @@ const ATTACK_DAMAGE = { grunt: 10, knife: 15, brute: 20, charge: 25, joker: 12, 
 // outcome: 'hit' | 'knockdown' | 'ko' | 'stun' | 'parried' | 'immune'
 export function resolveHit(move, enemy) {
   const m = MOVES[move];
-  const def = ENEMY[enemy.type];
+  const def = enemy.def ?? ENEMY[enemy.type];
   if (!m || !def) throw new Error(`Unknown move/enemy ${move}/${enemy.type}`);
 
   if (m.ko) {

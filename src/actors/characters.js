@@ -5,7 +5,7 @@ import { batOutline } from '../config/batShape.js';
 import { toonMaterial, addHullOutline, addXray } from '../render/toon.js';
 import { createAnimator } from './animator.js';
 import { attachRigid, measureBody, surfaceFrontZ } from './rig.js';
-import { classifySuitVertex, classifyGoonVertex, SUIT_COLORS, GOON_COLORS, GOON_STRIPES } from './outfits.js';
+import { classifySuitVertex, classifyGoonVertex, classifyJokerVertex, SUIT_COLORS, GOON_COLORS, GOON_STRIPES, JOKER_COLORS } from './outfits.js';
 
 function splitMeshes(model) {
   const meshes = [];
@@ -218,5 +218,40 @@ export function createGoon(assets, { type = 'grunt', rng = null } = {}) {
   }
   ch.type = type;
   ch.animator.play('Idle_Loop');
+  return ch;
+}
+
+export function createJoker(assets) {
+  const ch = makeCharacter(assets, 'm');
+  const { body, eyes, brows, lm } = ch;
+  paintRegions(body, classifyJokerVertex, JOKER_COLORS, lm);
+  body.material = toonMaterial({ vertexColors: true, normalMap: body.material.normalMap, normalScale: 0.4, palette: Object.values(JOKER_COLORS) });
+  body.castShadow = true;
+  brows.visible = false;
+  eyes.material = new THREE.MeshBasicMaterial({ color: 0xd8f0c0 });
+  addHullOutline(body, 0.012);
+  ch.xray = addXray(body, PALETTE.jokerGreen);
+  // Spiky green hair from a crown of cones.
+  const hairMat = toonMaterial({ color: 0x3f9e34 });
+  const c = lm.headCenter;
+  const r = lm.headRadius;
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2;
+    const back = Math.cos(a) * lm.fwd < 0.2;
+    if (!back && i % 2) continue;
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.2, 6), hairMat);
+    const dir = new THREE.Vector3(Math.sin(a) * 0.8, 0.9, Math.cos(a) * 0.8 - 0.25 * lm.fwd).normalize();
+    cone.position.set(c.x + Math.sin(a) * r * 0.7, c.y + r * 0.7, c.z + Math.cos(a) * r * 0.7 - 0.02 * lm.fwd);
+    cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+    attachRigid(body, 'Head', cone);
+    addHullOutline(cone, 0.005);
+  }
+  const cap = rigidMesh(new THREE.SphereGeometry(r * 1.04, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.45), hairMat, c.clone().add(new THREE.Vector3(0, 0.02, -0.01 * lm.fwd)));
+  attachRigid(body, 'Head', cap);
+  addHullOutline(cap, 0.005);
+  // A flower in the lapel, naturally.
+  const flower = rigidMesh(new THREE.IcosahedronGeometry(0.035, 0), new THREE.MeshBasicMaterial({ color: PALETTE.neonPink }), new THREE.Vector3(0.1, lm.chestY + 0.06, lm.chestFrontZ + 0.02 * lm.fwd));
+  attachRigid(body, 'spine_03', flower);
+  ch.animator.play('Idle_FoldArms_Loop');
   return ch;
 }
