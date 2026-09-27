@@ -43,17 +43,17 @@ Arkham-inspired, thin and sleek, drawn in ink style.
 
 ## Characters and animation
 
-- **Hero:** on first launch the player picks one of two suits, a Batman-style suit or a Batgirl-style suit, each from a downloadable Sketchfab fan model (CC-BY or similar permissive licence, credited in the credits). Both are auto-rigged through Mixamo so they share one animation set.
-- **Cape:** verlet-simulated cloth chain attached to the shoulder bones, so it flows when running and spreads when gliding.
-- **Goons:** Mixamo characters recoloured in toon palette with clown masks built as simple geometry on the head bone. Three types:
+- **Source:** Quaternius Universal Base Characters (Superhero male and female bodies) and Universal Animation Library 1 and 2, all CC0 and downloadable without an account. Bodies and clips share one 65-bone skeleton, so every clip plays on every character with no retargeting. Credited in the credits.
+- **Hero:** on first launch the player picks a Batman-style suit (male body) or a Batgirl-style suit (female body, long red hair). Suits are painted per vertex region at load time (cowl, face, suit, belt, gloves, boots), plus cowl ears and a chest emblem attached to bones.
+- **Cape:** simulated verlet cloth pinned below the shoulders, with a pointed bottom edge, colliding with the body.
+- **Goons:** male body painted with a striped shirt, dark pants and boots, a clown mask and a beanie built as geometry on the head bone. Three types:
   - Grunt: basic melee.
   - Knife goon: cannot be punched until stunned with the cape; a punch attempt gets blocked.
-  - Brute: large, cannot be countered; cape stun, then a beatdown of rapid hits.
-- **Joker:** Sketchfab fan model, auto-rigged via Mixamo.
-- **Animation:** Mixamo mocap for locomotion, jumps, punches, kicks, counters, hit reactions, knockdowns, takedowns and taunts. Retargeting is handled by Mixamo's shared skeleton.
-- **Fallback:** if a Sketchfab model cannot be rigged cleanly, the hero uses a Mixamo base body with a cowl, ears, chest emblem and belt built as geometry on the bones. The cel shading and ink make this read well.
+  - Brute: the same body scaled up 1.2x, cannot be countered; cape stun, then a beatdown of rapid hits.
+- **Joker:** male body painted in a purple suit with green hair and a white face.
+- **Animation:** Quaternius clips for locomotion, jumps, punches, hook, hit reactions, knockback, get-up, throw, climb and glide pose. Kicks are authored in code as keyframe clips on the same skeleton.
 
-Asset sourcing requires the user to be logged into Adobe (Mixamo) and optionally Sketchfab in Chrome. Assets are downloaded once into `public/assets/`, compressed to GLB with Draco, and credited.
+Assets are built by `scripts/build-assets.mjs` into `public/assets/` (stripped attributes, 1K WebP normal maps, resampled clips).
 
 ## Controls
 

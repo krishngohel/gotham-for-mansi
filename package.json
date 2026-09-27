@@ -1,0 +1,27 @@
+{
+  "name": "gotham-for-mansi",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 5200 --strictPort",
+    "build": "vite build",
+    "preview": "vite preview --port 5201 --strictPort",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "assets": "node scripts/build-assets.mjs",
+    "shots": "node scripts/shots.mjs"
+  },
+  "dependencies": {
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "@gltf-transform/core": "4.5",
+    "@gltf-transform/extensions": "4.5",
+    "@gltf-transform/functions": "4.5",
+    "@playwright/test": "1.63",
+    "sharp": "^0.35.4",
+    "vite": "^8.3.1",
+    "vitest": "^5.0.2"
+  }
+}
