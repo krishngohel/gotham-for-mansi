@@ -21,7 +21,7 @@ const CAMS = {
   hero: { pos: [4.38, 0.6, -8.92], look: [-1.03, 6.5, -16.18], hero: [2, -11, SIGNAL_YAW], goon: [10, 10, 0] },
   face: { pos: [0.55, 1.6, 1.7], look: [0, 1.45, 0], hero: [0, 0, 0], goon: [-2.6, -2.2, 0.87] },
   fight: { pos: [3.2, 1.45, 1.0], look: [0, 1.15, 1.0], hero: [0, 0, 0], goon: [0, 2, Math.PI] },
-  wide: { pos: [7, 5, 10], look: [-5, 11, -14], hero: [0, 0, SIGNAL_YAW], goon: [1.2, -2, 0.5] },
+  wide: { pos: [8.5, 3.2, 11], look: [-4, 7.8, -14], hero: [0, 0, SIGNAL_YAW], goon: [1.2, -2, 0.5] },
   signal: { pos: [2, 1.6, 4], look: [-8, 14, -22], hero: [-1, -2, SIGNAL_YAW], goon: [10, 10, 0] },
 };
 const ROOF = 14;

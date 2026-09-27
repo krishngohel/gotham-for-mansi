@@ -2591,7 +2591,7 @@ export default defineConfig({
 import { test, expect } from '@playwright/test';
 import sharp from 'sharp';
 
-for (const url of ['/?cam=hero', '/?cam=fight&suit=f&q=low']) {
+for (const url of ['/?cam=fight', '/?cam=face&suit=f&q=low']) {
   test(`look test renders ${url}`, async ({ page }) => {
     const errors = [];
     page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
