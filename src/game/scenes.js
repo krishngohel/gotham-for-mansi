@@ -65,8 +65,8 @@ export const SCENES = {
     {
       layout: 'duo',
       panels: [
-        { img: stage.shot({ cam: [-66, 63.5, -144], look: [-62, 68.2, -163.5], hero: { at: [-63.5, 58, -148], yaw: Math.PI, anim: 'Idle_Loop' }, setup: (s) => s.boss.pose([-62, 68, -163.5], 0, 'Idle_Rail_Call', 0.8) }), caption: 'The clock tower. One minute to midnight.' },
-        { img: stage.shot({ cam: [-60.2, 69.4, -160], look: [-62, 69.2, -163.5], hero: null, setup: (s) => s.boss.pose([-62, 68, -163.5], 0.3, 'Idle_Rail_Call', 1.4) }), balloons: [J('Welcome to my party, birthday bat! Games first. Cake never. HA HA HA!', 50, 5, { w: 80 })] },
+        { img: stage.shot({ cam: [-66.5, 67.2, -147.5], look: [-62, 68.9, -163.5], hero: { at: [-63.5, 58, -148], yaw: Math.PI, anim: 'Idle_Loop' }, setup: (s) => s.boss.pose([-62, 68, -161.7], 0, 'Idle_Rail_Call', 0.8) }), caption: 'The clock tower. One minute to midnight.' },
+        { img: stage.shot({ cam: [-60.2, 69.4, -160], look: [-62, 69.2, -163.5], hero: null, setup: (s) => s.boss.pose([-62, 68, -161.7], 0.3, 'Idle_Rail_Call', 1.4) }), balloons: [J('Welcome to my party, birthday bat! Games first. Cake never. HA HA HA!', 50, 5, { w: 80 })] },
       ],
     },
   ],

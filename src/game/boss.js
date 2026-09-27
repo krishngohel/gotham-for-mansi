@@ -11,7 +11,7 @@ import { createCape } from '../actors/cape.js';
 import { SITES } from '../world/mapData.js';
 
 const ARENA = { x: -62, y: 58, minX: -80.5, maxX: -43.5, minZ: -164.5, maxZ: -141.5 };
-const BALCONY = { x: SITES.balcony.x, y: SITES.balcony.y, z: -163.5 };
+const BALCONY = { x: SITES.balcony.x, y: SITES.balcony.y, z: -161.7 };
 const TILE_COLS = 4, TILE_ROWS = 3;
 const WAVES = [
   [['grunt', -8, 6], ['grunt', 8, 6], ['grunt', 0, 10], ['knife', -12, 2]],

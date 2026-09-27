@@ -17,7 +17,7 @@ import { buildKickClips } from '../actors/kicks.js';
 import { createEnemy } from '../actors/enemy.js';
 import { SITES } from '../world/mapData.js';
 import { pickGrapplePoint } from '../world/grapple.js';
-import { createPickups } from '../world/storyProps.js';
+import { createPickups, createNeonParty } from '../world/storyProps.js';
 import { createCombat } from '../combat/combatSystem.js';
 import { createHud } from '../ui/hud.js';
 import { createComic } from '../ui/comic.js';
@@ -152,6 +152,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const encounters = createEncounters({ spawn, despawn, combat, events, collision: world.collision });
     const balloons = createBalloons(scene, progress.balloons);
     const pickups = createPickups(scene, world.halos, SITES);
+    const neonParty = createNeonParty(scene, world.halos);
     const comic = createComic(document.body, { onSound: (n) => audio.play(n) });
     const prompts = createPromptQueue(hud, () => settings.bindings, () => settings.hints);
     const waypoint = createWaypoint(hudRoot.querySelector('.hud') ?? hudRoot);
@@ -199,7 +200,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
 
     const flow = createFlow({
       hero, encounters, hud, events, progress, storage, comic, stage, prompts, waypoint, beacon, balloons, pickups,
-      collision: world.collision, follow, boss, finale,
+      collision: world.collision, follow, boss, finale, neonParty,
       onCredits: () => {
         document.exitPointerLock?.();
         input.setEnabled(false);
@@ -299,7 +300,12 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       winFight: () => { for (const e of combat.enemies) if (e.alive && e.type !== 'joker') { e.health = 0; e.applyHit({ outcome: 'ko' }, hero.pos); } },
     };
     if (params.get('god') === '1') events.on('heroHurt', () => { hero.health = hero.maxHealth; hud.setHealth(1); });
-    Object.assign(window.__game, api, { teleport: (site) => hero.teleport(SITES[site] ?? site), jump: (id) => flow.jumpTo(STEPS.findIndex((s) => s.id === id)) });
+    Object.assign(window.__game, api, { teleport: (site) => {
+        const p = { ...(SITES[site] ?? site) };
+        const g = world.collision.groundBelow(p.x, p.y + 4, p.z, 0.3);
+        if (g > -Infinity) p.y = g;
+        hero.teleport(p);
+      }, jump: (id) => flow.jumpTo(STEPS.findIndex((s) => s.id === id)) });
     Object.defineProperty(window.__game, 'enemies', { get: () => combat.enemies, configurable: true });
     return api;
   }

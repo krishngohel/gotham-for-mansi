@@ -147,18 +147,47 @@ export function createPickups(scene, halos, sites) {
   }
   return {
     items,
+    // Marks an item recovered. It stays in place for its reward comic, then hide() clears it.
     take(id) {
       const it = items[id];
       if (!it || it.taken) return;
       it.taken = true;
-      it.group.visible = false;
       halos.setSize(it.halo, 0.01);
     },
-    restore(taken) { for (const id of taken) this.take(id); },
+    hide(id) { if (items[id]) items[id].group.visible = false; },
+    restore(taken) { for (const id of taken) { this.take(id); this.hide(id); } },
     update(t) {
       const ball = items.party.group.userData.ball;
       if (ball) ball.rotation.y = t * 0.8;
       for (const f of items.cake.group.userData.flames) f.scale.y = 0.8 + Math.sin(t * 20 + f.position.x * 9) * 0.25;
+    },
+  };
+}
+
+// Once the party is recovered, Neon Row gets bunting and coloured lights over the street.
+export function createNeonParty(scene, halos) {
+  const g = new THREE.Group();
+  g.visible = false;
+  const colors = [PALETTE.balloon, PALETTE.signal, PALETTE.neonCyan, PALETTE.jokerPurple, PALETTE.neonPink];
+  const mats = colors.map((c) => new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide }));
+  const tri = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-0.4, 0, 0), new THREE.Vector3(0.4, 0, 0), new THREE.Vector3(0, -0.8, 0)]);
+  const lights = [];
+  for (let z = -80; z <= 120; z += 14) {
+    for (let k = 1; k < 12; k++) {
+      const t = k / 12;
+      const f = new THREE.Mesh(tri, mats[(k + z) % mats.length]);
+      f.position.set(141 + 18 * t, 12 - Math.sin(t * Math.PI) * 1.8, z + 7);
+      g.add(f);
+    }
+    lights.push([150, 11.5, z + 7]);
+  }
+  scene.add(g);
+  const ids = [];
+  return {
+    show() {
+      if (g.visible) return;
+      g.visible = true;
+      for (const [x, y, z] of lights) ids.push(halos.add(x, y, z, colors[ids.length % colors.length], 7));
     },
   };
 }

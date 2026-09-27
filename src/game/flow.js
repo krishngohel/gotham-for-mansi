@@ -70,7 +70,12 @@ export function createFlow(d) {
       hud.setVisible(false);
       d.finale.play().then(() => { hud.setVisible(true); mode = 'play'; advance({ type: 'cutsceneDone', scene: 'finale' }); });
     } else if (s.type === 'cutscene') {
-      playScene(s.scene).then(() => advance({ type: 'cutsceneDone', scene: s.scene }));
+      const REWARD = { presents: 'presents', party: 'party', cake: 'cake' };
+      if (s.scene === 'party') d.neonParty?.show();
+      playScene(s.scene).then(() => {
+        if (REWARD[s.scene]) pickups.hide(REWARD[s.scene]);
+        advance({ type: 'cutsceneDone', scene: s.scene });
+      });
     }
     if (s.type === 'boss') playScene('bossIntro').then(() => d.boss?.begin());
     if (s.type === 'credits') {
@@ -151,7 +156,9 @@ export function createFlow(d) {
         return;
       }
       if (objectives.index > 0) hero.teleport(respawnPoint(), hero.bat.yaw);
-      pickups.restore(STEPS.slice(0, objectives.index).filter((s) => s.type === 'collect').map((s) => s.item));
+      const got = STEPS.slice(0, objectives.index).filter((s) => s.type === 'collect').map((s) => s.item);
+      pickups.restore(got);
+      if (got.includes('party')) d.neonParty?.show();
       hud.setBalloons(progress.balloons.length, BALLOON_COUNT);
       enterStep();
     },
@@ -164,7 +171,7 @@ export function createFlow(d) {
         const dxz = Math.hypot(hero.pos.x - target.x, hero.pos.z - target.z);
         const dy = Math.abs(hero.pos.y - target.y);
         if (dxz < (s.radius ?? 8) && dy < 6) {
-          if (s.type === 'collect') { pickups.take(s.item); events.emit('pickup', { item: s.item }); advance({ type: 'collected', item: s.item }); }
+          if (s.type === 'collect') { pickups.take(s.item); encounters.cleanupBodies(); events.emit('pickup', { item: s.item }); advance({ type: 'collected', item: s.item }); }
           else advance({ type: 'reached', step: s.id });
         }
       }

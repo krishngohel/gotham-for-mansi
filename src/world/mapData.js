@@ -128,7 +128,7 @@ export const SITES = {
   monarchRoof: { x: 180, y: 22, z: -60 },
   party: { x: 186, y: 22, z: -66 },
   aceYard: { x: 95, y: 0, z: -140 },
-  factoryRoof: { x: 140, y: 24, z: -172 },
+  factoryRoof: { x: 140, y: 25.1, z: -172 },
   vatDeck: { x: 180, y: 10, z: -118 },
   cake: { x: 184, y: 10, z: -112 },
   arena: { x: -62, y: 58, z: -154 },
