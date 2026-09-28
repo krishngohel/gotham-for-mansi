@@ -4,6 +4,7 @@ import { createRemoteHandler } from './remote.js';
 import { createGelHandler } from './gel.js';
 import { createSmokeHandler } from './smoke.js';
 import { createLauncherHandler } from './launcher.js';
+import { createClawHandler } from './claw.js';
 
 export const HANDLER_FACTORIES = {
   batarang: createBatarangHandler,
@@ -11,4 +12,5 @@ export const HANDLER_FACTORIES = {
   gel: createGelHandler,
   smoke: createSmokeHandler,
   launcher: createLauncherHandler,
+  claw: createClawHandler,
 };
