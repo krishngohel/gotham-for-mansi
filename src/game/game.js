@@ -344,9 +344,11 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const wayne = createWayneTech({
       events, progress, hero, combat, hud, effects, save: () => saveProgress(storage, progress),
       baseHealth: () => (settings.difficulty === 'story' ? 150 : 100),
+      // ?gadgets=all is a dev run (read the same way gadgets/breakables do): XP, levels and
+      // purchases still happen for the session, but never reach the real save.
+      dev: params.get('gadgets') === 'all',
     });
     wayne.apply();
-    hero.health = hero.maxHealth;
     hud.setHealth(1);
     events.on('levelUp', ({ level, points }) => {
       hud.card(`LEVEL ${level}!`, `WayneTech sent an upgrade. ${points === 1 ? 'One point' : `${points} points`} to spend in the pause menu.`, 6500);

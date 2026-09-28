@@ -8,9 +8,15 @@ import { TREES, UPGRADE_IDS, upgradeEffects, canBuy, upgradeStatus, regenStep } 
 // Events that pay a flat XP amount (the XP table key is the event name).
 const FLAT = ['ko', 'takedown', 'special', 'fightDone', 'objectiveDone', 'balloon', 'crimeStopped', 'glassBroken', 'wallBroken', 'crateOpened', 'missionDone'];
 
-export function createWayneTech({ events, progress, save, hero, combat, hud, effects, baseHealth }) {
-  const w = progress.wayne;
+export function createWayneTech({ events, progress, save, hero, combat, hud, effects, baseHealth, dev = false }) {
+  // A dev run (?gadgets=all) still earns XP, levels and purchases for the session so testing
+  // works, but never touches the real save: it works on its own copy, never the passed-in
+  // progress.wayne, so nothing else that later calls save() (crimes, balloons, side content's
+  // periodic save) can carry the dev session's XP into the real file.
+  const w = dev ? { xp: progress.wayne.xp, owned: [...progress.wayne.owned], medals: { ...progress.wayne.medals } } : progress.wayne;
+  const persist = dev ? () => {} : save;
   const run = createComboRun();
+  const regenState = { calm: false, sinceHurt: 0 };
   let lastCombo = 0, sinceHurt = 99, dirty = false, saveT = 0, shownHealth = -1;
 
   function award(amount, source) {
@@ -22,7 +28,7 @@ export function createWayneTech({ events, progress, save, hero, combat, hud, eff
     events.emit('xp', { amount: a, source, xp: w.xp });
     const levels = levelsCrossed(before, w.xp);
     levels.forEach((level, i) => events.emit('levelUp', { level, points: pointsFree(w.xp, w.owned.length) - (levels.length - 1 - i) }));
-    if (levels.length) { dirty = false; save(); }
+    if (levels.length) { dirty = false; persist(); }
   }
 
   for (const ev of FLAT) events.on(ev, () => award(XP[ev], ev));
@@ -62,7 +68,7 @@ export function createWayneTech({ events, progress, save, hero, combat, hud, eff
       if (!r.ok) return r;
       w.owned.push(id);
       apply();
-      save();
+      persist();
       events.emit('upgradeBought', { id });
       return r;
     },
@@ -86,14 +92,16 @@ export function createWayneTech({ events, progress, save, hero, combat, hud, eff
       lastCombo = v;
       sinceHurt += dt;
       if (!hero.dead) {
-        const h = regenStep(hero.health, hero.maxHealth, { calm: !combat.active, sinceHurt }, effects, dt);
+        regenState.calm = !combat.active;
+        regenState.sinceHurt = sinceHurt;
+        const h = regenStep(hero.health, hero.maxHealth, regenState, effects, dt);
         if (h !== hero.health) {
           hero.health = h;
           if (Math.abs(h - shownHealth) >= 1 || h >= hero.maxHealth) { shownHealth = h; hud.setHealth(h / hero.maxHealth); }
         }
       }
       saveT -= dt;
-      if (dirty && saveT <= 0) { saveT = 2; dirty = false; save(); }
+      if (dirty && saveT <= 0) { saveT = 2; dirty = false; persist(); }
     },
   };
 }

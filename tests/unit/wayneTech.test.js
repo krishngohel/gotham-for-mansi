@@ -3,7 +3,7 @@ import { createEvents } from '../../src/core/events.js';
 import { createWayneTech } from '../../src/progress/wayneTech.js';
 import { upgradeEffects } from '../../src/progress/upgrades.js';
 
-function setup({ xp = 0, owned = [] } = {}) {
+function setup({ xp = 0, owned = [], dev = false } = {}) {
   const events = createEvents();
   const progress = { wayne: { xp, owned: [...owned], medals: {} } };
   const hero = { health: 100, maxHealth: 100, dead: false };
@@ -11,7 +11,7 @@ function setup({ xp = 0, owned = [] } = {}) {
   const hud = { setHealth: vi.fn(), card: vi.fn() };
   const effects = upgradeEffects(owned);
   const save = vi.fn();
-  const w = createWayneTech({ events, progress, save, hero, combat, hud, effects, baseHealth: () => 100 });
+  const w = createWayneTech({ events, progress, save, hero, combat, hud, effects, baseHealth: () => 100, dev });
   return { events, progress, hero, combat, hud, effects, save, w };
 }
 
@@ -104,5 +104,18 @@ describe('recovery out of combat', () => {
     t.events.emit('heroHurt', { damage: 10 });
     t.w.update(3);
     expect(t.hero.health).toBe(86);
+  });
+});
+
+describe('dev runs (?gadgets=all)', () => {
+  it('awards XP, levels up and buys for the session, but never saves or touches the passed progress', () => {
+    const t = setup({ xp: 950, dev: true });
+    for (let i = 0; i < 5; i++) t.events.emit('ko', {});
+    expect(t.w.xp).toBe(1000);
+    expect(t.w.level).toBe(2);
+    expect(t.w.buy('plating1')).toEqual({ ok: true, reason: null });
+    expect(t.hero.maxHealth).toBe(125);
+    expect(t.save).not.toHaveBeenCalled();
+    expect(t.progress.wayne).toEqual({ xp: 950, owned: [], medals: {} });
   });
 });
