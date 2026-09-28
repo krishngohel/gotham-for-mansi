@@ -398,7 +398,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         combat.update(dt, ctx);
         hero.update(dt, ctx);
         fx.update(dt);
-        if (hero.pos.y < -0.8) { events.emit('splash'); hero.teleport(hero.lastSafe); }
+        if (hero.pos.y < -0.8) { hero.teleport(hero.lastSafe); events.emit('splash'); }
         follow.update(real, hero.pos, input.look, combat.cameraMode ?? hero.cameraMode(), hero.speed);
         comicFx.update(real, { speed: hero.control?.speed ?? Math.hypot(hero.vel.x, hero.vel.y, hero.vel.z), actionActive: follow.actionActive });
         palT -= real;
@@ -481,6 +481,11 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
 
   // Gamepad: pause and help, comic pages, and menu navigation (D-pad to move, A to press, B to go back).
   function padControls() {
+    if (game?.comic.playing) {
+      if (input.padButton(0)) game.comic.advance();
+      if (input.padButton(1)) game.comic.skip();
+      return;
+    }
     if (state.phase === 'title' || state.paused || menus.open) {
       const buttons = [...document.querySelectorAll('.menu-layer.show button')];
       if (!buttons.length) return;
@@ -496,11 +501,6 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       return;
     }
     if (!game) return;
-    if (game.comic.playing) {
-      if (input.padButton(0)) game.comic.advance();
-      if (input.padButton(1)) game.comic.skip();
-      return;
-    }
     if (input.padButton(9)) pause();
     else if (input.padButton(13) && game.flow.mode === 'play') {
       state.paused = true;
@@ -515,6 +515,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   });
   window.addEventListener('keydown', (e) => {
     if (state.phase !== 'play' || !game) return;
+    if (e.target?.closest?.('input[type="text"], textarea')) return;
     const pauseKeys = settings.bindings.pause, helpKeys = settings.bindings.help;
     if (pauseKeys.includes(e.code) && !input.capturing && !game.comic.playing) { e.preventDefault(); state.paused ? (menus.open ? resume() : null) : pause(); }
     else if (helpKeys.includes(e.code) && !state.paused && game.flow.mode === 'play') {

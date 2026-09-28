@@ -3,8 +3,11 @@
 import { FIGHTS } from './fights.js';
 import { SITES } from '../world/mapData.js';
 
+const siteOf = (f) => (typeof f.site === 'string' ? SITES[f.site] : f.site);
+
 export function createEncounters({ spawn, despawn, combat, events, collision }) {
   let fight = null;
+  let def = null;
   let id = null;
   let wave = 0;
   let live = [];
@@ -13,7 +16,7 @@ export function createEncounters({ spawn, despawn, combat, events, collision }) 
   let nextWaveT = 0;
 
   function placeWave(index, awake) {
-    const site = SITES[fight.site];
+    const site = siteOf(fight);
     const made = fight.waves[index].map(({ type, dx, dz }) => {
       const x = site.x + dx, z = site.z + dz;
       const y = collision.groundBelow(x, site.y + 3, z, 0.3);
@@ -35,21 +38,22 @@ export function createEncounters({ spawn, despawn, combat, events, collision }) 
     get id() { return id; },
     get active() { return triggered && !!fight; },
     get enemies() { return live; },
-    // Sets up a fight: goons wait at their spots until the hero shows up.
-    begin(fightId) {
+    // Sets up a fight: goons wait at their spots until the hero shows up. `fightDef` defaults to
+    // the story fight of that id; side content passes its own ({ site: key or {x,y,z}, radius, waves }).
+    begin(fightId, fightDef = FIGHTS[fightId]) {
       clear();
       id = fightId;
-      fight = FIGHTS[fightId];
+      def = fightDef;
+      fight = fightDef;
       wave = 0;
       triggered = false;
       placeWave(0, false);
     },
     restart() {
       if (!id) return;
-      const f = id;
-      this.begin(f);
+      this.begin(id, def);
     },
-    end() { clear(); fight = null; id = null; triggered = false; },
+    end() { clear(); fight = null; id = null; def = null; triggered = false; },
     trigger() {
       if (!fight || triggered) return;
       triggered = true;
@@ -58,7 +62,7 @@ export function createEncounters({ spawn, despawn, combat, events, collision }) 
     },
     update(dt, hero) {
       if (!fight) return;
-      const site = SITES[fight.site];
+      const site = siteOf(fight);
       if (!triggered) {
         const d = Math.hypot(hero.pos.x - site.x, hero.pos.z - site.z);
         if (d < fight.radius && Math.abs(hero.pos.y - site.y) < 7) this.trigger();
@@ -82,8 +86,10 @@ export function createEncounters({ spawn, despawn, combat, events, collision }) 
             events.emit('wave', { id, wave, count: made.length });
           }
         } else {
+          // Clear the id before announcing the win: listeners may begin the next fight.
           const done = id;
           fight = null;
+          id = null;
           triggered = false;
           events.emit('fightDone', { id: done });
         }
