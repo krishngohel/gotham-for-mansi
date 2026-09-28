@@ -3,6 +3,7 @@ import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { CLIP_SET } from '../../src/config/clips.js';
 import { MOCAP_CLIPS } from '../../src/config/mocap.js';
+import { MOCAP_DATA } from '../../src/config/mocapData.js';
 
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
 const LEAN = ['JOINTS_0', 'NORMAL', 'POSITION', 'TEXCOORD_0', 'WEIGHTS_0'];
@@ -29,6 +30,11 @@ describe('built assets', () => {
       const dur = t.getMax([0])[0];
       expect(dur).toBeGreaterThan(0.3);
       expect(dur).toBeLessThan(3);
+      // The generated data must describe this very pack.
+      const d = MOCAP_DATA[anim.getName()];
+      expect(Math.abs(dur - d.duration)).toBeLessThan(2e-3);
+      expect(d.contact).toBeLessThan(d.duration);
+      expect(d.root.length).toBe(2 * (Math.round(d.duration * d.fps) + 1));
       for (const c of anim.listChannels()) expect(Array.from(c.getSampler().getOutput().getArray()).some(Number.isNaN)).toBe(false);
     }
   });

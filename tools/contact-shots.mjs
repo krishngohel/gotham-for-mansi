@@ -42,12 +42,12 @@ await page.evaluate(() => { const h = window.__game.hero; window.__base = { x: h
 
 // Put one goon of `type` `dist` metres in front of the hero, everyone else far away. The
 // hero is reset to the base point, facing a direction with level roof for 6 m ahead.
-async function stage(type, dist, { hp = 60, camSide = -1.15, pick = 0, extra = null } = {}) {
-  await page.evaluate(({ type, dist, hp, camSide, pick, extra }) => {
+async function stage(type, dist, { hp = 60, camSide = -1.15, pick = 0, extra = null, forceYaw = null } = {}) {
+  await page.evaluate(({ type, dist, hp, camSide, pick, extra, forceYaw }) => {
     const G = window.__game, hero = G.hero, b = window.__base;
     const level = (yaw) => [dist, dist + 3, 6].every((r) => Math.abs(G.world.collision.groundBelow(b.x + Math.sin(yaw) * r, b.y + 2, b.z + Math.cos(yaw) * r, 0.3) - b.y) < 0.5);
-    let yaw = 0;
-    for (const cand of [0, Math.PI / 2, -Math.PI / 2, Math.PI, Math.PI / 4, -Math.PI / 4, 3 * Math.PI / 4, -3 * Math.PI / 4]) if (level(cand)) { yaw = cand; break; }
+    let yaw = forceYaw ?? 0;
+    if (forceYaw === null) for (const cand of [0, Math.PI / 2, -Math.PI / 2, Math.PI, Math.PI / 4, -Math.PI / 4, 3 * Math.PI / 4, -3 * Math.PI / 4]) if (level(cand)) { yaw = cand; break; }
     hero.teleport(b, yaw);
     hero.control = null;
     hero.vel.set(0, 0, 0);
@@ -66,7 +66,7 @@ async function stage(type, dist, { hp = 60, camSide = -1.15, pick = 0, extra = n
     G.follow.snapBehind(yaw + camSide, 0.12);
     window.__stageTarget = target?.id ?? null;
     window.__stageYaw = yaw;
-  }, { type, dist, hp, camSide, pick, extra });
+  }, { type, dist, hp, camSide, pick, extra, forceYaw });
   await page.waitForTimeout(350);
 }
 const impacts = () => page.evaluate(() => window.__impacts ?? 0);
@@ -91,6 +91,8 @@ const settle = (ms = 1400) => page.waitForTimeout(ms);
 // ?hitstop=0.6 freezes the game for 0.6 s after every impact; inputs must wait it out.
 const FREEZE = 750;
 
+const ONLY = process.env.ONLY ?? null;
+if (!ONLY) {
 // Punch chain: jab, cross, jab, then the haymaker (critical: action camera).
 await stage('grunt', 2.2);
 for (const name of ['punch1-jab', 'punch2-cross', 'punch3-jab']) { await click(); await shotOnImpact(name); await page.waitForTimeout(FREEZE); }
@@ -144,6 +146,43 @@ await page.keyboard.press('KeyX'); await page.waitForTimeout(150);
 log('after special press:', JSON.stringify(await page.evaluate(() => ({ control: window.__game.hero.control?.name ?? null, ready: window.__game.combat.combo.ready, value: window.__game.combat.combo.value }))));
 if (await shotOnImpact('special', { timeout: 3000 })) { await page.waitForTimeout(450); await page.screenshot({ path: join(out, 'special-actioncam.png') }); }
 
+
+}
+// Ledge: a no-parapet warehouse roof (wh2). The hero stands 3 m from the edge facing it, the
+// goon between him and the drop. Two knockback kicks: the goon flies off, Batman must not.
+await page.evaluate(() => {
+  const G = window.__game;
+  const x = -120, z = 182 + 16 - 3.2;
+  const y = G.world.collision.groundBelow(x, 60, z, 0.3);
+  window.__base = { x, y, z };
+  G.hero.teleport(window.__base, 0);
+});
+await page.waitForTimeout(400);
+for (const [name, dist, pick] of [['ledge-kick1-front', 2.0, 0], ['ledge-kick2-roundhouse', 2.2, 1]]) {
+  await stage('grunt', dist, { pick, camSide: -1.3, forceYaw: 0 });
+  const before = await page.evaluate(() => ({ x: +window.__game.hero.pos.x.toFixed(2), y: +window.__game.hero.pos.y.toFixed(2), z: +window.__game.hero.pos.z.toFixed(2) }));
+  await page.keyboard.press('KeyE');
+  await shotOnImpact(name);
+  await page.waitForTimeout(FREEZE + 700);
+  await page.screenshot({ path: join(out, `${name}-after.png`) });
+  const after = await page.evaluate(() => { const G = window.__game, h = G.hero, e = G.enemies.find((x) => x.id === window.__stageTarget); return { x: +h.pos.x.toFixed(2), y: +h.pos.y.toFixed(2), z: +h.pos.z.toFixed(2), state: h.state, goonZ: +e.pos.z.toFixed(2), goonY: +e.pos.y.toFixed(2) }; });
+  log(`${name}: hero before ${JSON.stringify(before)} after ${JSON.stringify(after)} (roof edge at z=198)`);
+}
+
+// Counter cut: a strike is under way on one goon while another winds up; a block tap during
+// the wind-up must replace the strike with a counter before the strike's contact frame.
+await page.evaluate(() => { const G = window.__game; G.hero.teleport({ x: 6, y: G.world.collision.groundBelow(6, 60, 10, 0.3), z: 10 }, 0); window.__base = { x: G.hero.pos.x, y: G.hero.pos.y, z: G.hero.pos.z }; });
+await stage('grunt', 3.2, { pick: 0, extra: { dist: 2.4, side: 1.8 } });
+await page.evaluate(() => { const G = window.__game; for (const e of G.enemies) if (e.type === 'grunt' && e.pos.distanceTo(G.hero.pos) < 3 && e.id !== window.__stageTarget) e.startWindup(1.4, G.hero); });
+const n0 = await impacts();
+await page.keyboard.press('KeyE');
+await page.waitForTimeout(60);
+const during = await page.evaluate(() => window.__game.hero.control?.name ?? null);
+await click('right');
+await page.waitForTimeout(80);
+const cut = await page.evaluate(() => window.__game.hero.control?.name ?? null);
+await shotOnImpact('counter-cut', { since: n0 });
+log(`counter cut: control during strike wind-up=${during}, after block tap=${cut}`);
 writeFileSync(join(out, 'contact-log.txt'), report.join('\n') + '\n');
 // Labelled grids of every shot, three per row, for review.
 const sharp = (await import('sharp')).default;

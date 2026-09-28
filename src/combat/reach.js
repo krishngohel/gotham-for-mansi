@@ -24,7 +24,7 @@ export function buildReachTable(model, clips, fwd = 1) {
     if (!clip) continue;
     const action = mixer.clipAction(clip);
     action.play();
-    let best = { z: -Infinity };
+    let best = { z: -Infinity }, any = { z: -Infinity };
     // Only the first 60% of a punch clip is the strike; the rest is the return to guard.
     const span = clip.duration * 0.6;
     for (let t = 0; t <= span; t += 1 / 60) {
@@ -33,13 +33,17 @@ export function buildReachTable(model, clips, fwd = 1) {
       for (const h of hands) {
         model.worldToLocal(model.getObjectByName(h).getWorldPosition(p));
         const z = p.z * fwd;
+        const s = { z, x: p.x, y: p.y, t, limb: h };
+        if (z > any.z) any = s;
         // A punch lands at torso height; a hand swung low is a wind-up, not the blow.
-        if (p.y < 0.9) continue;
-        if (z > best.z) best = { z, x: p.x, y: p.y, t, limb: h };
+        if (p.y >= 0.9 && z > best.z) best = s;
       }
     }
     action.stop();
     mixer.uncacheClip(clip);
+    // A clip that never lifts a hand to torso height still gets its farthest frame.
+    if (best.z === -Infinity) best = any;
+    if (best.z === -Infinity) continue;
     table[name] = { contact: +best.t.toFixed(3), limb: best.limb, reach: { x: +best.x.toFixed(3), y: +best.y.toFixed(3), z: +best.z.toFixed(3) }, root: null, fps: 0, duration: clip.duration };
   }
   mixer.uncacheRoot(model);

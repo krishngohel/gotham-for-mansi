@@ -34,8 +34,8 @@ export function createFollowCamera(camera, collision) {
       s.baseFov = fov; s.sensitivity = sensitivity; s.invertY = invertY; s.shakeEnabled = cameraShake; s.actionEnabled = actionCam;
     },
     addShake(amount) { if (s.shakeEnabled) s.shake = Math.max(s.shake, amount); },
-    // A hit lands: a short FOV punch that decays over about a tenth of a second.
-    hitKick(amount = 3) { if (s.shakeEnabled) s.hitKick = Math.max(s.hitKick, amount); },
+    // A hit lands: a short FOV punch-in (narrower) that decays over about a tenth of a second.
+    hitKick(amount = 3) { if (s.shakeEnabled) s.hitKick = Math.min(s.hitKick, -amount); },
     forward(out = new THREE.Vector3()) { return out.set(Math.sin(s.yaw), 0, Math.cos(s.yaw)); },
     right(out = new THREE.Vector3()) { return out.set(-Math.cos(s.yaw), 0, Math.sin(s.yaw)); },
     lookDir(out = new THREE.Vector3()) { return camera.getWorldDirection(out); },
