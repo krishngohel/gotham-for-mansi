@@ -4,11 +4,12 @@
 //
 // Scenarios: five fixed spots (with a separate "arrive" window right after each teleport), a
 // long glide across districts, goons spawned mid-play, the ?fight=test sandbox with the hero
-// kicking, and the boss arena (?at=boss).
+// kicking, the boss arena (?at=boss), and a predator stealth room (patrols, detective vision, a
+// silent takedown, the alarm).
 //
 // Usage: node scripts/fps-sweep.mjs [baseUrl] [high|low]
 // Env:   OUT=<file.json> writes the raw result; SHOTS=<dir> saves a screenshot at each spot;
-//        ONLY=main|fight|boss|side runs one page only; EXTRA=<query> replaces the default extra URL params (dynres=0).
+//        ONLY=main|fight|boss|side|stealth runs one page only; EXTRA=<query> replaces the default extra URL params (dynres=0).
 import { chromium } from 'playwright-core';
 import { writeFileSync, mkdirSync } from 'node:fs';
 
@@ -103,7 +104,7 @@ if (!only || only === 'main') {
   await p.evaluate(() => {
     const g = window.__game;
     const h = g.hero.pos;
-    const list = ['grunt', 'knife', 'brute', 'grunt'].map((t, i) => g.spawn(t, { x: h.x - 6 + i * 4, y: h.y, z: h.z + 7 }));
+    const list = ['grunt', 'knife', 'brute', 'rifle'].map((t, i) => g.spawn(t, { x: h.x - 6 + i * 4, y: h.y, z: h.z + 7 }));
     g.combat.setEnemies([...g.combat.enemies, ...list]);
     for (const e of list) e.wake();
   });
@@ -176,6 +177,40 @@ if (!only || only === 'side') {
   await p.evaluate(() => window.__game.photo.close());
   all.push(...await collect(p, 'side'));
   meta.errorsSide = errors;
+  await p.close();
+}
+if (!only || only === 'stealth') {
+  const { p, errors } = await openGame('at=aceCatwalks&god=1');
+  await p.waitForTimeout(1500);
+  await skipComic(p);
+  await label(p, 'warmup');
+  // Since main's merge, the first click while the pointer isn't locked only acquires the lock
+  // and swallows the action it buffered (game.js's canvas click handler, for Safari); spend that
+  // click here so the real one below (the silent takedown) fires on its own first try.
+  await p.mouse.click(640, 360);
+  await p.waitForTimeout(5000);
+  // Patrols, line-of-sight rays, awareness rings and the steam vent, from the catwalk overlook.
+  await p.evaluate(() => { const g = window.__game; g.hero.teleport({ x: 150, y: 0.15, z: -96 }, Math.PI * 1.25); g.follow.snapBehind(Math.PI * 1.25); });
+  await label(p, 'stealth');
+  await p.waitForTimeout(4000);
+  // Detective vision: cones, x-ray state colours, the armed counter.
+  await label(p, 'stealth-detective');
+  await p.keyboard.press('KeyV');
+  await p.waitForTimeout(3000);
+  await p.keyboard.press('KeyV');
+  // A silent takedown: both choke clips, the takedown camera, a balloon.
+  await p.evaluate(() => { const g = window.__game, e = g.stealth.goons[2].e; g.hero.teleport({ x: e.pos.x - Math.sin(e.yaw) * 1.1, y: e.pos.y, z: e.pos.z - Math.cos(e.yaw) * 1.1 }, e.yaw); });
+  await p.waitForTimeout(200);
+  await label(p, 'stealth-takedown');
+  await p.mouse.click(640, 360);
+  await p.waitForTimeout(3000);
+  // Spotted: the alarm, rifles aiming and firing, lasers, tracers and flashes.
+  await p.evaluate(() => { const g = window.__game, e = g.stealth.goons[3].e; g.hero.teleport({ x: e.pos.x + Math.sin(e.yaw) * 7, y: e.pos.y, z: e.pos.z + Math.cos(e.yaw) * 7 }, e.yaw + Math.PI); });
+  await label(p, 'stealth-alarm');
+  await p.waitForTimeout(6000);
+  if (shots) { await label(p, 'shot'); await p.screenshot({ path: `${shots}/stealth.png` }); }
+  all.push(...await collect(p, 'stealth'));
+  meta.errorsStealth = errors;
   await p.close();
 }
 await b.close();
