@@ -101,7 +101,7 @@ function cacheTex(g, w, h) {
 const boxGeo = (b) => new THREE.BoxGeometry(b.maxX - b.minX, b.maxY - b.minY, b.maxZ - b.minZ)
   .translate((b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2, (b.minZ + b.maxZ) / 2);
 
-export function createBreakables({ scene, collision, climbables, progress, save, events, gfx }) {
+export function createBreakables({ scene, collision, climbables, progress, save, events, gfx, dev = false }) {
   const mats = {
     shed: toonMaterial({ color: 0xffffff, map: canvasTex(256, 256, (g, w, h) => bricks(g, w, h, false)) }),
     weakWall: toonMaterial({ color: 0xffffff, map: canvasTex(256, 256, (g, w, h) => bricks(g, w, h, true)) }),
@@ -212,8 +212,12 @@ export function createBreakables({ scene, collision, climbables, progress, save,
     item.mesh.visible = false;
     const floor = collision.groundBelow(item.center.x, item.center.y, item.center.z, 0.3);
     gfx.debris.burst(item.center, COLORS[item.kind], item.kind === 'glass' ? 16 : 22, item.kind === 'glass' ? 5 : 7, floor > -Infinity ? floor : item.center.y - 1.2);
-    if (!progress.gadgets.broken.includes(item.id)) progress.gadgets.broken.push(item.id);
-    save();
+    // A ?gadgets=all dev run breaks it for this session (collision, visuals, debris, events, the
+    // cache or balloon behind it) but must never touch the real save.
+    if (!dev) {
+      if (!progress.gadgets.broken.includes(item.id)) progress.gadgets.broken.push(item.id);
+      save();
+    }
     events.emit(EVENT[item.kind], { id: item.id, pos: item.center.clone(), item, from });
     events.emit('word', { text: WORD[item.kind], pos: item.center.clone(), big: item.kind === 'weakWall' });
     return true;
@@ -242,8 +246,10 @@ export function createBreakables({ scene, collision, climbables, progress, save,
         if (Math.hypot(heroPos.x - c.pos.x, heroPos.z - c.pos.z) < 1.4 && Math.abs(heroPos.y - c.pos.y) < 1.5) {
           c.taken = true;
           writeCache(c, t);
-          if (!progress.gadgets.caches.includes(c.id)) progress.gadgets.caches.push(c.id);
-          save();
+          if (!dev) {
+            if (!progress.gadgets.caches.includes(c.id)) progress.gadgets.caches.push(c.id);
+            save();
+          }
           events.emit('cacheFound', { id: c.id, xp: c.xp, pos: c.pos.clone() });
         }
       }

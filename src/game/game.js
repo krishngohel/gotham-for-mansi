@@ -232,6 +232,9 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const breakables = createBreakables({
       scene, collision: world.collision, climbables: world.climbables, progress, events, gfx,
       save: () => saveProgress(storage, progress),
+      // ?gadgets=all is a dev run (gadgetSystem's devAll, read the same way at its own call site):
+      // breaks and cache finds still happen for the session but never reach the real save.
+      dev: params.get('gadgets') === 'all',
     });
     const chainFx = createChainFx(scene);
     const rng = createRng(99);
