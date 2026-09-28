@@ -34,7 +34,7 @@ test('explosive gel opens the Monarch booth and the balloon inside', async ({ pa
   // No `gadgets=all` here: gel is already unlocked naturally at this step (its unlock, toNeon,
   // comes earlier in STEPS), and `gadgets=all` sets breakables' own `dev` flag (game.js), which
   // deliberately keeps `progress.gadgets.broken` untouched for the session (same isolation as
-  // WayneTech's dev-run xp copy) — this test needs that array to actually update.
+  // WayneTech's dev-run xp copy), and this test needs that array to actually update.
   await boot(page, 'at=toMonarch&god=1&new=1');
   await page.evaluate(() => {
     const G = window.__game;
