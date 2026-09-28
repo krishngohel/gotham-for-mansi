@@ -157,6 +157,9 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0 6px; margin: 0 2px; bo
 .credits-menu .legal { font-size: 15px !important; opacity: 0.7; }
 .credits-menu.final { animation: rise 1.2s ease-out; }
 @keyframes rise { from { transform: translateY(40px) rotate(-0.6deg); opacity: 0; } }
+.gpu-hint { position: fixed; left: 50%; top: 14px; transform: translateX(-50%); z-index: 40; max-width: min(560px, calc(100vw - 32px)); display: flex; gap: 12px; align-items: center; padding: 10px 14px; background: var(--paper); color: var(--ink); border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); font: 16px 'Patrick Hand SC', 'Barlow Condensed', sans-serif; }
+.gpu-hint p { margin: 0; line-height: 1.25; }
+.gpu-hint button { flex: none; font: 700 16px 'Barlow Condensed', sans-serif; padding: 6px 12px; background: var(--signal); color: var(--ink); border: 2px solid var(--ink); cursor: pointer; }
 .fps { position: fixed; right: 8px; bottom: 6px; z-index: 6; font: 700 14px 'Barlow Condensed', sans-serif; color: var(--paper); text-shadow: 1px 1px 0 var(--ink); }
 
 .sfx.big { font-size: 104px; -webkit-text-stroke: 5px var(--ink); text-shadow: 7px 7px 0 var(--ink); color: #ffe45c; animation-duration: 1s; }

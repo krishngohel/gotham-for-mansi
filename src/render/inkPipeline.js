@@ -227,6 +227,20 @@ export function createInkPipeline(renderer, quality) {
     uniforms.uHalftone.value = 7 * pr;
   }
 
+  // GPU time of each frame's passes (EXT_disjoint_timer_query_webgl2, where the browser has it),
+  // read a frame or two late without stalling. Feeds the dynamic resolution scaler.
+  const gl = renderer.getContext();
+  const timer = gl.getExtension?.('EXT_disjoint_timer_query_webgl2') ?? null;
+  const pending = [];
+  let gpuMs = null;
+  function pollTimer() {
+    while (pending.length && gl.getQueryParameter(pending[0], gl.QUERY_RESULT_AVAILABLE)) {
+      const q = pending.shift();
+      if (!gl.getParameter(timer.GPU_DISJOINT_EXT)) gpuMs = gl.getQueryParameter(q, gl.QUERY_RESULT) / 1e6;
+      gl.deleteQuery(q);
+    }
+  }
+
   let impactFrames = 0;
   function setComic(c) {
     uniforms.uWobble.value = c.wobble; uniforms.uHatch.value = c.hatch; uniforms.uMidDots.value = c.midDots;
@@ -242,6 +256,9 @@ export function createInkPipeline(renderer, quality) {
     uniforms.uNear.value = camera.near;
     uniforms.uFar.value = camera.far;
     uniforms.uTime.value = time;
+
+    let query = null;
+    if (timer && pending.length < 4) { query = gl.createQuery(); gl.beginQuery(timer.TIME_ELAPSED_EXT, query); }
 
     camera.layers.set(0);
     camera.layers.enable(LAYER_FX);
@@ -280,6 +297,8 @@ export function createInkPipeline(renderer, quality) {
     }
     camera.layers.set(0);
     camera.layers.enable(LAYER_FX);
+    if (query) { gl.endQuery(timer.TIME_ELAPSED_EXT); pending.push(query); }
+    if (timer) pollTimer();
   }
 
   // Parallel shader compile for everything in `scene`. Scene materials only ever draw into the
@@ -291,5 +310,5 @@ export function createInkPipeline(renderer, quality) {
     try { await renderer.compileAsync(scene, camera); } finally { renderer.setRenderTarget(null); }
   }
 
-  return { uniforms, setSize, render, setComic, setPalette, impact, compileAsync };
+  return { uniforms, setSize, render, setComic, setPalette, impact, compileAsync, get gpuMs() { return gpuMs; } };
 }

@@ -190,6 +190,8 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
       body.appendChild(choice('Quality', settings.quality, [['high', 'High'], ['low', 'Low']], (v) => { settings.quality = v; }));
       body.appendChild(el('p', 'note', 'Quality changes apply the next time the game loads.'));
       body.appendChild(slider('Render scale', settings.renderScale, 0.5, 1, 0.05, (v) => { settings.renderScale = v; }, (v) => `${Math.round(v * 100)}%`));
+      body.appendChild(toggle('Dynamic resolution', settings.dynamicRes, (v) => { settings.dynamicRes = v; }));
+      body.appendChild(el('p', 'note', 'Lowers the render scale a little when frames run late, and raises it again when there is room.'));
       body.appendChild(slider('Halftone dots', settings.halftone, 0, 1.5, 0.05, (v) => { settings.halftone = v; }, (v) => `${Math.round(v * 100)}%`));
       body.appendChild(toggle('Show FPS', settings.showFps, (v) => { settings.showFps = v; }));
     } else if (tab === 'audio') {

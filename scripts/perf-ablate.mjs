@@ -28,40 +28,26 @@ const only = process.env.TOGGLES ? process.env.TOGGLES.split(',') : Object.keys(
 
 const b = await chromium.launch({ channel: 'msedge', headless: false, args: ['--start-maximized', '--disable-gpu-vsync', '--disable-frame-rate-limit'] });
 const p = await (await b.newContext({ viewport: null })).newPage();
-await p.goto(`${base}?at=start&god=1&q=${q}`);
+await p.goto(`${base}?at=start&god=1&dynres=0&q=${q}`);
 await p.waitForFunction(() => window.__game?.comic, null, { timeout: 120000 });
 await p.waitForTimeout(1500);
 await p.evaluate(() => window.__game.comic.skip());
 await p.waitForTimeout(4000);
-// GPU time of the whole ink.render (all passes) from EXT_disjoint_timer_query_webgl2, the CPU
-// time spent inside it, and the CPU time of the whole frame callback (rAF start to end of render).
+// GPU time of the whole ink.render (all passes, from the pipeline's timer query), the CPU time
+// spent inside it, and the CPU time of the whole frame callback (rAF start to end of render).
 await p.evaluate(() => {
-  const g = window.__game; const gl = g.renderer.getContext();
-  const ext = gl.getExtension('EXT_disjoint_timer_query_webgl2');
-  const st = window.__gpu = { gpu: [], cpuRender: [], cpuFrame: [], pending: [], ok: !!ext, frameStart: 0 };
+  const g = window.__game;
+  const st = window.__gpu = { gpu: [], cpuRender: [], cpuFrame: [] };
   const orig = g.ink.render;
-  const tick = (n) => { st.frameStart = n; requestAnimationFrame(tick); };
-  // Registered before the game's next callback runs? No: record performance.now() at render start
-  // and use the rAF timestamp of the game's own frame via document.timeline.
   g.ink.render = function (...a) {
     const t0 = performance.now();
-    let q = null;
-    if (ext) { q = gl.createQuery(); gl.beginQuery(ext.TIME_ELAPSED_EXT, q); }
     const r = orig.apply(this, a);
-    if (ext) { gl.endQuery(ext.TIME_ELAPSED_EXT); st.pending.push(q); }
     const t1 = performance.now();
     st.cpuRender.push(t1 - t0);
     st.cpuFrame.push(t1 - document.timeline.currentTime);
-    for (let i = st.pending.length - 1; i >= 0; i--) {
-      const pq = st.pending[i];
-      if (gl.getQueryParameter(pq, gl.QUERY_RESULT_AVAILABLE)) {
-        if (!gl.getParameter(ext.GPU_DISJOINT_EXT)) st.gpu.push(gl.getQueryParameter(pq, gl.QUERY_RESULT) / 1e6);
-        gl.deleteQuery(pq); st.pending.splice(i, 1);
-      }
-    }
+    if (g.ink.gpuMs !== null) st.gpu.push(g.ink.gpuMs); // the pipeline's own timer query
     return r;
   };
-  void tick;
 });
 const measure = () => p.evaluate(async () => {
   const st = window.__gpu; st.gpu.length = 0; st.cpuRender.length = 0; st.cpuFrame.length = 0;

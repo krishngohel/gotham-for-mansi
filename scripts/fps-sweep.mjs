@@ -8,13 +8,14 @@
 //
 // Usage: node scripts/fps-sweep.mjs [baseUrl] [high|low]
 // Env:   OUT=<file.json> writes the raw result; SHOTS=<dir> saves a screenshot at each spot;
-//        ONLY=main|fight|boss runs one page only; EXTRA=<query> adds URL params (e.g. dynres=0).
+//        ONLY=main|fight|boss runs one page only; EXTRA=<query> replaces the default extra URL params (dynres=0).
 import { chromium } from 'playwright-core';
 import { writeFileSync, mkdirSync } from 'node:fs';
 
 const base = process.argv[2] ?? 'http://localhost:5202/';
 const q = process.argv[3] ?? 'high';
-const extra = process.env.EXTRA ? `&${process.env.EXTRA}` : '';
+// Dynamic resolution off by default: with vsync off there is no refresh budget to aim for.
+const extra = `&${process.env.EXTRA ?? 'dynres=0'}`;
 const only = process.env.ONLY ?? '';
 const shots = process.env.SHOTS ?? '';
 if (shots) mkdirSync(shots, { recursive: true });

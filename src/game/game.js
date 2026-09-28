@@ -40,6 +40,8 @@ import { createBoss } from './boss.js';
 import { createFinale } from './finale.js';
 import { createWarmCast } from './warmCast.js';
 import { drawEverything, uploadTextures, readyObjects } from '../render/prewarm.js';
+import { createDynamicRes } from '../render/dynamicRes.js';
+import { gpuRenderer, gpuShortName, maybeShowGpuHint } from '../ui/gpuInfo.js';
 
 async function loadFonts() {
   try {
@@ -104,6 +106,16 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   const menus = createMenus({ root: document.body, settings, storage, input, sound: (n) => audio.play(n), onChange: () => applySettings() });
   const fpsEl = Object.assign(document.createElement('div'), { className: 'fps' });
   document.body.appendChild(fpsEl);
+  const gpu = gpuRenderer(renderer.getContext());
+  const gpuName = gpuShortName(gpu);
+  maybeShowGpuHint(document.body, gpu, storage);
+  // Dynamic resolution rides on top of the Render scale setting (?dynres=0 turns it off, for
+  // benchmarks run with vsync off, where there is no refresh budget to aim for).
+  const dynRes = createDynamicRes({ min: 0.6, onChange: () => applyResolution() });
+  function applyResolution() {
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.pixelRatioCap) * settings.renderScale * dynRes.scale);
+    resize();
+  }
 
   const state = { frame: 0, fps: 0, ready: false, t: 0, phase: 'title', paused: false };
   let game = null; // everything that exists once a run has begun
@@ -113,7 +125,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     audio.setVolumes(settings.volume);
     ink.uniforms.uHalftoneAmount.value = settings.halftone;
     ink.setComic({ ...quality.comic, wobble: settings.lineWobble ? quality.comic.wobble : 0 });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.pixelRatioCap) * settings.renderScale);
+    dynRes.setEnabled(settings.dynamicRes && params.get('dynres') !== '0');
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.pixelRatioCap) * settings.renderScale * dynRes.scale);
     fpsEl.style.display = settings.showFps ? '' : 'none';
     game?.follow.configure(settings);
     if (game) {
@@ -455,7 +468,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   window.addEventListener('mousedown', () => audio.unlock(), { once: true });
   window.addEventListener('keydown', () => audio.unlock(), { once: true });
 
-  window.__game = { state, renderer, ink, camera, scene, world, input, events, audio, voice, settings, time, get progress() { return progress; }, begin, lightningNow: () => { weather.next = 0; } };
+  window.__game = { state, renderer, ink, dynRes, camera, scene, world, input, events, audio, voice, settings, time, get progress() { return progress; }, begin, lightningNow: () => { weather.next = 0; } };
 
   // ---------------- frame loop ----------------
   let last = performance.now(), fpsT = 0, fpsN = 0, errors = 0;
@@ -475,9 +488,12 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     ink.uniforms.uFlash.value = k;
     world.setFlash(k);
   }
+  let prevNow = performance.now();
   function frame(now) {
     requestAnimationFrame(frame);
     try { step(now); } catch (err) { if (errors++ < 5) console.error(err); }
+    dynRes.update(now - prevNow);
+    prevNow = now;
     if (state.frame === 1) mark('firstFrame');
   }
   function step(now) {
@@ -505,7 +521,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     audio.update(real);
     state.frame += 1;
     fpsT += real; fpsN += 1;
-    if (fpsT >= 1) { state.fps = Math.round(fpsN / fpsT); fpsT = 0; fpsN = 0; fpsEl.textContent = `${state.fps} fps`; }
+    if (fpsT >= 1) { state.fps = Math.round(fpsN / fpsT); fpsT = 0; fpsN = 0; fpsEl.textContent = `${state.fps} fps · ${Math.round(settings.renderScale * dynRes.scale * 100)}% · ${gpuName}`; }
   }
 
   applySettings();

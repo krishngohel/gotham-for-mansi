@@ -18,7 +18,7 @@ export function createComicFx(root) {
     ph: Math.random(),
     white: i % 4 === 3,
   }));
-  let k = 0, t = 0;
+  let k = 0, t = 0, drawn = false, panelOn = false;
   function resize() { canvas.width = Math.round(innerWidth / 2); canvas.height = Math.round(innerHeight / 2); }
   resize();
   addEventListener('resize', resize);
@@ -27,9 +27,15 @@ export function createComicFx(root) {
       t += dt;
       const want = Math.min(1, Math.max(0, (speed - 16) / 20));
       k += (want - k) * Math.min(1, dt * 6);
-      panel.classList.toggle('on', actionActive);
+      if (actionActive !== panelOn) { panelOn = actionActive; panel.classList.toggle('on', actionActive); }
+      // Touch the canvas only while lines show (and once to clear them): any draw call, even a
+      // clear, makes the browser re-upload and re-composite the whole overlay that frame.
+      if (k < 0.02) {
+        if (drawn) { g.clearRect(0, 0, canvas.width, canvas.height); drawn = false; }
+        return;
+      }
       g.clearRect(0, 0, canvas.width, canvas.height);
-      if (k < 0.02) return;
+      drawn = true;
       const cx = canvas.width / 2, cy = canvas.height / 2, R = Math.hypot(cx, cy);
       // Wedges live only in the outer ~35% of the frame; the tip never reaches the middle.
       const rOuter = R * 1.05, rInner = R * 0.65;
@@ -51,6 +57,6 @@ export function createComicFx(root) {
       }
       g.globalAlpha = 1;
     },
-    panel(on) { panel.classList.toggle('on', on); },
+    panel(on) { panelOn = on; panel.classList.toggle('on', on); },
   };
 }

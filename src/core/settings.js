@@ -13,6 +13,7 @@ export const DEFAULT_SETTINGS = {
   impactFrames: true,
   quality: 'high',
   renderScale: 1,
+  dynamicRes: true,
   halftone: 1,
   showFps: false,
   volume: { master: 0.8, music: 0.6, sfx: 0.9 },
@@ -63,6 +64,7 @@ export function sanitizeSettings(raw = {}) {
     impactFrames: bool(r.impactFrames, d.impactFrames),
     quality: oneOf(r.quality, ['high', 'low'], d.quality),
     renderScale: num(r.renderScale, 0.5, 1, d.renderScale),
+    dynamicRes: bool(r.dynamicRes, d.dynamicRes),
     halftone: num(r.halftone, 0, 1.5, d.halftone),
     showFps: bool(r.showFps, d.showFps),
     volume: {
