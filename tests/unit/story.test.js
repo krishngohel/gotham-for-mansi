@@ -53,8 +53,8 @@ describe('story data', () => {
     }
     expect(STEPS.at(-1).type).toBe('credits');
   });
-  it('no player-facing text uses em dashes', () => {
-    for (const s of STEPS) if (s.text) expect(s.text).not.toMatch(/—/);
+  it('no player-facing text uses em or en dashes', () => {
+    for (const s of STEPS) if (s.text) expect(s.text, s.id).not.toMatch(/[\u2013\u2014]/);
   });
   it('stealth fights name their room and an entry site', () => {
     for (const [id, f] of Object.entries(FIGHTS)) {

@@ -12,7 +12,8 @@ export const LEGACY_STEP_IDS = Object.freeze([
 ]);
 
 const ID = /^[a-zA-Z][a-zA-Z0-9]{0,31}$/;
-registerProgressField('stepId', { sanitize: (v) => (typeof v === 'string' && ID.test(v) ? v : null) });
+// A new game starts at the intro, never at the old save's step.
+registerProgressField('stepId', { sanitize: (v) => (typeof v === 'string' && ID.test(v) ? v : null), fresh: null });
 
 export function resolveStep(progress, steps = STEPS, legacy = LEGACY_STEP_IDS) {
   const byId = (id) => steps.findIndex((s) => s.id === id);

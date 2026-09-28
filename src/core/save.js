@@ -24,12 +24,15 @@ export const DEFAULT_PROGRESS = {
 };
 
 // Later parts (the post-game in Part H) add saved fields here instead of editing
-// sanitizeProgress. Returns an undo, mainly for tests.
+// sanitizeProgress. `fresh` (optional) is the value a new game resets the field to; leave it out
+// to keep the field across a new game. Returns an undo, mainly for tests.
 const extraFields = new Map();
-export function registerProgressField(key, { sanitize }) {
+const freshValues = new Map();
+export function registerProgressField(key, { sanitize, ...opts }) {
   if (key in DEFAULT_PROGRESS || extraFields.has(key)) throw new Error(`progress field "${key}" already exists`);
   extraFields.set(key, sanitize);
-  return () => extraFields.delete(key);
+  if ('fresh' in opts) freshValues.set(key, opts.fresh);
+  return () => { extraFields.delete(key); freshValues.delete(key); };
 }
 
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -81,7 +84,9 @@ export function sanitizeProgress(raw = {}) {
 
 // A new game restarts the story. Balloons, medals, stats and everything else found stay.
 export function newGameProgress(old) {
-  return { ...sanitizeProgress(old), step: 0, suit: null, seenIntro: false, finished: false };
+  const out = { ...sanitizeProgress(old), step: 0, suit: null, seenIntro: false, finished: false };
+  for (const [key, fresh] of freshValues) out[key] = sanitizeProgress({ [key]: fresh })[key];
+  return out;
 }
 
 export function loadProgress(storage) {

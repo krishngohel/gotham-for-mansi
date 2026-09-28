@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import '../../src/gadgets/gadgetSave.js'; // registers progress.gadgets, as game.js does before loading
 import { STEPS } from '../../src/game/story.js';
 import { LEGACY_STEP_IDS, resolveStep, migrateProgress } from '../../src/game/storyMigrate.js';
-import { sanitizeProgress, loadProgress, saveProgress, newGameProgress } from '../../src/core/save.js';
+import { sanitizeProgress, loadProgress, saveProgress, newGameProgress, registerProgressField } from '../../src/core/save.js';
 import { GADGETS, isUnlocked } from '../../src/gadgets/gadgetDefs.js';
 import { tracker } from '../../src/game/progressTracker.js';
 
@@ -37,7 +37,7 @@ describe('story steps', () => {
     expect(STEPS).toHaveLength(LEGACY_STEP_IDS.length + 2);
   });
   it('the new story text avoids em and en dashes', () => {
-    for (const id of NEW_IDS) expect(STEPS[idx(id)].text).not.toMatch(/[–—]/);
+    for (const id of NEW_IDS) expect(STEPS[idx(id)].text).not.toMatch(/[\u2013\u2014]/);
   });
 });
 
@@ -121,6 +121,28 @@ describe('every pre-Part D save keeps its place', () => {
     expect(migrateProgress(loadProgress(memStorage()))).toMatchObject({ step: 0, stepId: 'intro' });
     const fresh = { ...newGameProgress(loadRaw({ step: 20, stepId: 'a1', balloons: [3] })), stepId: null };
     expect(migrateProgress(fresh)).toMatchObject({ step: 0, stepId: 'intro', balloons: [3] });
+  });
+  it('newGameProgress itself clears the step id, keeping what was found', () => {
+    const done = loadRaw({
+      step: LEGACY_STEP_IDS.indexOf('credits'), stepId: 'credits', finished: true, balloons: [0, 5],
+      gadgets: { equipped: 'gel', unlocked: ['remote', 'gel'], broken: [], caches: [] },
+    });
+    expect(done.stepId).toBe('credits');
+    const fresh = newGameProgress(done);
+    expect(fresh).toMatchObject({ step: 0, stepId: null, finished: false, suit: null, balloons: [0, 5] });
+    expect(fresh.gadgets.unlocked).toEqual(['remote', 'gel']);
+    expect(migrateProgress(fresh)).toMatchObject({ step: 0, stepId: 'intro' });
+    const storage = memStorage();
+    saveProgress(storage, fresh);
+    expect(migrateProgress(loadProgress(storage))).toMatchObject({ step: 0, stepId: 'intro', finished: false });
+  });
+  it('a registered field with no fresh value survives a new game, one with a fresh value resets', () => {
+    const undoKeep = registerProgressField('testKeep', { sanitize: (v) => (typeof v === 'number' ? v : 0) });
+    const undoReset = registerProgressField('testReset', { sanitize: (v) => (typeof v === 'number' ? v : 0), fresh: 7 });
+    try {
+      expect(newGameProgress({ testKeep: 3, testReset: 3 })).toMatchObject({ testKeep: 3, testReset: 7 });
+    } finally { undoKeep(); undoReset(); }
+    expect(newGameProgress({ testReset: 3 })).not.toHaveProperty('testReset');
   });
   it('malformed saves fall back safely', () => {
     for (const step of [undefined, null, -1, -999, 1.5, NaN, '17', true, [], {}]) {
