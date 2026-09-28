@@ -81,3 +81,15 @@ describe('gadget bindings', () => {
     expect(s.bindings.chain4).toEqual(['Digit4']);
   });
 });
+
+describe('crouch binding', () => {
+  it('Z toggles crouch, in the Move group', () => {
+    expect(DEFAULT_BINDINGS.crouch).toEqual(['KeyZ']);
+    const a = ACTIONS.find((x) => x.id === 'crouch');
+    expect(a.group).toBe('Move');
+    expect(a.label).not.toMatch(/[–—]/);
+  });
+  it('old saved bindings pick up the new default', () => {
+    expect(sanitizeSettings({ bindings: { jump: ['Space'] } }).bindings.crouch).toEqual(['KeyZ']);
+  });
+});

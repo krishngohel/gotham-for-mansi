@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { padActions, createHoldTap, PAD_TAP, PAD_WHEEL } from '../../src/core/input.js';
+import { padActions, createHoldTap, PAD_TAP, PAD_WHEEL, PAD_L3 } from '../../src/core/input.js';
 
 const pad = (...down) => (i) => down.includes(i);
 const acts = (...down) => [...padActions(pad(...down))].sort();
@@ -73,5 +73,12 @@ describe('right bumper: tap for the cape, hold for the gadget wheel', () => {
   it('Y plus LB is the Bat Swarm, LB alone still grapples', () => {
     expect(acts(3, 4)).toEqual(['block', 'chain4']);
     expect(acts(4)).toEqual(['grapple']);
+  });
+});
+
+describe('left stick click: tap to crouch, hold to sprint', () => {
+  it('L3 is no longer a plain pad action (createHoldTap decides)', () => {
+    expect(PAD_L3).toBe(10);
+    expect(acts(PAD_L3)).toEqual([]);
   });
 });

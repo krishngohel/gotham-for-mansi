@@ -1,11 +1,12 @@
 // Action-based input over keyboard, mouse (pointer lock) and the Gamepad API.
 // Keyboard and mouse follow the rebindable settings; the gamepad uses a fixed Xbox layout.
 
+// L3 (10) is not here: a tap toggles crouch and holding it sprints (createHoldTap).
 export const PAD_BUTTONS = {
   jump: [0], kick: [1], punch: [2], block: [3], grapple: [4],
   // RB (5) is not here: a tap is the cape stun and a hold opens the gadget wheel (createHoldTap).
   dodge: [6], batarang: [7],
-  detective: [8], pause: [9], sprint: [10], special: [11], photo: [12], help: [13], throw: [15],
+  detective: [8], pause: [9], special: [11], photo: [12], help: [13], throw: [15],
 };
 
 // Chain takedowns: D-pad left, up and right while block (Y) is held. With block held, D-pad
@@ -83,6 +84,7 @@ export function createHoldTap(holdTime = PAD_TAP) {
     },
   };
 }
+export const PAD_L3 = 10;
 
 const DEADZONE = 0.18;
 
@@ -104,6 +106,7 @@ export function createInput({ target = window, bindings }) {
   const stick = { mx: 0, my: 0, lx: 0, ly: 0 };
   const rbHold = createHoldTap(PAD_TAP);
   let capeTap = false;
+  const l3Hold = createHoldTap(PAD_TAP); let crouchTap = false;
 
   function setBindings(b) {
     codeToActions = new Map();
@@ -174,6 +177,8 @@ export function createInput({ target = window, bindings }) {
       padActions((i) => !!pad.buttons[i]?.pressed, now);
       if (rbHold.update(!!pad.buttons[PAD_WHEEL]?.pressed, dt) === 'tap') capeTap = true;
       if (rbHold.holding) now.add('gadgetWheel');
+      if (l3Hold.update(!!pad.buttons[PAD_L3]?.pressed, dt) === 'tap') crouchTap = true;
+      if (l3Hold.holding) now.add('sprint');
       pad.buttons.forEach((b, i) => { if (b?.pressed) { if (!rawHeld.has(i)) rawPressed.add(i); rawHeld.add(i); } else rawHeld.delete(i); });
       stick.mx = dz(pad.axes[0] ?? 0); stick.my = dz(pad.axes[1] ?? 0);
       stick.lx = dz(pad.axes[2] ?? 0); stick.ly = dz(pad.axes[3] ?? 0);
@@ -181,9 +186,11 @@ export function createInput({ target = window, bindings }) {
     } else {
       stick.mx = stick.my = stick.lx = stick.ly = 0;
       rbHold.update(false, dt);
+      l3Hold.update(false, dt);
     }
     for (const a of now) if (!padHeld.has(a)) padPressed.add(a);
     if (capeTap) { padPressed.add('cape'); capeTap = false; device = 'pad'; }
+    if (crouchTap) { padPressed.add('crouch'); crouchTap = false; device = 'pad'; }
     for (const a of padHeld) if (!now.has(a)) padReleased.add(a);
     padHeld.clear();
     for (const a of now) padHeld.add(a);

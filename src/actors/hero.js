@@ -18,6 +18,7 @@ const GRAVITY = 26;
 const JUMP_V = 9.4;
 const RUN = 6.8;
 const SPRINT = 11.5;
+const CROUCH = 3.2;       // m/s crouched
 const RADIUS = 0.35;
 const HEIGHT = 1.8;
 const GLIDE_G = 20;       // how hard gravity pulls along a dive
@@ -62,11 +63,19 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
     frozen: false,
     airRuns: 0,      // wall runs used since last touching the ground
     lastClimbT: 99,  // seconds since leaving a ladder, ledge or zipline
+    crouched: false, // crouch toggle: slow, silent, harder to see (Part D)
+    perched: false,  // standing on a gargoyle or other perch (set by src/stealth/stealthSystem.js)
     // Traversal numbers WayneTech upgrades (game.js points this at the live effects object).
     tuning: { boostUp: 15, boostOut: 9, diveGain: 1, glideMax: 48, wallRunTime: 1.2, ladderSlide: 9, diveRadius: 4 },
   };
 
   function setState(s) { h.state = s; h.stateT = 0; }
+
+  function setCrouch(v) {
+    if (h.crouched === v) return;
+    h.crouched = v;
+    events.emit(v ? 'crouchOn' : 'crouchOff');
+  }
 
   function faceTowards(dx, dz, rate, dt) {
     const target = Math.atan2(dx, dz);
@@ -151,8 +160,10 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
     wish.set(f.x * input.move.y + side.x * input.move.x, 0, f.z * input.move.y + side.z * input.move.x);
     const mag = Math.min(1, wish.length());
     if (mag > 0) wish.divideScalar(wish.length());
+    if (h.state === 'ground' && input.pressed('crouch')) setCrouch(!h.crouched);
     const sprint = input.down('sprint') && mag > 0.5 && !h.blocking;
-    const max = h.blocking ? 2.2 : sprint ? SPRINT : RUN;
+    if (h.crouched && (sprint || h.blocking)) setCrouch(false);
+    const max = h.blocking ? 2.2 : sprint ? SPRINT : h.crouched ? CROUCH : RUN;
 
     if (input.pressed('jump')) h.jumpBuffer = 0.14;
     h.jumpBuffer = Math.max(0, h.jumpBuffer - dt);
@@ -167,6 +178,7 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
       if (mag > 0.05 && !h.blocking) faceTowards(wish.x, wish.z, 14, dt);
       vel.y = -2;
       if (h.jumpBuffer > 0 && h.state === 'ground') {
+        setCrouch(false);
         const wall = input.down('sprint') && h.airRuns < 1 ? findRunWall(collision, pos, vel.x, vel.z) : null;
         if (wall) { h.jumpBuffer = 0; h.control = createWallRunControl(h, { collision, events }, { wall, speed: h.speed }); return; }
         h.jumpBuffer = 0;
@@ -293,11 +305,12 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
     if (h.state === 'ground') {
       if (h.landT > 0) h.landT -= dt;
       else if (h.blocking) bat.animator.play('Idle_Shield_Loop', { fade: 0.1 });
+      else if (h.crouched || h.perched) bat.animator.play(h.speed < 0.3 ? 'Crouch_Idle_Loop' : 'Crouch_Fwd_Loop', { fade: 0.2, timeScale: h.speed < 0.3 ? 1 : Math.max(0.7, h.speed / 2.4) });
       else if (h.speed < 0.4) bat.animator.play('Idle_Loop', { fade: 0.2 });
       else if (h.speed < 8) bat.animator.play('Jog_Fwd_Loop', { fade: 0.15 });
       else bat.animator.play('Sprint_Loop', { fade: 0.15 });
       h.stride += h.speed * dt;
-      if (h.speed > 0.5 && h.stride > (h.speed > 8 ? 2.3 : 1.7)) { h.stride = 0; events.emit('footstep'); }
+      if (!h.crouched && h.speed > 0.5 && h.stride > (h.speed > 8 ? 2.3 : 1.7)) { h.stride = 0; events.emit('footstep', { sprint: h.speed > 8 }); }
       if (r.groundY > -Infinity && h.speed < 20) h.lastSafe.copy(pos);
     }
   }
@@ -383,6 +396,8 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
   h.update = (dt, ctx) => {
     h.stateT += dt;
     h.lastClimbT += dt;
+    // Leaving the ground (or starting a move that isn't a quiet takedown) stands Batman up.
+    if (h.crouched && (h.state !== 'ground' || (h.control && !h.control.keepCrouch))) setCrouch(false);
     h.invulnerable = Math.max(0, h.invulnerable - dt);
     bat.groundAt = heroPlantsFeet(h) ? groundUnderFoot : null;
     if (h.frozen) { bat.animator.update(dt); return; }
@@ -415,6 +430,7 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
     vel.set(0, 0, 0);
     bat.face(yaw);
     h.control = null;
+    h.crouched = false; h.perched = false;
     h.grounded = true;
     setState('ground');
     cape.setWings(false);

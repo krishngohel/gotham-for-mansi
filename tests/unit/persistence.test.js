@@ -23,8 +23,8 @@ describe('settings', () => {
     expect(s.fov).toBe(DEFAULT_SETTINGS.fov);
   });
   it('keeps valid bindings and repairs missing ones', () => {
-    const s = sanitizeSettings({ bindings: { kick: ['KeyZ'], punch: 'nope' } });
-    expect(s.bindings.kick).toEqual(['KeyZ']);
+    const s = sanitizeSettings({ bindings: { kick: ['KeyJ'], punch: 'nope' } });
+    expect(s.bindings.kick).toEqual(['KeyJ']);
     expect(s.bindings.punch).toEqual(DEFAULT_SETTINGS.bindings.punch);
   });
   it('survives storage that throws', () => {
