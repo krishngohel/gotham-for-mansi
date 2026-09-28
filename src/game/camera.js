@@ -16,7 +16,7 @@ const MODES = {
 
 export function createFollowCamera(camera, collision) {
   const s = {
-    yaw: 0, pitch: 0.22, dist: 4.2, height: 1.55, side: 0.55, fovKick: 0,
+    yaw: 0, pitch: 0.22, dist: 4.2, height: 1.55, side: 0.55, fovKick: 0, hitKick: 0,
     pivot: new THREE.Vector3(), shake: 0, baseFov: 60, sensitivity: 1, invertY: false, shakeEnabled: true, actionEnabled: true,
     mode: 'ground',
   };
@@ -34,6 +34,8 @@ export function createFollowCamera(camera, collision) {
       s.baseFov = fov; s.sensitivity = sensitivity; s.invertY = invertY; s.shakeEnabled = cameraShake; s.actionEnabled = actionCam;
     },
     addShake(amount) { if (s.shakeEnabled) s.shake = Math.max(s.shake, amount); },
+    // A hit lands: a short FOV punch that decays over about a tenth of a second.
+    hitKick(amount = 3) { if (s.shakeEnabled) s.hitKick = Math.max(s.hitKick, amount); },
     forward(out = new THREE.Vector3()) { return out.set(Math.sin(s.yaw), 0, Math.cos(s.yaw)); },
     right(out = new THREE.Vector3()) { return out.set(-Math.cos(s.yaw), 0, Math.sin(s.yaw)); },
     lookDir(out = new THREE.Vector3()) { return camera.getWorldDirection(out); },
@@ -69,6 +71,7 @@ export function createFollowCamera(camera, collision) {
       s.side += (m.side - s.side) * k;
       const speedKick = mode === 'glide' ? Math.min(10, speed * 0.3) : 0;
       s.fovKick += (m.fov + speedKick - s.fovKick) * k;
+      s.hitKick *= Math.exp(-dt * 14);
 
       tmp.copy(focus);
       tmp.y += s.height;
@@ -130,13 +133,13 @@ export function createFollowCamera(camera, collision) {
           blendLook.copy(lookAt).lerp(action.focus, e);
           camera.lookAt(blendLook);
           camera.rotateZ(action.roll * e);
-          const fov = s.baseFov + s.fovKick - 12 * e;
+          const fov = s.baseFov + s.fovKick + s.hitKick - 12 * e;
           if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = fov; camera.updateProjectionMatrix(); }
           return;
         }
       }
       camera.lookAt(lookAt);
-      const fov = s.baseFov + s.fovKick;
+      const fov = s.baseFov + s.fovKick + s.hitKick;
       if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = fov; camera.updateProjectionMatrix(); }
     },
   };

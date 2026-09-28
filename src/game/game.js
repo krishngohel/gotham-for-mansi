@@ -14,6 +14,7 @@ import { createInkPipeline } from '../render/inkPipeline.js';
 import { loadAssets } from '../actors/assets.js';
 import { createHero } from '../actors/hero.js';
 import { buildKickClips } from '../actors/kicks.js';
+import { buildReachTable } from '../combat/reach.js';
 import { buildClimbClips } from '../actors/climbAnims.js';
 import { createEnemy } from '../actors/enemy.js';
 import { SITES } from '../world/mapData.js';
@@ -72,6 +73,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   // Code-authored kicks fill in only where no mocap clip of that name was loaded.
   for (const c of buildKickClips(SkeletonUtils.clone(assets.bodies.m), assets.clips)) if (!assets.clips.has(c.name)) assets.clips.set(c.name, c);
   for (const c of buildClimbClips(SkeletonUtils.clone(assets.bodies.m), assets.clips)) assets.clips.set(c.name, c);
+  // Where each strike's fist or foot is on its contact frame, so lunges connect.
+  const reach = buildReachTable(SkeletonUtils.clone(assets.bodies.m), assets.clips);
   mark('clips');
   onProgress(0.9);
   // Compile the city's shaders behind the loading bar instead of freezing the first frame.
@@ -167,7 +170,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     hud.setHealth(1);
     const fx = createFx(scene);
     const rng = createRng(99);
-    const combat = createCombat({ hero, follow, time, events, rng, getDifficulty: () => settings.difficulty });
+    const combat = createCombat({ hero, follow, time, events, rng, reach, getDifficulty: () => settings.difficulty });
     hero.combat = combat;
     const key = (a) => `<kbd>${bindingLabel(settings.bindings, a)}</kbd>`;
     const screen = new THREE.Vector3();
@@ -241,6 +244,10 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
 
     // ---- HUD reactions ----
     events.on('impact', ({ pos, outcome }) => fx.impact(pos, outcome === 'hit' ? 0.7 : 1.1));
+    // Dev: contact-frame bookkeeping for screenshot tools (tools/contact-shots.mjs), and
+    // ?hitstop=<s> stretches every hit-stop so a screenshot lands inside the freeze.
+    events.on('impact', ({ move, outcome, target }) => { window.__impacts = (window.__impacts ?? 0) + 1; window.__lastImpact = { n: window.__impacts, move, outcome, target: target?.type ?? null, at: performance.now() }; });
+    if (params.get('hitstop')) { const floor = Number(params.get('hitstop')), orig = time.hitStop; time.hitStop = (sec) => orig(Math.max(sec, floor)); }
     events.on('word', ({ text, pos, big }) => { const p = toScreen(pos); if (!p.behind) hud.sfx(text, p.x, p.y, big); });
     events.on('zipOn', () => events.emit('word', { text: 'ZZZIP!', pos: hero.pos.clone().setY(hero.pos.y + 2), big: false }));
     events.on('diveStart', () => events.emit('word', { text: 'FWOOSH!', pos: hero.pos.clone(), big: false }));
@@ -379,6 +386,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       winFight: () => { for (const e of combat.enemies) if (e.alive && e.type !== 'joker') { e.health = 0; e.applyHit({ outcome: 'ko' }, hero.pos); } },
     };
     if (params.get('god') === '1') events.on('heroHurt', () => { hero.health = hero.maxHealth; hud.setHealth(1); });
+    window.__game.reach = reach;
     // ?fight=test drops a mixed squad on the GCPD roof (combat sandbox).
     if (params.get('fight') === 'test') {
       const b = SITES.start;

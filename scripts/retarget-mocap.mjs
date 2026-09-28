@@ -2,7 +2,12 @@
 // Batman body) onto the game's 65-bone Quaternius skeleton, and packs them into one GLB.
 //
 //   node scripts/retarget-mocap.mjs [--out public/assets/anims_mocap.glb] [--fps 30] [--keep-travel]
-//        Kick_Round=C:/path/roundhouse.glb [Kick_Front=... ...]
+//        Kick_Round=C:/path/roundhouse.glb[:ball_r] [Knee_Strike=C:/path/knee.glb:calf_r ...]
+// The optional :bone names the striking limb (default: whichever foot goes highest); its
+// highest frame is the contact frame. Horizontal hips travel is not baked into the clip: it
+// is written per frame to src/config/mocapData.js as root motion, which combat applies to
+// the hero's position, so planted feet do not slide and a stepping kick really steps. The
+// clip is turned so that the limb, root motion included, lands straight ahead at contact.
 //
 // Both rigs skin the same mesh in the same bind pose, so rotations transfer as world-space
 // deltas: delta = Qsrc(t) * inv(Qsrc(bind)); Qtgt(t) = delta * Qtgt(bind), then back to target
@@ -24,7 +29,7 @@ for (let i = 0; i < args.length; i++) {
   else if (a === '--fps') opt.fps = Number(args[++i]);
   else if (a === '--keep-travel') opt.keepTravel = true;
   else if (a === '--target') opt.target = args[++i];
-  else if (a.includes('=')) { const [name, file] = a.split('='); jobs.push({ name, file }); }
+  else if (a.includes('=')) { const [name, spec] = a.split('='); const m = spec.match(/^(.*?)(?::(\w+))?$/); jobs.push({ name, file: m[1], limb: m[2] ?? 'auto' }); }
 }
 if (!jobs.length) { console.error('no clips given (Name=file.glb)'); process.exit(1); }
 
@@ -37,7 +42,6 @@ const MAP = {
   LeftUpLeg: 'thigh_l', LeftLeg: 'calf_l', LeftFoot: 'foot_l', LeftToeBase: 'ball_l',
   RightUpLeg: 'thigh_r', RightLeg: 'calf_r', RightFoot: 'foot_r', RightToeBase: 'ball_r',
 };
-const KICK_FOOT = 'ball_r';
 
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
 const V = (a) => new THREE.Vector3(...a), Q = (a) => new THREE.Quaternion(...a);
@@ -183,7 +187,7 @@ const ease = (k) => k * k * (3 - 2 * k);
 const idleLocalPelvis = idlePelvisWorld.clone().applyQuaternion(rootRot.clone().invert());
 const idleLowestToe = (() => { const p = targetPositions(idleRot, idleLocalPelvis); return Math.min(p.get('ball_l').y, p.get('ball_r').y); })();
 
-async function retargetClip(name, file) {
+async function retargetClip(name, file, limb) {
   const doc = await io.read(file);
   const rig = describeRig(doc);
   const anim = doc.getRoot().listAnimations()[0];
@@ -210,23 +214,34 @@ async function retargetClip(name, file) {
   const idx = [];
   for (let i = start; i <= end; i++) idx.push(i);
   const h0 = raw[start].hips.clone();
-  const pelvisLocalAt = (hips, dy = 0) => {
-    const d = hips.clone().sub(h0);
-    if (!opt.keepTravel) { d.x = 0; d.z = 0; }
+  // Hips offset from the first kept frame, turned into the aimed frame once `yawQ` exists.
+  // Forward travel (z) becomes root motion; lateral sway stays in the clip.
+  let yawQ = new THREE.Quaternion();
+  const hipsDelta = (hips) => hips.clone().sub(h0).applyQuaternion(yawQ);
+  const pelvisLocalAt = (hips, dy = 0, withTravel = opt.keepTravel) => {
+    const d = hipsDelta(hips);
+    if (!withTravel) { d.x = 0; d.z = 0; }
     d.y += dy;
     return idlePelvisWorld.clone().add(d).applyQuaternion(rootRot.clone().invert());
   };
-  let contactIdx = 0, best = -1;
+  // Contact: the striking limb's highest frame (kicks and knees peak at full extension).
+  // With no limb given, the foot that goes highest is the kicking one.
+  const candidates = limb === 'auto' ? ['ball_l', 'ball_r'] : [limb];
+  let contactIdx = 0, best = -Infinity;
+  const travelled = (i) => { const p = targetPositions(raw[i].locals, pelvisLocalAt(raw[i].hips, 0, true)); return p; };
   idx.forEach((i, k) => {
-    const p = targetPositions(raw[i].locals, pelvisLocalAt(raw[i].hips));
-    const d = p.get(KICK_FOOT).clone().sub(p.get('pelvis')); d.y = 0;
-    if (d.length() > best) { best = d.length(); contactIdx = k; }
+    const p = travelled(i);
+    for (const c of candidates) { const y = p.get(c).y; if (y > best) { best = y; contactIdx = k; limb = c; } }
   });
-  const pc = targetPositions(raw[idx[contactIdx]].locals, pelvisLocalAt(raw[idx[contactIdx]].hips));
-  const aim = pc.get(KICK_FOOT).clone().sub(pc.get('pelvis'));
+  // Aim: where the limb is at contact relative to where the root started, travel included.
+  const pc = travelled(idx[contactIdx]);
+  const p0 = travelled(idx[0]);
+  const aim = pc.get(limb).clone().sub(p0.get('pelvis'));
+  const reach = Math.hypot(aim.x, aim.z);
   const yaw = -Math.atan2(aim.x, aim.z);
   // Pass B: yawed so the kick lands straight ahead, then aligned so the lowest planted toe
   // sits where the idle's does (joint pivots differ between the two rigs).
+  yawQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
   const lead = Math.round(0.08 * opt.fps), tail = Math.round(0.15 * opt.fps);
   const kept = idx.map((i) => ({ locals: retargetFrame(rig, chans, i * dt, yaw).locals, hips: raw[i].hips }));
   let lowest = Infinity;
@@ -236,9 +251,11 @@ async function retargetClip(name, file) {
     lowest = Math.min(lowest, p.get('ball_l').y, p.get('ball_r').y);
   });
   const dy = idleLowestToe - lowest;
-  const times = [], rot = new Map(target.order.map((j) => [j.name, []])), pelvisPos = [], posFrames = [];
+  const times = [], rot = new Map(target.order.map((j) => [j.name, []])), pelvisPos = [], posFrames = [], root = [];
   kept.forEach((f, k) => {
     times.push(k * dt);
+    const hd = hipsDelta(f.hips);
+    root.push(opt.keepTravel ? [0, 0] : [hd.x, hd.z]);
     const w = k < lead ? ease(k / lead) : k > kept.length - 1 - tail ? ease((kept.length - 1 - k) / tail) : 1;
     const pLocal = idleLocalPelvis.clone().lerp(pelvisLocalAt(f.hips, dy), w);
     pelvisPos.push(pLocal);
@@ -254,15 +271,22 @@ async function retargetClip(name, file) {
     posFrames.push(targetPositions(locals, pLocal));
   });
   const contact = times[contactIdx];
+  // Root motion relative to the clip start; combat moves the hero by this while it plays.
+  const root0 = root[0];
+  const rootFlat = [];
+  for (const [x, z] of root) rootFlat.push(+(x - root0[0]).toFixed(3), +(z - root0[1]).toFixed(3));
+  const rootAt = (k) => [rootFlat[k * 2], rootFlat[k * 2 + 1]];
+  const limbAt = posFrames[contactIdx].get(limb);
   const lowestToe = posFrames.map((p) => Math.min(p.get('ball_l').y, p.get('ball_r').y));
-  console.log(`${name}: source ${dur.toFixed(2)} s, kept ${times[times.length - 1].toFixed(2)} s (frames ${start}-${end} of ${n}), contact ~${contact.toFixed(2)} s, reach ${best.toFixed(2)} m, yaw ${THREE.MathUtils.radToDeg(yaw).toFixed(0)} deg, toe lift ${dy.toFixed(3)} m`);
+  console.log(`${name}: source ${dur.toFixed(2)} s, kept ${times[times.length - 1].toFixed(2)} s (frames ${start}-${end} of ${n}), contact ${contact.toFixed(2)} s (${limb} at y ${limbAt.y.toFixed(2)}, ${reach.toFixed(2)} m out), root motion (${rootAt(root.length - 1).map((v) => v.toFixed(2)).join(', ')}) m ((${rootAt(contactIdx).map((v) => v.toFixed(2)).join(', ')}) by contact, limb ${limbAt.z.toFixed(2)} ahead of the root), yaw ${THREE.MathUtils.radToDeg(yaw).toFixed(0)} deg, toe lift ${dy.toFixed(3)} m`);
   if (process.env.DEBUG_T) {
     console.log(`  energy: ${energy.map((e) => e.toFixed(2)).join(' ')}`);
     console.log(`  lowest toe y: ${lowestToe.map((v) => v.toFixed(2)).join(' ')}`);
     console.log(`  ball_l xz: ${posFrames.map((p) => `${p.get('ball_l').x.toFixed(2)},${p.get('ball_l').z.toFixed(2)}`).join(' ')}`);
     console.log(`  ball_r xz: ${posFrames.map((p) => `${p.get('ball_r').x.toFixed(2)},${p.get('ball_r').z.toFixed(2)}`).join(' ')}`);
   }
-  return { name, times, rot, pelvisPos, duration: times[times.length - 1], contact };
+  const reachOut = { x: +limbAt.x.toFixed(3), y: +limbAt.y.toFixed(3), z: +limbAt.z.toFixed(3) };
+  return { name, times, rot, pelvisPos, duration: +times[times.length - 1].toFixed(4), contact: +contact.toFixed(4), limb, reach: reachOut, root: rootFlat, fps: opt.fps };
 }
 
 // ---- output document: the target joint hierarchy (no mesh) plus one animation per clip ----
@@ -280,7 +304,7 @@ for (const r of target.roots) armature.addChild(nodes.get(r.name));
 scene.addChild(armature);
 
 const results = [];
-for (const job of jobs) results.push(await retargetClip(job.name, job.file));
+for (const job of jobs) results.push(await retargetClip(job.name, job.file, job.limb));
 for (const clip of results) {
   const anim = out.createAnimation(clip.name);
   const input = out.createAccessor().setType('SCALAR').setArray(new Float32Array(clip.times)).setBuffer(buffer);
@@ -300,4 +324,15 @@ for (const clip of results) {
   anim.addSampler(psampler).addChannel(out.createAnimationChannel().setTargetNode(nodes.get('pelvis')).setTargetPath('translation').setSampler(psampler));
 }
 await io.write(opt.out, out);
+// Generated per-clip data for the game: duration, contact frame, striking limb and root motion.
+const dataPath = 'src/config/mocapData.js';
+const data = Object.fromEntries(results.map((r) => [r.name, { duration: r.duration, contact: r.contact, limb: r.limb, reach: r.reach, fps: r.fps, root: r.root }]));
+const { writeFileSync } = await import('node:fs');
+const header = '// Generated by scripts/retarget-mocap.mjs; do not edit by hand.\n'
+  + '// Per clip: baked duration and contact frame (clip seconds), the striking limb and where it is\n'
+  + '// at contact relative to the root (x left, y up, z forward, metres, root motion excluded), and\n'
+  + '// root motion per frame at `fps` as [x, z] pairs (metres from the clip start) that combat\n'
+  + '// applies to the hero while the clip plays.\n';
+writeFileSync(dataPath, header + 'export const MOCAP_DATA = ' + JSON.stringify(data, null, 1).replace(/\n\s*(-?\d)/g, ' $1').replace(/\n\s*\]/g, ' ]') + ';\n');
+console.log(`wrote ${dataPath}`);
 console.log(`wrote ${opt.out}: ${results.map((r) => `${r.name} ${r.duration.toFixed(2)}s contact ${r.contact.toFixed(2)}s`).join('; ')}`);

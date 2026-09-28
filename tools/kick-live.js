@@ -69,6 +69,12 @@ const bats = { m: createBat(assets, 'm'), f: createBat(assets, 'f') };
 for (const b of Object.values(bats)) { b.face(0); b.root.visible = false; scene.add(b.root); }
 
 const state = { clip: params.get('clip') ?? 'Kick_Round', suit: params.get('suit') ?? 'm', speed: 1, paused: false };
+// Every mocap clip (and any code-authored kick) is selectable; the buttons swap between the
+// mocap version and its hand-keyed fallback of the same name.
+const select = document.getElementById('clip');
+for (const name of [...new Set([...Object.keys(MOCAP_BEATS), ...Object.keys(KICK_BEATS)])]) { const o = document.createElement('option'); o.value = name; o.textContent = name; select.appendChild(o); }
+select.value = state.clip.replace(/_keyed$/, '');
+select.onchange = () => { state.clip = select.value + (state.clip.endsWith('_keyed') && assets.clips.has(select.value + '_keyed') ? '_keyed' : ''); apply(); };
 const beatsOf = (name) => MOCAP_BEATS[name] ?? KICK_BEATS[name.replace(/_keyed$/, '')];
 
 function apply() {
@@ -83,8 +89,8 @@ function apply() {
   for (const id of ['mocap', 'keyed']) document.getElementById(id).classList.toggle('on', (id === 'keyed') === state.clip.endsWith('_keyed'));
   for (const s of ['m', 'f']) document.getElementById('suit-' + s).classList.toggle('on', s === state.suit);
 }
-document.getElementById('mocap').onclick = () => { state.clip = 'Kick_Round'; apply(); };
-document.getElementById('keyed').onclick = () => { state.clip = 'Kick_Round_keyed'; apply(); };
+document.getElementById('mocap').onclick = () => { state.clip = select.value; apply(); };
+document.getElementById('keyed').onclick = () => { if (assets.clips.has(select.value + '_keyed')) { state.clip = select.value + '_keyed'; apply(); } };
 document.getElementById('suit-m').onclick = () => { state.suit = 'm'; apply(); };
 document.getElementById('suit-f').onclick = () => { state.suit = 'f'; apply(); };
 const speed = document.getElementById('speed');
