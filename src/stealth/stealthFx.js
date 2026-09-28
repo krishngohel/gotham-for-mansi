@@ -2,7 +2,11 @@
 // - vision cones: a flat fan on the floor in front of each room goon, the size of its current
 //   sight range, drawn only in detective vision (LAYER_XRAY): white patrolling, yellow searching,
 //   red hostile. The goon's x-ray silhouette gets the same colour;
-// - laser sights: a red line from the muzzle to Batman while a rifle goon aims (one LineSegments);
+// - laser sights: a red line from the muzzle to Batman while a rifle goon aims (one LineSegments).
+//   A second, dark ink LineSegments is drawn a hair above and below the same path: against a bright
+//   backdrop (the Ace Chemicals vats' green glow) a lone 1px red line reads as a thin dark scratch,
+//   the same "thin lines lose their colour" issue noted on the batarang trail (gadgetFx.js) — the
+//   ink outline keeps the red core legible everywhere without needing a full ribbon rewrite;
 // - shots: a pale tracer and a muzzle flash for a moment when a rifle fires. A hit tracer reads
 //   warm and bright; a miss reads cooler and dimmer (vertex colours on the one shared material, so
 //   the warm-cast material count doesn't grow per outcome).
@@ -18,6 +22,7 @@ export const STATE_COLORS = [0xe8f0ff, 0xffd23a, 0xff3b3b]; // patrolling, searc
 const SHOTS = 4, SHOT_LIFE = 0.12;
 const HIT_COLOR = new THREE.Color(0xfff1b8);
 const MISS_COLOR = new THREE.Color(0x8a93a8);
+const LASER_OUTLINE_DY = 0.05; // metres the ink outline sits above/below the laser's own path
 
 // A unit-radius fan in the XZ plane, apex at the origin, opening toward +z (a goon's yaw 0).
 function coneGeometry(fov = STEALTH.fov, seg = 16) {
@@ -54,6 +59,8 @@ export function stealthMaterials() {
   shared = {
     cones: STATE_COLORS.map((color) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.3, depthTest: false, depthWrite: false, side: THREE.DoubleSide })),
     laser: new THREE.LineBasicMaterial({ color: 0xff2a2a, transparent: true, opacity: 0.95 }),
+    // A dark ink twin of the laser, offset a hair above/below it (see the module comment).
+    laserOutline: new THREE.LineBasicMaterial({ color: PALETTE.ink, transparent: true, opacity: 0.85 }),
     tracer: new THREE.LineBasicMaterial({ color: 0xffffff, vertexColors: true, transparent: true, opacity: 1 }),
     flash: new THREE.MeshBasicMaterial({ color: 0xffd86a }),
   };
@@ -72,7 +79,7 @@ export function createStealthWarm() {
   const tline = coloredSegments(1);
   tline.attributes.position.array.set([30, -50, 0, 31, -49, 0]);
   tline.attributes.color.array.set([1, 1, 1, 1, 1, 1]);
-  group.add(new THREE.LineSegments(line, m.laser), new THREE.LineSegments(tline, m.tracer));
+  group.add(new THREE.LineSegments(line, m.laser), new THREE.LineSegments(line, m.laserOutline), new THREE.LineSegments(tline, m.tracer));
   const flash = new THREE.Mesh(new THREE.OctahedronGeometry(0.18), m.flash);
   flash.position.set(32, -50, 0);
   group.add(flash);
@@ -96,11 +103,20 @@ export function createStealthFx(scene) {
   const laserPos = laserGeo.attributes.position.array;
   laserGeo.setDrawRange(0, 0);
   const lasers = new THREE.LineSegments(laserGeo, m.laser);
+  // The dark outline twin: two offset copies (above and below) per laser, so it frames the red
+  // core from most camera angles. Written alongside the laser in the same update() pass below —
+  // no extra per-frame allocation, just a few more floats into a preallocated buffer.
+  const outlineGeo = segments(STEALTH_FX_MAX * 2);
+  const outlinePos = outlineGeo.attributes.position.array;
+  outlineGeo.setDrawRange(0, 0);
+  const laserOutline = new THREE.LineSegments(outlineGeo, m.laserOutline);
+  laserOutline.renderOrder = 1;
+  lasers.renderOrder = 2;
   const tracerGeo = coloredSegments(SHOTS);
   const tracerPos = tracerGeo.attributes.position.array;
   const tracerCol = tracerGeo.attributes.color.array;
   const tracers = new THREE.LineSegments(tracerGeo, m.tracer);
-  for (const o of [lasers, tracers]) { o.layers.set(LAYER_FX); o.frustumCulled = false; o.visible = false; scene.add(o); }
+  for (const o of [laserOutline, lasers, tracers]) { o.layers.set(LAYER_FX); o.frustumCulled = false; o.visible = false; scene.add(o); }
   const flashGeo = new THREE.OctahedronGeometry(0.18);
   const flashes = [];
   for (let i = 0; i < SHOTS; i++) {
@@ -115,13 +131,19 @@ export function createStealthFx(scene) {
   const tmp = new THREE.Vector3();
   let next = 0;
   const tint = (e, hex) => { for (const x of e.ch.xrays ?? []) x.material.color.setHex(hex); };
+  // Which goon (its enemy record `e`) each cone slot last tinted, so clear() can restore x-ray
+  // colours even when it's called with no goons (the real wiring: stealthSystem.end() empties its
+  // own goons array and emits `stealthEnd` with no payload before game.js's
+  // `events.on('stealthEnd', () => stealthFx.clear())` ever runs). Preallocated, one slot per cone.
+  const tracked = new Array(STEALTH_FX_MAX).fill(null);
 
   return {
-    parts: { cones, lasers, tracers, flashes },
+    parts: { cones, lasers, laserOutline, tracers, flashes },
     update(dt, goons, { detective = false, hero = null } = {}) {
       let n = 0;
       for (let i = 0; i < cones.length; i++) {
         const g = goons[i], c = cones[i];
+        if (g) tracked[i] = g.e;
         if (!g || !g.e.alive) { c.visible = false; continue; }
         const s = stateColor(g.mind);
         if (s !== g.color) { g.color = s; c.material = m.cones[s]; tint(g.e, STATE_COLORS[s]); }
@@ -133,15 +155,24 @@ export function createStealthFx(scene) {
         }
         if (hero && g.e.aiming && g.e.ch.muzzle) {
           g.e.ch.muzzle.getWorldPosition(tmp);
+          const hy = hero.pos.y + (hero.crouched ? 0.7 : 1.1);
           const o = n * 6;
           laserPos[o] = tmp.x; laserPos[o + 1] = tmp.y; laserPos[o + 2] = tmp.z;
-          laserPos[o + 3] = hero.pos.x; laserPos[o + 4] = hero.pos.y + (hero.crouched ? 0.7 : 1.1); laserPos[o + 5] = hero.pos.z;
+          laserPos[o + 3] = hero.pos.x; laserPos[o + 4] = hy; laserPos[o + 5] = hero.pos.z;
+          const oo = n * 12;
+          outlinePos[oo] = tmp.x; outlinePos[oo + 1] = tmp.y + LASER_OUTLINE_DY; outlinePos[oo + 2] = tmp.z;
+          outlinePos[oo + 3] = hero.pos.x; outlinePos[oo + 4] = hy + LASER_OUTLINE_DY; outlinePos[oo + 5] = hero.pos.z;
+          outlinePos[oo + 6] = tmp.x; outlinePos[oo + 7] = tmp.y - LASER_OUTLINE_DY; outlinePos[oo + 8] = tmp.z;
+          outlinePos[oo + 9] = hero.pos.x; outlinePos[oo + 10] = hy - LASER_OUTLINE_DY; outlinePos[oo + 11] = hero.pos.z;
           n += 1;
         }
       }
       laserGeo.setDrawRange(0, n * 2);
       if (n) laserGeo.attributes.position.needsUpdate = true;
       lasers.visible = n > 0;
+      outlineGeo.setDrawRange(0, n * 4);
+      if (n) outlineGeo.attributes.position.needsUpdate = true;
+      laserOutline.visible = n > 0;
       let live = 0;
       for (let i = 0; i < SHOTS; i++) {
         if (life[i] <= 0) continue;
@@ -171,17 +202,26 @@ export function createStealthFx(scene) {
       life[i] = SHOT_LIFE;
       tracers.visible = true;
     },
-    // The room ended: hide everything and hand back the goons' usual x-ray colour.
+    // The room ended: hide everything and hand back the goons' usual x-ray colour. Called with no
+    // goons in real play (stealthSystem.end() has already emptied its own list by the time
+    // `stealthEnd` fires), so it falls back to whatever it last tinted (`tracked`) and forgets them.
     clear(goons = []) {
       for (const c of cones) c.visible = false;
       lasers.visible = false;
       laserGeo.setDrawRange(0, 0);
+      laserOutline.visible = false;
+      outlineGeo.setDrawRange(0, 0);
       life.fill(0);
       for (const f of flashes) f.visible = false;
       tracerPos.fill(0);
       tracerGeo.attributes.position.needsUpdate = true;
       tracers.visible = false;
-      for (const g of goons) { tint(g.e, PALETTE.sodium); g.color = -1; }
+      if (goons.length) {
+        for (const g of goons) { tint(g.e, PALETTE.sodium); g.color = -1; }
+      } else {
+        for (const e of tracked) if (e) tint(e, PALETTE.sodium);
+      }
+      tracked.fill(null);
     },
   };
 }

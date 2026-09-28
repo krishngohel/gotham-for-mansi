@@ -51,6 +51,17 @@ describe('stealth visuals', () => {
     fx.clear(goons);
     expect(goons[2].e.ch.xrays[0].material.color.getHex()).toBe(PALETTE.sodium);
   });
+  // Mirrors the real wiring (game.js): events.on('stealthEnd', () => stealthFx.clear()) is called
+  // with NO goons, because stealthSystem.end() has already emptied its own goons array by the time
+  // it emits `stealthEnd`. stealthFx must remember who it tinted itself.
+  it('clear() with no arguments still restores every x-ray it tinted', () => {
+    const { fx, goons } = setup();
+    fx.update(0.016, goons, { detective: false, hero });
+    expect(goons[1].e.ch.xrays[0].material.color.getHex()).toBe(STATE_COLORS[1]);
+    expect(goons[2].e.ch.xrays[0].material.color.getHex()).toBe(STATE_COLORS[2]);
+    fx.clear();
+    for (const g of goons) expect(g.e.ch.xrays[0].material.color.getHex()).toBe(PALETTE.sodium);
+  });
   it('draws a laser from each aiming muzzle to Batman chest', () => {
     const { fx, goons } = setup();
     fx.update(0.016, goons, { detective: false, hero });
@@ -78,7 +89,26 @@ describe('stealth visuals', () => {
     const g = createStealthWarm();
     const mats = new Set();
     g.traverse((o) => { if (o.material) mats.add(o.material); });
-    expect(mats.size).toBe(STATE_COLORS.length + 3);
+    // cones (3) + laser + laserOutline + tracer + flash.
+    expect(mats.size).toBe(STATE_COLORS.length + 4);
+  });
+  // Fix round 1: a lone red laser washed out against a bright backdrop (Ace Chemicals' green vat
+  // glow). A dark ink twin, offset a hair above and below the laser's own path, keeps it legible
+  // without touching `lasers`' own geometry (so the test above stays exact).
+  it('draws a dark ink outline framing the laser, and hides with it', () => {
+    const { fx, goons } = setup();
+    fx.update(0.016, goons, { detective: false, hero });
+    const { laserOutline } = fx.parts;
+    expect(laserOutline.visible).toBe(true);
+    expect(laserOutline.layers.mask).toBe(1 << LAYER_FX);
+    expect(laserOutline.material.color.getHex()).toBe(PALETTE.ink);
+    expect(laserOutline.geometry.drawRange.count).toBe(4);
+    const p = laserOutline.geometry.attributes.position.array;
+    expect(+p[1].toFixed(2)).toBeCloseTo(1.45); // muzzle y (1.4) + the outline's offset
+    expect(+p[7].toFixed(2)).toBeCloseTo(1.35); // muzzle y (1.4) - the outline's offset
+    goons[0].e.aiming = false;
+    fx.update(0.016, goons, { detective: false, hero });
+    expect(laserOutline.visible).toBe(false);
   });
   // combatSystem's onRifleFire passes `lands` (whether the shot will actually damage Batman) as a
   // third argument; the tracer tints warm on a hit and cool on a miss via one shared vertex-coloured
