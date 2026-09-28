@@ -44,6 +44,18 @@ describe('promptText: traversal hints', () => {
   });
 });
 
+describe('promptText: chain takedowns', () => {
+  const CHAIN_IDS = { chain: ['chain1', 'chain2', 'chain3'], chainTied: ['punch', 'kick'] };
+  for (const [id, actions] of Object.entries(CHAIN_IDS)) {
+    it(`${id} shows its keys and has no em dash`, () => {
+      const text = promptText(id, DEFAULT_BINDINGS);
+      expect(text.length).toBeGreaterThan(0);
+      expect(text).not.toContain('—');
+      for (const a of actions) expect(text).toContain(keyLabel(DEFAULT_BINDINGS[a][0]));
+    });
+  }
+});
+
 describe('createPromptQueue: traversal hints', () => {
   function makeHud() {
     const calls = [];

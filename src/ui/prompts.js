@@ -33,6 +33,8 @@ const ENTRIES = [
   ['wallrun', (k) => `Sprint along a wall and press ${k('jump')} to run on it. ${k('jump')} again to kick off.`],
   ['divebomb', (k) => `Gliding high? Press ${k('kick')} to dive bomb and flatten everyone where you land.`],
   ['takedown', (k) => `Hanging under an unaware goon? ${k('punch')} pulls them over the edge. Landing on one from above works too.`],
+  ['chain', (k) => `Combo at 6 or more, or two goons nearby who haven't seen you? Press ${k('chain1')}, ${k('chain2')} or ${k('chain3')} for a chain takedown that goes goon to goon.`],
+  ['chainTied', (k) => `Tied up! They can't get up for a few seconds. One more hit, ${k('punch')} or ${k('kick')}, knocks the whole bundle out.`],
 ];
 
 export const PROMPT_IDS = ENTRIES.map(([id]) => id);

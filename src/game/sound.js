@@ -62,6 +62,14 @@ export function wireAudio({ audio, events, hero, combat, flow, voice = null, set
     if (starting && ['presents', 'party', 'cake'].includes(name)) audio.stinger('districtClear');
   });
   on('signal', () => audio.play('signal'));
+  on('chainStart', ({ stealth }) => audio.play('whoosh', { gain: stealth ? 0.5 : 0.8, pitch: 0.85 }));
+  on('chainTether', () => audio.play('tether'));
+  on('chainYank', () => audio.play('whoosh', { gain: 0.8, pitch: 0.7 }));
+  on('chainTied', () => { audio.play('heavy', { pitch: 1.1 }); audio.play('tether', { gain: 0.7, pitch: 0.7 }); });
+  on('chainGrab', () => audio.play('cape', { pitch: 0.7 }));
+  on('chainSmash', () => audio.play('konk'));
+  on('chainStomp', () => audio.play('kick', { pitch: 1.35 }));
+  on('tiedBreak', () => audio.play('konk', { pitch: 0.8 }));
   on('finaleStart', () => {
     const v = settings?.volume ?? { master: 0.8, music: 0.6 };
     track.volume = Math.min(1, v.master * v.music * 1.4);

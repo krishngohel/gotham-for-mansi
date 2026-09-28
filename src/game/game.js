@@ -322,14 +322,19 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       'joker-throw': () => `A yellow bolt means he is throwing. ${key('batarang')} batarang him now!`,
       gas: () => 'Laughing gas! Get out of the green cloud.',
       finish: () => `He is reeling! ${key('special')} Finish him!`,
+      'chain-locked': () => "Chain takedowns unlock at a 6 hit combo, or when two goons nearby haven't seen you.",
+      'chain-cost': () => 'Not enough combo. Rope-a-Dope costs 6, Headbanger 9, Domino Drop 12.',
+      'chain-targets': () => 'A chain takedown needs two goons close by and in sight.',
     };
     events.on('blocked', ({ outcome, target }) => hud.hint((target?.type === 'joker' ? HINTS.joker : HINTS[outcome])(), 3500));
     events.on('hint', ({ id }) => HINTS[id] && hud.hint(HINTS[id](), 3000));
     events.on('bossStaggered', () => hud.hint(HINTS.finish(), 3500));
+    events.on('chainTied', () => prompts.show(['chainTied']));
     const PROMPT_DONE = {
       throwRelease: 'throw', slam: 'slam', glideStart: 'glide', grapple: 'grapple', grappleBoost: 'grappleBoost', counter: 'counter', cape: 'cape',
       batarangThrow: 'batarang', dodge: 'dodge', special: 'special', jumpKick: 'kick',
       ladderOn: 'ladder', ledgeGrab: 'ledge', zipOn: 'zip', wallRun: 'wallrun', diveStart: 'divebomb', takedown: 'takedown',
+      chainStart: 'chain', tiedBreak: 'chainTied',
     };
     for (const [ev, id] of Object.entries(PROMPT_DONE)) events.on(ev, () => prompts.done(id));
     events.on('swing', ({ kind, finisher }) => { prompts.done(kind === 'kick' ? 'kick' : 'punch'); if (finisher) prompts.done('finisher'); });
