@@ -44,10 +44,13 @@ const ENTRIES = [
   ['gadgetFreeze', (k) => `Freeze blast: ${k('batarang')} traps a goon in ice. One hit shatters it and knocks them out.`],
   ['gadgetPopper', (k) => `Party popper: ${k('batarang')} throws a confetti bomb. Goons nearby forget the fight and dance.`],
   ['crouch', (k) => `Press ${k('crouch')} to crouch. You move slower, your footsteps go quiet, and goons have to be much closer to spot you. Stay out of the lamplight.`],
-  ['silent', (k) => `Sneak up behind a goon who hasn't seen you and press ${k('punch')} for a silent takedown. It takes two seconds, and anyone within six meters hears it.`],
+  ['silent', (k) => `Sneak up behind a goon who hasn't seen you and press ${k('punch')} for a silent takedown. It takes two seconds, and anyone within three meters hears it.`],
   ['perch', (k) => `Grapple ${k('grapple')} to a gargoyle to watch from above. Goons never look up unless they are hunting you.`],
   ['perchDrop', (k) => `On a gargoyle, press ${k('kick')} over a goon to drop on him and knock him out.`],
-  ['distract', (k) => `Throw a batarang ${k('batarang')} at a wall to make a noise. Goons within twelve meters walk over to look.`],
+  // The fire key uses whatever gadget is equipped, and only the batarang clangs off a wall.
+  ['distract', (k, move, equipped) => (!equipped || equipped === 'batarang'
+    ? `Throw a batarang ${k('batarang')} at a wall to make a noise. Goons within twelve meters walk over to look.`
+    : `Pick the batarang on the gadget wheel (hold ${k('gadgetWheel')}), then throw it ${k('batarang')} at a wall to make a noise. Goons within twelve meters walk over to look.`)],
   ['vent', (k) => `Crouch ${k('crouch')} in the steam over the floor vent and nobody can see you. Let a goon walk past, then take him from behind.`],
   ['ledgeStealth', (k) => `Hang under a catwalk edge and press ${k('punch')} when a goon walks over you to pull him down.`],
   ['spotted', (k) => `Spotted! Rifles hurt. Grapple ${k('grapple')} to a gargoyle to break their line of sight. They give up the hunt after eight seconds.`],
@@ -56,17 +59,18 @@ const ENTRIES = [
 
 export const PROMPT_IDS = ENTRIES.map(([id]) => id);
 
-export function promptText(id, bindings) {
+// `equipped`: the gadget on the fire key, for prompts that need a particular one (null: unknown).
+export function promptText(id, bindings, equipped = null) {
   const k = (a) => `<kbd>${bindingLabel(bindings, a)}</kbd>`;
   const move = ['forward', 'left', 'back', 'right'].map((a) => bindingLabel(bindings, a)).join(' ');
   const entry = ENTRIES.find(([eid]) => eid === id);
-  return entry ? entry[1](k, move) : '';
+  return entry ? entry[1](k, move, equipped) : '';
 }
 
 // Queues prompts so they don't talk over each other. While isBusy() (a takedown or an action
 // camera shot is on screen) nothing new appears, and a card already up is taken down and shown
 // again, in full, once the moment is over.
-export function createPromptQueue(hud, getBindings, isEnabled, isBusy = () => false) {
+export function createPromptQueue(hud, getBindings, isEnabled, isBusy = () => false, getEquipped = () => null) {
   const queue = [];
   const seen = new Set();
   let current = null;
@@ -92,7 +96,7 @@ export function createPromptQueue(hud, getBindings, isEnabled, isBusy = () => fa
       if (!next) return;
       current = next;
       t = 6.5;
-      hud.hint(promptText(next, getBindings()), 6200);
+      hud.hint(promptText(next, getBindings(), getEquipped()), 6200);
     },
     reset() { queue.length = 0; seen.clear(); current = null; },
   };

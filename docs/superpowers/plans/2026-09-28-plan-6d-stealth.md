@@ -74,7 +74,7 @@
 // src/stealth/vision.js (pure; points are plain { x, y, z }, yaw is radians and 0 faces +z like ch.face)
 STEALTH   // { fov, hostileFov, range: 25, shadow: 0.55, crouch: 0.6, instant: 3, fill, minFill, decay, searchAt: 0.5,
           //   searchTime: 20, loseTime: 8, huntAfter: 1, lookUp: 3, perchSpot: 6, eye: 1.6, chest: 1.1, crouchChest: 0.7,
-          //   hearDy: 5, noise: { step: 5, sprint: 9, land: 10, batarang: 12, takedown: 6, perch: 8 },
+          //   hearDy: 5, noise: { step: 5, sprint: 9, land: 10, batarang: 12, takedown: 3, perch: 8 },
           //   silentReach: 1.6, silentBehind: -0.2, silentTime: 2, perchOn: 0.9, perchReach: 5, perchMinDrop: 1.5, perchMaxDrop: 14 }
 BLIND, HELD                                         // Sets of enemy states
 planar(a, b), inCone(from, yaw, p, fov), inShadow(p, lights), inRect(p, rect), sightRange({ crouched, shadow }, rules)
@@ -180,7 +180,7 @@ createStealthHud(root) -> { glyph(i, x, y, visible, code), say(target, text), up
 
 - Seeing: within the cone (70 degrees, 110 when hostile) and the range (25 m, times 0.55 out of every light pool, times 0.6 crouched), not above 3 m unless hostile, never while Batman is in the vent steam crouched or mid-grapple, a perched Batman only by a hostile goon within 6 m, and a clear line from the goon's eyes to Batman's chest (10 Hz ray).
 - Within 3 m inside the cone: spotted at once. The shout brings every goon in the room to `hunt`, and anyone who sees Batman makes all of them `engage`.
-- Noises within their radius (step 5 m, sprint 9 m, hard landing 10 m, batarang clang 12 m, silent takedown 6 m, perch drop 8 m) send non-hostile goons to `search` at the noise.
+- Noises within their radius (step 5 m, sprint 9 m, hard landing 10 m, batarang clang 12 m, silent takedown 3 m, perch drop 8 m) send non-hostile goons to `search` at the noise.
 - Every takedown raises fear (cap 3): goons move 12% faster per level, huddle back to back at fear 2 (or with 2 left), and one of them calls out a line.
 
 ---
@@ -381,7 +381,7 @@ export const STEALTH = {
   perchSpot: 6,     // hostile goons spot a perched Batman only this close (planar)
   eye: 1.6, chest: 1.1, crouchChest: 0.7,
   hearDy: 5,        // noises carry this far up or down
-  noise: { step: 5, sprint: 9, land: 10, batarang: 12, takedown: 6, perch: 8 },
+  noise: { step: 5, sprint: 9, land: 10, batarang: 12, takedown: 3, perch: 8 },
   silentReach: 1.6,  // metres between Batman and the goon's back
   silentBehind: -0.2, // cos of the angle between the goon's facing and the way to Batman
   silentTime: 2,     // seconds a silent takedown takes
@@ -4539,7 +4539,7 @@ Run: `npx vitest run tests/unit/prompts.test.js tests/unit/story.test.js`. Expec
 
 ```js
   ['crouch', (k) => `Press ${k('crouch')} to crouch. You move slower, your footsteps go quiet, and goons have to be much closer to spot you. Stay out of the lamplight.`],
-  ['silent', (k) => `Sneak up behind a goon who hasn't seen you and press ${k('punch')} for a silent takedown. It takes two seconds, and anyone within six meters hears it.`],
+  ['silent', (k) => `Sneak up behind a goon who hasn't seen you and press ${k('punch')} for a silent takedown. It takes two seconds, and anyone within three meters hears it.`],
   ['perch', (k) => `Grapple ${k('grapple')} to a gargoyle to watch from above. Goons never look up unless they are hunting you.`],
   ['perchDrop', (k) => `On a gargoyle, press ${k('kick')} over a goon to drop on him and knock him out.`],
   ['distract', (k) => `Throw a batarang ${k('batarang')} at a wall to make a noise. Goons within twelve meters walk over to look.`],

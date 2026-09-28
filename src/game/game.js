@@ -313,7 +313,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const comic = createComic(document.body, { onSound: (n) => audio.play(n), onVoice: (id) => voice.say(id) });
     // Tip cards wait out a takedown or an action shot instead of covering it.
     const QUIET_CONTROLS = new Set(['silent', 'perchDrop']);
-    const prompts = createPromptQueue(hud, () => settings.bindings, () => settings.hints, () => follow.actionActive || QUIET_CONTROLS.has(hero.control?.name));
+    const prompts = createPromptQueue(hud, () => settings.bindings, () => settings.hints, () => follow.actionActive || QUIET_CONTROLS.has(hero.control?.name), () => gadgets?.state.equipped ?? null);
     const waypoint = createWaypoint(hudRoot.querySelector('.hud') ?? hudRoot);
     const beacon = createBeacon(scene);
     const boss = createBoss({ assets, scene, rng, combat, events, hud, spawn, despawn, hero, time, getDifficulty: () => settings.difficulty, collision: world.collision });
@@ -540,6 +540,9 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     let glideHighT = 0;
     const hintShown = { ladder: false, zip: false, divebomb: false };
 
+    // stealthFx.update's options, filled in place every frame.
+    const fxView = { detective: false, hero };
+
     function update(real) {
       if (toReveal.length) scene.add(toReveal.shift().ch.root);
       const playing = flow.mode === 'play' || flow.mode === 'dead';
@@ -576,7 +579,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         hero.update(dt, ctx);
         side.update(dt, real, { toScreen });
         fx.update(dt);
-        stealthFx.update(dt, stealth.goons, { detective: !!state.detectiveOn, hero });
+        fxView.detective = !!state.detectiveOn;
+        stealthFx.update(dt, stealth.goons, fxView);
         gfx.update(dt);
         chainFx.update(dt);
         breakables.update(state.t, hero.pos);

@@ -147,3 +147,36 @@ describe('createPromptQueue: quiet during takedowns', () => {
     expect(hud.calls.at(-1)).toEqual(['hint', promptText('perchDrop', DEFAULT_BINDINGS)]);
   });
 });
+
+describe('promptText: stealth copy matches the rules', () => {
+  const DASH_RE = new RegExp('[' + String.fromCharCode(0x2013, 0x2014) + ']');
+  it('the silent takedown card gives the real noise radius', async () => {
+    const { STEALTH } = await import('../../src/stealth/vision.js');
+    expect(STEALTH.noise.takedown).toBe(3);
+    expect(promptText('silent', DEFAULT_BINDINGS)).toContain('within three meters');
+  });
+  it('the distraction card tells a player without the batarang equipped to pick it first', () => {
+    const wheel = keyLabel(DEFAULT_BINDINGS.gadgetWheel[0]), fire = keyLabel(DEFAULT_BINDINGS.batarang[0]);
+    for (const eq of [null, 'batarang']) {
+      const text = promptText('distract', DEFAULT_BINDINGS, eq);
+      expect(text).toMatch(/^Throw a batarang/);
+      expect(text).toContain(fire);
+    }
+    for (const eq of ['gel', 'remote', 'smoke']) {
+      const text = promptText('distract', DEFAULT_BINDINGS, eq);
+      expect(text).toMatch(/^Pick the batarang on the gadget wheel/);
+      expect(text).toContain(wheel);
+      expect(text).toContain(fire);
+      expect(text).not.toMatch(DASH_RE);
+    }
+  });
+  it('the queue asks which gadget is equipped when a card goes up', () => {
+    const calls = [];
+    const hud = { hint: (text) => calls.push(text), hideHint() {} };
+    let eq = 'gel';
+    const queue = createPromptQueue(hud, () => DEFAULT_BINDINGS, () => true, () => false, () => eq);
+    queue.show(['distract']);
+    queue.update(0.1);
+    expect(calls[0]).toBe(promptText('distract', DEFAULT_BINDINGS, 'gel'));
+  });
+});
