@@ -38,6 +38,8 @@ import { STEPS } from './story.js';
 import { wireAudio } from './sound.js';
 import { createBoss } from './boss.js';
 import { createFinale } from './finale.js';
+import { createWarmCast } from './warmCast.js';
+import { drawEverything, uploadTextures, looseSkinBounds } from '../render/prewarm.js';
 
 async function loadFonts() {
   try {
@@ -56,6 +58,10 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   ink.setComic(quality.comic);
   ink.setPalette(paletteAt(0, 0));
   const scene = new THREE.Scene();
+  // The camera fill light exists from boot (dark until a run starts) so the light count never
+  // changes: a new light would recompile every lit shader the first time each one is drawn.
+  const fill = new THREE.DirectionalLight(0x9fb2d6, 0);
+  scene.add(fill, fill.target);
   const camera = new THREE.PerspectiveCamera(settings.fov, 1, 0.1, 1500);
   const input = createInput({ target: window, bindings: settings.bindings });
   const events = createEvents();
@@ -75,8 +81,12 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   for (const c of buildKickClips(SkeletonUtils.clone(assets.bodies.m), assets.clips)) assets.clips.set(c.name, c);
   mark('clips');
   onProgress(0.9);
+  // Characters that only appear later (goons, the Joker, every suit) join the city for the
+  // compile and the prewarm draw below, then leave again.
+  const warmCast = createWarmCast(assets);
+  scene.add(warmCast);
   // Compile the city's shaders behind the loading bar instead of freezing the first frame.
-  try { await renderer.compileAsync(scene, camera); } catch { /* compiles on first draw instead */ }
+  try { await ink.compileAsync(scene, camera); } catch { /* compiles on first draw instead */ }
   mark('compiled');
   onProgress(0.97);
 
@@ -152,6 +162,10 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     input.setEnabled(true);
     state.phase = 'play';
     applySettings();
+    // The run's own objects (hero, boss, pickups, effects) get the same treatment as the city at
+    // boot; programs are mostly cached by now, so this is a short, one-off stall on the click.
+    try { uploadTextures(renderer, scene); drawEverything(renderer, ink, scene, camera); } catch (err) { console.error(err); }
+    mark('runWarm');
     game.flow.start();
   }
 
@@ -162,8 +176,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const follow = createFollowCamera(camera, world.collision);
     follow.configure(settings);
     follow.snapBehind(hero.bat.yaw);
-    const fill = new THREE.DirectionalLight(0x9fb2d6, 1.25);
-    scene.add(fill, fill.target);
+    fill.intensity = 1.25;
 
     const hud = createHud(hudRoot);
     hud.setHealth(1);
@@ -178,6 +191,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     let nextId = 0;
     const spawn = (type, p) => {
       const e = createEnemy({ id: `e${nextId++}`, type, assets, scene, collision: world.collision, rng });
+      looseSkinBounds(e.ch.root);
       e.place(p, Math.atan2(hero.pos.x - p.x, hero.pos.z - p.z) + rng.range(-1, 1));
       return e;
     };
@@ -441,7 +455,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   window.addEventListener('mousedown', () => audio.unlock(), { once: true });
   window.addEventListener('keydown', () => audio.unlock(), { once: true });
 
-  window.__game = { state, camera, scene, world, input, events, audio, voice, settings, time, get progress() { return progress; }, begin, lightningNow: () => { weather.next = 0; } };
+  window.__game = { state, renderer, ink, camera, scene, world, input, events, audio, voice, settings, time, get progress() { return progress; }, begin, lightningNow: () => { weather.next = 0; } };
 
   // ---------------- frame loop ----------------
   let last = performance.now(), fpsT = 0, fpsN = 0, errors = 0;
@@ -496,11 +510,19 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
 
   applySettings();
   onProgress(1);
-  // One hidden frame of the title view: texture uploads and post-process setup happen under the
-  // loading screen instead of stalling the first visible frame.
+  // Hidden frames under the loading screen: every texture and buffer uploaded and every shader
+  // variant (shadow, normal pass, x-ray) built for the whole city and the warm cast, then one
+  // real frame of the title view, so nothing compiles or uploads on first sight mid-play.
   camera.position.set(Math.sin(orbit) * 95, 82, Math.cos(orbit) * 95 + 10);
   camera.lookAt(-20, 60, -60);
-  try { world.update(0, 0, camera.position, camera, null); ink.render(scene, camera, 0); } catch (err) { console.error(err); }
+  try {
+    world.update(0, 0, camera.position, camera, null);
+    uploadTextures(renderer, scene);
+    drawEverything(renderer, ink, scene, camera);
+    scene.remove(warmCast);
+    ink.render(scene, camera, 0);
+  } catch (err) { console.error(err); }
+  scene.remove(warmCast);
   mark('prewarm');
   requestAnimationFrame(frame);
   state.ready = true;

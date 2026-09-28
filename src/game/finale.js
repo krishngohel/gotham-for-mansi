@@ -73,8 +73,10 @@ export function createFinale({ scene, world, hero, boss, camera, events, rng, ha
   addHullOutline(hat, 0.01);
 
   // Each burst lights the sky for a moment.
-  const flash = new THREE.PointLight(0xfff0d0, 0, 400, 1.2);
-  scene.add(flash);
+  // The light is made with the city (world.fireworkLight) so the scene's light count is the same
+  // from boot, and no lit shader has to recompile when a run starts.
+  const flash = world?.fireworkLight ?? new THREE.PointLight(0xfff0d0, 0, 400, 1.2);
+  if (!flash.parent) scene.add(flash);
   let flashT = 0;
   const fireworks = createFireworks(scene, rng, (at) => { events.emit('firework'); flash.position.copy(at); flashT = 0.35; });
   const focus = new THREE.Vector3(1, Y + 1.5, 6);

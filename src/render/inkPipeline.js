@@ -266,5 +266,14 @@ export function createInkPipeline(renderer, quality) {
     camera.layers.enable(LAYER_FX);
   }
 
-  return { uniforms, setSize, render, setComic, setPalette, impact };
+  // Parallel shader compile for everything in `scene`. Scene materials only ever draw into the
+  // colour target, whose linear colour space is part of each program's key: compiling against
+  // the canvas (sRGB) would build programs that are never used and leave the real ones to compile
+  // synchronously on first draw.
+  async function compileAsync(scene, camera) {
+    renderer.setRenderTarget(colorRT);
+    try { await renderer.compileAsync(scene, camera); } finally { renderer.setRenderTarget(null); }
+  }
+
+  return { uniforms, setSize, render, setComic, setPalette, impact, compileAsync };
 }

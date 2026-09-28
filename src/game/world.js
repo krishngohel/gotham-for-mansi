@@ -76,6 +76,10 @@ export function createWorld(scene, quality) {
   const rain = createRain(quality.rainCount);
   scene.add(rain.mesh);
   const pool = createLightPool(scene, ctx.lights, 4);
+  // The finale's firework flash, dark until then. It lives here so the number of lights (part of
+  // every lit shader's compile key) never changes after boot.
+  const fireworkLight = new THREE.PointLight(0xfff0d0, 0, 400, 1.2);
+  scene.add(fireworkLight);
   const streaks = createWetStreaks(ctx.reflect, { fogDensity: scene.fog.density });
   streaks.name = 'wetStreaks';
   scene.add(streaks);
@@ -96,6 +100,7 @@ export function createWorld(scene, quality) {
     signal,
     rain,
     moon,
+    fireworkLight,
     data,
     setFlash(k) { moon.intensity = MOON + 9 * k; backdrop.userData.setFlash(k); },
     update(t, dt, focus, camera, hero = null) {
