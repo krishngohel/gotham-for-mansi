@@ -34,6 +34,7 @@ import { createVoice } from '../audio/voice.js';
 import { createWorld } from './world.js';
 import { createFollowCamera } from './camera.js';
 import { createFx } from './fx.js';
+import { createChainFx } from './chainFx.js';
 import { createEncounters } from './encounters.js';
 import { createBalloons } from './balloons.js';
 import { createFlow } from './flow.js';
@@ -206,6 +207,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     hud.setHealth(1);
     const comicFx = createComicFx(document.body);
     const fx = createFx(scene);
+    const chainFx = createChainFx(scene);
     const rng = createRng(99);
     const combat = createCombat({ hero, follow, time, events, rng, reach, getDifficulty: () => settings.difficulty });
     hero.combat = combat;
@@ -369,7 +371,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     marker.layers.set(1);
     scene.add(marker);
 
-    const ctx = { input, cam: follow, grappleTarget: null, fx };
+    const ctx = { input, cam: follow, grappleTarget: null, fx, chainFx };
     let lastCombo = -1;
     let detective = 0;
     let palT = 0;
@@ -411,6 +413,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         combat.update(dt, ctx);
         hero.update(dt, ctx);
         fx.update(dt);
+        chainFx.update(dt);
         if (hero.pos.y < -0.8) { events.emit('splash'); hero.teleport(hero.lastSafe); }
         follow.update(real, hero.pos, input.look, combat.cameraMode ?? hero.cameraMode(), hero.speed);
         comicFx.update(real, { speed: hero.control?.speed ?? Math.hypot(hero.vel.x, hero.vel.y, hero.vel.z), actionActive: follow.actionActive });
@@ -447,7 +450,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     }
 
     const api = {
-      hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn,
+      hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, chainFx,
       winFight: () => { for (const e of combat.enemies) if (e.alive && e.type !== 'joker') { e.health = 0; e.applyHit({ outcome: 'ko' }, hero.pos); } },
     };
     if (params.get('god') === '1') events.on('heroHurt', () => { hero.health = hero.maxHealth; hud.setHealth(1); });

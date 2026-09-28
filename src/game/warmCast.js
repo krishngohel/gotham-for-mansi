@@ -5,6 +5,8 @@
 import * as THREE from 'three';
 import { createBat, createGoon, createJoker } from '../actors/characters.js';
 import { createCape } from '../actors/cape.js';
+import { PALETTE } from '../config/palette.js';
+import { LAYER_FX } from '../render/layers.js';
 
 export function createWarmCast(assets) {
   const group = new THREE.Group();
@@ -24,5 +26,14 @@ export function createWarmCast(assets) {
   for (const v of [0, 0.6, 0.9]) add(createGoon(assets, { type: 'grunt', rng: fixed(v) }), (x += 2));
   for (const type of ['knife', 'brute']) add(createGoon(assets, { type, rng: fixed(0) }), (x += 2));
   add(createJoker(assets), (x += 2));
+  // The chain takedown's ink tether (src/game/chainFx.js): an FX-layer LineSegments in ink,
+  // compiled here with everything else so the first Rope-a-Dope doesn't build a program.
+  const tether = new THREE.LineSegments(
+    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(1, 0.5, 0)]),
+    new THREE.LineBasicMaterial({ color: PALETTE.ink }),
+  );
+  tether.position.set((x += 2), -50, 0);
+  tether.layers.set(LAYER_FX);
+  group.add(tether);
   return group;
 }
