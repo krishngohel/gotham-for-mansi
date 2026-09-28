@@ -373,6 +373,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
 
     const ctx = { input, cam: follow, grappleTarget: null, fx, chainFx };
     let lastCombo = -1;
+    let chainLabels = ['1', '2', '3'];
+    let chainPromptShown = false;
     let detective = 0;
     let palT = 0;
     const palBuf = new Array(18).fill(0);
@@ -409,6 +411,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
             if (hero.state === 'glide' && hero.heightAboveGround() > 10) glideHighT += 0.5; else glideHighT = 0;
             if (glideHighT > 3) { prompts.show(['divebomb']); hintShown.divebomb = true; }
           }
+          chainLabels = ['chain1', 'chain2', 'chain3'].map((a) => bindingLabel(settings.bindings, a));
         }
         combat.update(dt, ctx);
         hero.update(dt, ctx);
@@ -423,6 +426,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         boss.update(dt);
         if (boss.speech) { const p = toScreen(boss.headWorld(new THREE.Vector3())); hud.speechPos(p.x, p.y - 20, !p.behind); }
         if (combat.combo.value !== lastCombo) { lastCombo = combat.combo.value; hud.setCombo(lastCombo); }
+        hud.setChains(combat.chains, chainLabels);
+        if (!chainPromptShown && combat.chains.affordable.some(Boolean)) { chainPromptShown = true; prompts.show(['chain']); }
         marker.visible = !!ctx.grappleTarget && !hero.control;
         if (marker.visible) { marker.position.set(ctx.grappleTarget.x, ctx.grappleTarget.y + 1, ctx.grappleTarget.z); marker.rotation.y += real * 3; }
         fill.position.copy(camera.position);
