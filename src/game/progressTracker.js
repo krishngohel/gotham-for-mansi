@@ -24,13 +24,30 @@ export const MOVE_NAMES = {
 };
 
 const moves = [...BASE_MOVES];
-// Part D adds 'silentTakedown' and 'perchDrop' when stealth ships. Returns an undo.
-export function registerMoves(ids) {
+// Moves the story can only teach up to a step (their last chance): move id -> step id.
+const lastChance = new Map();
+// Part D adds 'silentTakedown' and 'perchDrop' when stealth ships. `until`: the last step at which
+// the story can still teach these moves (Part D: the last predator room). Returns an undo.
+export function registerMoves(ids, { until = null } = {}) {
   const added = ids.filter((id, i) => !moves.includes(id) && ids.indexOf(id) === i);
   moves.push(...added);
-  return () => { for (const id of added) { const i = moves.indexOf(id); if (i >= 0) moves.splice(i, 1); } };
+  if (until) for (const id of added) lastChance.set(id, until);
+  return () => { for (const id of added) { const i = moves.indexOf(id); if (i >= 0) moves.splice(i, 1); lastChance.delete(id); } };
 }
 export const moveList = () => [...moves];
+
+// Whether this save can still learn the move: always, unless the move has a last-chance step and
+// the save is finished or already past it.
+export function moveReachable(id, p, steps = STEPS) {
+  const until = lastChance.get(id);
+  if (!until) return true;
+  if (p.finished) return false;
+  const last = steps.findIndex((s) => s.id === until);
+  return last >= 0 && p.step <= last;
+}
+// The moves that count toward "Moves learned" for this save: every one it has learned, plus every
+// one it can still reach. A finished save from before Part D then keeps its 100%.
+export const countedMoves = (p) => moves.filter((m) => p.moves.includes(m) || moveReachable(m, p));
 
 export function createProgressRegistry() {
   const cats = [];
@@ -110,9 +127,10 @@ export const BASE_CATEGORIES = [
     detail: (p) => `Stopped ${p.crimes.stopped}`,
   },
   {
-    id: 'moves', label: 'Moves learned', weight: 5, count: (p) => ({ done: moves.filter((m) => p.moves.includes(m)).length, total: moves.length }),
+    id: 'moves', label: 'Moves learned', weight: 5,
+    count: (p) => { const list = countedMoves(p); return { done: list.filter((m) => p.moves.includes(m)).length, total: list.length }; },
     detail: (p) => {
-      const left = moves.filter((m) => !p.moves.includes(m));
+      const left = countedMoves(p).filter((m) => !p.moves.includes(m));
       return left.length ? `Still to try: ${left.map((m) => MOVE_NAMES[m] ?? m).join(', ')}` : 'All learned';
     },
   },

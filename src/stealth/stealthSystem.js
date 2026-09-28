@@ -11,8 +11,10 @@ import { ROOMS, roomSquad, roomSpots } from './stealthRooms.js';
 import { createSilentTakedown, createPerchDrop } from './takedowns.js';
 import { registerMoves } from '../game/progressTracker.js';
 
-// Plan 3C's progress tracker: the two stealth moves count toward "Moves learned".
-registerMoves(['silentTakedown', 'perchDrop']);
+// Plan 3C's progress tracker: the two stealth moves count toward "Moves learned", but only for a
+// save that can still reach a predator room (up to the catwalks, the last one in the story) or has
+// already learned them, so a finished save from before Part D keeps its 100%.
+registerMoves(['silentTakedown', 'perchDrop'], { until: 'aceCatwalks' });
 
 const WALK = 1.6, SEARCH = 2.2, HUNT = 3.6;   // m/s before fear
 const LOOK_SEARCH = 2.5, LOOK_HUNT = 1.5;     // seconds spent looking round at each spot

@@ -4,7 +4,7 @@ import { STEPS } from '../../src/game/story.js';
 import { CHALLENGES } from '../../src/game/challenges.js';
 import { BALLOONS } from '../../src/config/balloonSpots.js';
 import {
-  tracker, createProgressRegistry, scoreProgress, BASE_CATEGORIES, BASE_MOVES, registerMoves, moveList,
+  tracker, createProgressRegistry, scoreProgress, BASE_CATEGORIES, BASE_MOVES, registerMoves, moveList, moveReachable,
   milestonesCrossed, chapterOf, nextBalloonHint, storyCount,
 } from '../../src/game/progressTracker.js';
 
@@ -124,6 +124,29 @@ describe('helpers', () => {
     expect(part(tracker.score(sanitizeProgress({ moves: BASE_MOVES })), 'moves').total).toBe(10);
     undo();
     expect(moveList()).toEqual(BASE_MOVES);
+  });
+  it('counts the stealth moves only while a predator room is still ahead, or once learned', () => {
+    const undo = registerMoves(['silentTakedown', 'perchDrop'], { until: 'aceCatwalks' });
+    try {
+      const at = (id) => STEPS.findIndex((s) => s.id === id);
+      const moves = (p) => part(tracker.score(p), 'moves');
+      // Before the rooms (or at the catwalks themselves): all 10 moves count.
+      for (const id of ['intro', 'n3', 'monarchBalcony', 'party', 'a3', 'aceCatwalks']) {
+        expect(moves(sanitizeProgress({ step: at(id), moves: BASE_MOVES })).total, id).toBe(10);
+      }
+      expect(moves(sanitizeProgress({ step: at('party'), moves: BASE_MOVES })).detail).toMatch(/silent takedown, perch drop$/);
+      // Past the last room without them: the old 8, and nothing it can no longer do is promised.
+      const past = moves(sanitizeProgress({ step: at('cake'), moves: BASE_MOVES }));
+      expect(past).toMatchObject({ done: 8, total: 8, detail: 'All learned' });
+      // Learned ones always count, even past the rooms.
+      expect(moves(sanitizeProgress({ step: at('boss'), moves: [...BASE_MOVES, 'perchDrop'] }))).toMatchObject({ done: 9, total: 9 });
+      expect(moves(sanitizeProgress({ step: at('party'), moves: [...BASE_MOVES, 'perchDrop'] }))).toMatchObject({ done: 9, total: 10 });
+      // A finished save from before Part D (migrated to the credits) still reads 100%.
+      expect(tracker.score(finished()).percent).toBe(100);
+      expect(moves(finished())).toMatchObject({ done: 8, total: 8 });
+      expect(tracker.score({ ...finished(), moves: [...BASE_MOVES, 'silentTakedown', 'perchDrop'] }).percent).toBe(100);
+    } finally { undo(); }
+    expect(moveReachable('perchDrop', sanitizeProgress({ finished: true }))).toBe(true);
   });
   it('writes no em or en dashes in any detail text', () => {
     for (const p of [sanitizeProgress({}), finished()]) for (const x of tracker.score(p).parts) expect(x.detail).not.toMatch(/[–—]/);
