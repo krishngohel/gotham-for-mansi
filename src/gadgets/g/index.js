@@ -2,9 +2,11 @@
 import { createBatarangHandler } from './batarang.js';
 import { createRemoteHandler } from './remote.js';
 import { createGelHandler } from './gel.js';
+import { createSmokeHandler } from './smoke.js';
 
 export const HANDLER_FACTORIES = {
   batarang: createBatarangHandler,
   remote: createRemoteHandler,
   gel: createGelHandler,
+  smoke: createSmokeHandler,
 };
