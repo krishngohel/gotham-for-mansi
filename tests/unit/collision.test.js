@@ -72,3 +72,22 @@ describe('collision', () => {
     expect(hit.normal.y).toBe(1);
   });
 });
+
+describe('fast landings', () => {
+  it('lands on a roof it was above last frame instead of being pushed out the side', () => {
+    const c = createCollision({ floor: () => 0 });
+    c.addBox(-20, 0, -20, 20, 16, 20, 'warehouse');
+    const p = { x: 0, y: 15.2, z: 15 };
+    const r = c.resolveCylinder(p, 0.35, 1.8, { prevY: 16.3 });
+    expect(p.y).toBe(16);
+    expect(p.z).toBe(15);
+    expect(r.grounded).toBe(true);
+  });
+  it('still treats the roof as a wall when coming from below', () => {
+    const c = createCollision({ floor: () => 0 });
+    c.addBox(-20, 0, -20, 20, 16, 20, 'warehouse');
+    const p = { x: 0, y: 5, z: 19.9 };
+    c.resolveCylinder(p, 0.35, 1.8, { prevY: 5 });
+    expect(p.z).toBeCloseTo(20.35, 5);
+  });
+});

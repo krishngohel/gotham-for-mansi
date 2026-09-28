@@ -89,6 +89,15 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.pixelRatioCap) * settings.renderScale);
     fpsEl.style.display = settings.showFps ? '' : 'none';
     game?.follow.configure(settings);
+    if (game) {
+      game.combat.setDifficulty(settings.difficulty);
+      const max = settings.difficulty === 'story' ? 150 : 100;
+      if (game.hero.maxHealth !== max) {
+        game.hero.health = Math.round((game.hero.health / game.hero.maxHealth) * max);
+        game.hero.maxHealth = max;
+        game.hud.setHealth(game.hero.health / max);
+      }
+    }
     resize();
   }
 
@@ -273,7 +282,9 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       if (playing && !state.paused) {
         if (input.pressed('detective')) state.detectiveOn = !state.detectiveOn;
         pickGrapple(real);
-        ctx.grappleTarget = combat.active ? null : grapple.target;
+        // Grapple is only locked while a fight is actually around you.
+        const busy = combat.enemies.some((e) => e.alive && e.aware && e.pos.distanceTo(hero.pos) < 12 && Math.abs(e.pos.y - hero.pos.y) < 4);
+        ctx.grappleTarget = busy ? null : grapple.target;
         combat.update(dt, ctx);
         hero.update(dt, ctx);
         fx.update(dt);
@@ -287,12 +298,15 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         if (marker.visible) { marker.position.set(ctx.grappleTarget.x, ctx.grappleTarget.y + 1, ctx.grappleTarget.z); marker.rotation.y += real * 3; }
         fill.position.copy(camera.position);
         fill.target.position.copy(hero.pos);
+        const glyphIds = new Set();
         for (const e of combat.enemies) {
+          glyphIds.add(e.id);
           e.ch.root.visible = e.pos.distanceTo(camera.position) > 2.4;
           const show = !!e.glyph && (e.state === 'windup' || e.state === 'throw');
           if (show) { const p = toScreen(e.ch.headWorld(new THREE.Vector3(), 0.45)); hud.glyph(e.id, p.x, p.y, !p.behind, e.glyph); }
           else hud.glyph(e.id, 0, 0, false);
         }
+        hud.pruneGlyphs(glyphIds);
       }
       detective += ((state.detectiveOn && playing ? 1 : 0) - detective) * Math.min(1, real * 6);
       ink.uniforms.uDetective.value = detective;
@@ -331,6 +345,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   function pause() {
     if (state.phase !== 'play' || state.paused || !game || game.flow.mode !== 'play') return;
     state.paused = true;
+    state.pauseMenu = true;
     input.setEnabled(false);
     document.exitPointerLock?.();
     menus.pause({
@@ -339,11 +354,43 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       onTitle: () => { location.search = ''; },
     });
   }
-  function resume() {
+  function resume({ lock = true } = {}) {
     menus.hide();
     state.paused = false;
+    state.pauseMenu = false;
     input.setEnabled(true);
-    canvas.requestPointerLock?.();
+    if (lock) canvas.requestPointerLock?.();
+  }
+
+  // Gamepad: pause and help, comic pages, and menu navigation (D-pad to move, A to press, B to go back).
+  function padControls() {
+    if (state.phase === 'title' || state.paused || menus.open) {
+      const buttons = [...document.querySelectorAll('.menu-layer.show button')];
+      if (!buttons.length) return;
+      const i = buttons.indexOf(document.activeElement);
+      if (input.padButton(12) || input.padButton(14)) buttons[(i - 1 + buttons.length) % buttons.length].focus();
+      if (input.padButton(13) || input.padButton(15)) buttons[(i + 1) % buttons.length].focus();
+      if (input.padButton(0)) (buttons[i] ?? buttons[0]).click();
+      if (input.padButton(1) || input.padButton(9)) {
+        const back = buttons.find((b) => /^(Back|Resume)$/i.test(b.textContent));
+        if (back) back.click();
+        else if (state.pauseMenu) resume({ lock: false });
+      }
+      return;
+    }
+    if (!game) return;
+    if (game.comic.playing) {
+      if (input.padButton(0)) game.comic.advance();
+      if (input.padButton(1)) game.comic.skip();
+      return;
+    }
+    if (input.padButton(9)) pause();
+    else if (input.padButton(13) && game.flow.mode === 'play') {
+      state.paused = true;
+      state.pauseMenu = true;
+      input.setEnabled(false);
+      menus.help(() => resume({ lock: false }));
+    }
   }
   document.addEventListener('pointerlockchange', () => {
     // Losing the mouse mid-game (Esc) pauses, like any PC game.
@@ -355,6 +402,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     if (pauseKeys.includes(e.code) && !input.capturing && !game.comic.playing) { e.preventDefault(); state.paused ? (menus.open ? resume() : null) : pause(); }
     else if (helpKeys.includes(e.code) && !state.paused && game.flow.mode === 'play') {
       state.paused = true;
+      state.pauseMenu = true;
       input.setEnabled(false);
       document.exitPointerLock?.();
       menus.help(resume);
@@ -364,7 +412,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   window.addEventListener('mousedown', () => audio.unlock(), { once: true });
   window.addEventListener('keydown', () => audio.unlock(), { once: true });
 
-  window.__game = { state, camera, scene, world, input, events, audio, voice, settings, get progress() { return progress; }, begin };
+  window.__game = { state, camera, scene, world, input, events, audio, voice, settings, time, get progress() { return progress; }, begin };
 
   // ---------------- frame loop ----------------
   let last = performance.now(), fpsT = 0, fpsN = 0, errors = 0;
@@ -399,9 +447,12 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       camera.position.set(Math.sin(orbit) * 95, 82, Math.cos(orbit) * 95 + 10);
       camera.lookAt(-20, 60, -60);
     } else if (game) {
+      // A cutscene, the finale or the credits never run under a pause menu.
+      if (state.pauseMenu && !['play', 'dead'].includes(game.flow.mode)) resume({ lock: false });
       game.update(real);
       focus = game.hero.pos;
     }
+    padControls();
     lightning(real);
     world.update(state.t, real, focus, camera, game?.hero ?? null);
     ink.render(scene, camera, state.t);
@@ -417,6 +468,6 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   requestAnimationFrame(frame);
   state.ready = true;
   // Dev and test shortcuts skip the title: ?at=<step>, ?play=1, ?fight=test.
-  if (params.has('at') || params.has('play') || params.has('new') && params.has('skip')) begin(params.get('suit') ?? progress.suit ?? 'm', false);
+  if (params.has('at') || params.has('play') || params.has('fight') || params.has('new') && params.has('skip')) begin(params.get('suit') ?? progress.suit ?? 'm', false);
   else showTitle();
 }

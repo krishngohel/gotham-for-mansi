@@ -28,6 +28,21 @@ function sanitizeBindings(raw) {
     const codes = raw?.[id];
     out[id] = Array.isArray(codes) && codes.length && codes.every((c) => typeof c === 'string') ? [...codes] : [...DEFAULT_BINDINGS[id]];
   }
+  // One code, one action. The action that owns the code by default wins; others fall back
+  // to their own defaults where those are free.
+  const owner = new Map();
+  for (const { id } of ACTIONS) for (const c of out[id]) {
+    const prev = owner.get(c);
+    if (!prev || DEFAULT_BINDINGS[id].includes(c)) owner.set(c, id);
+  }
+  for (const { id } of ACTIONS) {
+    out[id] = out[id].filter((c) => owner.get(c) === id);
+    if (!out[id].length) {
+      const free = DEFAULT_BINDINGS[id].filter((c) => !owner.has(c) || owner.get(c) === id);
+      for (const c of free) owner.set(c, id);
+      out[id] = free;
+    }
+  }
   return out;
 }
 

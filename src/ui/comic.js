@@ -96,5 +96,6 @@ export function createComic(root, { onSound = () => {}, onVoice = () => {}, onEn
       return new Promise((resolve) => { resolver = resolve; });
     },
     skip: finish,
+    advance,
   };
 }

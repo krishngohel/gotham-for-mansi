@@ -55,10 +55,17 @@ export function createCollision({ cell = 8, floor = () => 0 } = {}) {
     return best;
   }
 
-  function resolveCylinder(p, radius, height, { stepUp = 0.45 } = {}) {
+  // prevY: feet height last frame. A box whose top was at or below it is floor we fell onto,
+  // never a wall, so fast falls land on roofs instead of being shoved out the side.
+  function resolveCylinder(p, radius, height, { stepUp = 0.45, prevY = -Infinity } = {}) {
     let hitWall = false;
     let ceiling = false;
     query(p.x - radius, p.z - radius, p.x + radius, p.z + radius, near);
+    let landing = -Infinity;
+    for (const b of near) {
+      if (b.maxY <= prevY + 1e-4 && b.maxY > p.y && p.x > b.minX - radius * 0.6 && p.x < b.maxX + radius * 0.6 && p.z > b.minZ - radius * 0.6 && p.z < b.maxZ + radius * 0.6) landing = Math.max(landing, b.maxY);
+    }
+    if (landing > -Infinity) p.y = landing;
     for (const b of near) {
       // Step onto anything low enough; walls are everything taller than a step at the feet.
       if (b.maxY <= p.y + stepUp || b.minY >= p.y + height) continue;

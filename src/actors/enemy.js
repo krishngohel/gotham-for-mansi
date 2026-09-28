@@ -84,6 +84,7 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
   // launch: vertical launch speed for knockdowns/KOs (0 = slide along the ground).
   e.applyHit = (result, from, { power = 1, launch = 0 } = {}) => {
     if (!e.alive) return;
+    e.countered = false;
     const wasWindup = e.state === 'windup' || e.state === 'attack';
     e.glyph = null;
     tmp.set(pos.x - from.x, 0, pos.z - from.z).normalize();
@@ -119,15 +120,17 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
         play('Idle_Shield_Break', { once: true, timeScale: 0.8, fade: 0.1 });
         break;
       case 'parried':
-        setState('hit');
+        // A parry costs the knife goon nothing: an attack in progress carries on.
         e.knock.set(0, 0, 0);
+        if (wasWindup) return false;
+        setState('hit');
         play('Sword_Block', { once: true, timeScale: 1.8, fade: 0.05 });
         break;
       case 'immune':
+        // Brutes shrug it off without breaking stride (no stun-lock by spamming punches).
         e.knock.copy(tmp).multiplyScalar(0.4);
-        play('Yes', { once: true, timeScale: 2, fade: 0.1 });
-        if (!wasWindup) setState('recover');
-        return wasWindup;
+        if (!wasWindup && e.state !== 'recover' && e.state !== 'engage') play('Yes', { once: true, timeScale: 2, fade: 0.1 });
+        return false;
       default:
         break;
     }
@@ -136,6 +139,12 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
 
   e.update = (dt, ctx) => {
     const { hero, others } = ctx;
+    // Frozen by a counter until its blow lands (with a failsafe).
+    if (e.countered) {
+      e.counterT += dt;
+      if (e.counterT < 1.2) { ch.animator.update(dt * 0.2); return; }
+      e.countered = false;
+    }
     e.t += dt;
     if (e.stunT > 0) { e.stunT -= dt; if (e.stunT <= 0) e.stunned = false; }
     const dx = hero.pos.x - pos.x, dz = hero.pos.z - pos.z;
@@ -229,8 +238,9 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
     if (e.air) {
       // Ballistic flight: gravity, walls, landing. Thrown goons bowl over whoever they hit.
       e.vel.y -= 24 * dt;
+      const prevY = pos.y;
       pos.addScaledVector(e.vel, dt);
-      const r = collision.resolveCylinder(pos, e.radius, 1.8 * scale, { stepUp: 0.45 });
+      const r = collision.resolveCylinder(pos, e.radius, 1.8 * scale, { stepUp: 0.45, prevY });
       if (r.grounded && e.vel.y > 0) pos.y = Math.max(pos.y, r.groundY);
       if (r.hitWall) { e.vel.x *= -0.25; e.vel.z *= -0.25; }
       if (e.thrown) ctx.onThrownFly?.(e);

@@ -51,6 +51,7 @@ const NAMED = {
 };
 
 export function keyLabel(code) {
+  if (!code) return 'Unbound';
   if (NAMED[code]) return NAMED[code];
   if (/^Key[A-Z]$/.test(code)) return code.slice(3);
   if (/^Digit\d$/.test(code)) return code.slice(5);
@@ -59,11 +60,17 @@ export function keyLabel(code) {
   return code;
 }
 
-// Returns new bindings with `code` as the primary key of `action`, removed from every other action.
+// Returns new bindings with `code` as the primary key of `action`. If another action used that
+// code, it gets this action's old primary key instead, so nothing is left unbound.
 export function rebind(bindings, action, code) {
   const out = {};
-  for (const [a, codes] of Object.entries(bindings)) out[a] = codes.filter((c) => c !== code);
-  const rest = (out[action] ?? []).slice(1);
+  const old = bindings[action]?.[0];
+  for (const [a, codes] of Object.entries(bindings)) {
+    const had = codes.includes(code) && a !== action;
+    out[a] = codes.filter((c) => c !== code);
+    if (had && old && old !== code && !out[a].includes(old)) out[a].unshift(old);
+  }
+  const rest = (bindings[action] ?? []).slice(1);
   out[action] = [code, ...rest.filter((c) => c !== code)];
   return out;
 }

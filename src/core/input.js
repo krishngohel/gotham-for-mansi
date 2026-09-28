@@ -14,6 +14,8 @@ export function createInput({ target = window, bindings }) {
   const padHeld = new Set();
   const padPressed = new Set();
   const padReleased = new Set();
+  const rawHeld = new Set();
+  const rawPressed = new Set();
   let codeToActions = new Map();
   let capture = null;
   let device = 'kbm';
@@ -37,7 +39,9 @@ export function createInput({ target = window, bindings }) {
     device = 'kbm';
     if (!enabled && !capture) return;
     if (capture) {
+      // The key belongs to the rebind screen: nothing else (like Esc closing the pause menu) sees it.
       e?.preventDefault();
+      e?.stopImmediatePropagation();
       const cb = capture;
       capture = null;
       cb(code === 'Escape' ? null : code);
@@ -85,6 +89,7 @@ export function createInput({ target = window, bindings }) {
     const now = new Set();
     if (pad) {
       for (const [action, idx] of Object.entries(PAD_BUTTONS)) if (idx.some((i) => pad.buttons[i]?.pressed)) now.add(action);
+      pad.buttons.forEach((b, i) => { if (b?.pressed) { if (!rawHeld.has(i)) rawPressed.add(i); rawHeld.add(i); } else rawHeld.delete(i); });
       stick.mx = dz(pad.axes[0] ?? 0); stick.my = dz(pad.axes[1] ?? 0);
       stick.lx = dz(pad.axes[2] ?? 0); stick.ly = dz(pad.axes[3] ?? 0);
       if (now.size || stick.mx || stick.my || stick.lx || stick.ly) device = 'pad';
@@ -102,6 +107,9 @@ export function createInput({ target = window, bindings }) {
     move,
     look,
     down: (a) => anyCode(held, a) || padHeld.has(a),
+    // Gamepad-only queries (menus and comics listen to the pad directly).
+    padPressed: (a) => padPressed.has(a),
+    padButton: (i) => rawPressed.has(i),
     pressed: (a) => anyCode(pressedCodes, a) || padPressed.has(a),
     released: (a) => anyCode(releasedCodes, a) || padReleased.has(a),
     setBindings,
@@ -124,7 +132,7 @@ export function createInput({ target = window, bindings }) {
       look.dy += stick.ly * 700 * dt;
     },
     endFrame() {
-      pressedCodes.clear(); releasedCodes.clear(); padPressed.clear(); padReleased.clear();
+      pressedCodes.clear(); releasedCodes.clear(); padPressed.clear(); padReleased.clear(); rawPressed.clear();
       look.dx = 0; look.dy = 0;
     },
     releaseAll() { onBlur(); padHeld.clear(); },

@@ -23,8 +23,8 @@ describe('settings', () => {
     expect(s.fov).toBe(DEFAULT_SETTINGS.fov);
   });
   it('keeps valid bindings and repairs missing ones', () => {
-    const s = sanitizeSettings({ bindings: { kick: ['KeyG'], punch: 'nope' } });
-    expect(s.bindings.kick).toEqual(['KeyG']);
+    const s = sanitizeSettings({ bindings: { kick: ['KeyZ'], punch: 'nope' } });
+    expect(s.bindings.kick).toEqual(['KeyZ']);
     expect(s.bindings.punch).toEqual(DEFAULT_SETTINGS.bindings.punch);
   });
   it('survives storage that throws', () => {
@@ -48,5 +48,14 @@ describe('progress', () => {
     expect(p.balloons).toEqual([1]);
     expect(p.suit).toBe(null);
     expect(p.goldUnlocked).toBe(false);
+  });
+});
+
+describe('binding de-duplication', () => {
+  it('drops a code bound to two actions when loading', () => {
+    const s = sanitizeSettings({ bindings: { punch: ['KeyE'], kick: ['KeyE'] } });
+    const holders = Object.entries(s.bindings).filter(([, c]) => c.includes('KeyE')).map(([a]) => a);
+    expect(holders).toEqual(['kick']);
+    expect(s.bindings.punch.length).toBeGreaterThan(0);
   });
 });

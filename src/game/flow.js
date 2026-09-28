@@ -119,8 +119,13 @@ export function createFlow(d) {
     hero.dead = false;
     hero.health = hero.maxHealth;
     hud.setHealth(1);
-    const p = respawnPoint();
-    hero.teleport(p, hero.bat.yaw);
+    hud.clearGlyphs();
+    const finished = objectives.done || STEPS[objectives.index]?.type === 'credits';
+    const p = finished ? { ...SITES.start } : respawnPoint();
+    // Face the objective, not whatever wall we happened to be looking at.
+    const aim = finished ? null : target;
+    const yaw = aim ? Math.atan2(aim.x - p.x, aim.z - p.z) : hero.bat.yaw;
+    hero.teleport(p, yaw);
     const s = objectives.step;
     if (s?.type === 'fight') encounters.restart();
     if (s?.type === 'boss') d.boss?.restart();

@@ -29,3 +29,15 @@ describe('bindings', () => {
     expect(bindingLabel({ ...DEFAULT_BINDINGS, punch: ['Mouse0'] }, 'punch')).toBe('LMB');
   });
 });
+
+describe('rebind conflicts', () => {
+  it('swaps keys so the displaced action keeps a key', () => {
+    const b = rebind(DEFAULT_BINDINGS, 'punch', 'KeyE');
+    expect(b.punch[0]).toBe('KeyE');
+    expect(b.kick).toEqual(['Mouse0']);
+  });
+  it('labels an unbound action instead of printing undefined', () => {
+    expect(bindingLabel({ ...DEFAULT_BINDINGS, kick: [] }, 'kick')).toBe('Unbound');
+    expect(keyLabel(undefined)).toBe('Unbound');
+  });
+});

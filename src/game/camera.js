@@ -80,6 +80,14 @@ export function createFollowCamera(camera, collision) {
       const rx = -fz, rz = fx;
       lookAt.set(s.pivot.x + rx * s.side, s.pivot.y, s.pivot.z + rz * s.side);
       desired.set(lookAt.x - fx * cp * s.dist, lookAt.y + Math.sin(s.pitch) * s.dist, lookAt.z - fz * cp * s.dist);
+      // The shoulder offset itself must not poke into a wall next to the hero.
+      dir.subVectors(lookAt, s.pivot);
+      const sideLen = dir.length();
+      if (sideLen > 1e-4) {
+        dir.divideScalar(sideLen);
+        const sideHit = collision.raycast(s.pivot, dir, sideLen + 0.25);
+        if (sideHit) lookAt.copy(s.pivot).addScaledVector(dir, Math.max(0, sideHit.t - 0.3));
+      }
       // Pull in if a wall is between the pivot and the camera.
       dir.subVectors(desired, lookAt);
       const len = dir.length();

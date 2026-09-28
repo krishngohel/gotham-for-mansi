@@ -100,6 +100,7 @@ export function createBoss({ assets, scene, rng, combat, events, hud, spawn, des
     startWindup() {},
     remove() {},
     applyHit(result, from) {
+      joker.countered = false;
       tmp.set(pos.x - from.x, 0, pos.z - from.z).normalize();
       if (phase === 2) {
         if (result.outcome === 'stun') {
@@ -162,6 +163,7 @@ export function createBoss({ assets, scene, rng, combat, events, hud, spawn, des
   let goons = [];
   const spawned = [];
   let hits = 0, cycles = 0, chainHits = 0, chains = 0;
+  let defeatT = 0, waveT = 0;
   let buzzT = 4, lineT = 3, throwT = 2.5, speech = null;
   const knock = new THREE.Vector3();
   const strafe = { angle: 0, dir: 1, t: 2 };
@@ -237,7 +239,8 @@ export function createBoss({ assets, scene, rng, combat, events, hud, spawn, des
     hud.bossBar(false);
     for (const t of tiles) { t.m.visible = t.edge.visible = false; }
     combat.setEnemies([]);
-    setTimeout(() => events.emit('bossDefeated'), 1800);
+    // Counted in game time, so pausing here can't let the ending run on without the player.
+    defeatT = 1.8;
   }
 
   function updateTiles(dt) {
@@ -263,7 +266,7 @@ export function createBoss({ assets, scene, rng, combat, events, hud, spawn, des
             const dmg = damageToHero('buzzer', { difficulty: getDifficulty() });
             hero.health = Math.max(0, hero.health - dmg);
             events.emit('heroHurt', { kind: 'buzzer', damage: dmg });
-            if (hero.health <= 0) { hero.dead = true; events.emit('heroDown'); }
+            if (hero.health <= 0) combat.killHero();
           }
           for (const g of goons) if (g.alive && onTile(g.pos, t)) g.applyHit({ outcome: 'stun', stun: 2 }, { x: t.cx, z: t.cz });
         }
@@ -299,7 +302,7 @@ export function createBoss({ assets, scene, rng, combat, events, hud, spawn, des
             hero.health = Math.max(0, hero.health - dmg);
             events.emit('heroHurt', { kind: 'gas', damage: dmg });
             events.emit('hint', { id: 'gas' });
-            if (hero.health <= 0) { hero.dead = true; events.emit('heroDown'); }
+            if (hero.health <= 0) combat.killHero();
           }
         }
       }
@@ -309,6 +312,11 @@ export function createBoss({ assets, scene, rng, combat, events, hud, spawn, des
 
   // Phase 2/3 movement and attacks. Called through combat.update as an enemy.
   joker.update = (dt, ectx) => {
+    if (joker.countered) {
+      joker.counterT += dt;
+      if (joker.counterT < 1.2) { ch.animator.update(dt * 0.2); return; }
+      joker.countered = false;
+    }
     joker.t += dt;
     if (knock.lengthSq() > 0.001) { pos.addScaledVector(knock, dt); knock.multiplyScalar(Math.max(0, 1 - dt * 4)); }
     const dx = hero.pos.x - pos.x, dz = hero.pos.z - pos.z;
@@ -422,6 +430,8 @@ export function createBoss({ assets, scene, rng, combat, events, hud, spawn, des
   return {
     joker,
     get phase() { return phase; },
+    debug: () => ({ phase, wave, waveT, defeatT, goons: goons.length, alive: goons.filter((g) => g.alive).length }),
+    debugFinish: () => finish(),
     get active() { return phase > 0 && phase < 4; },
     get speech() { return speech; },
     headWorld: (out) => ch.headWorld(out, 0.5),
@@ -442,6 +452,7 @@ export function createBoss({ assets, scene, rng, combat, events, hud, spawn, des
       startPhase(1);
     },
     restart() {
+      waveT = 0;
       for (const g of spawned) despawn(g);
       spawned.length = 0;
       goons = [];
@@ -456,6 +467,8 @@ export function createBoss({ assets, scene, rng, combat, events, hud, spawn, des
     },
     hide() { ch.root.visible = coat.mesh.visible = false; hud.bossBar(false); },
     update(dt) {
+      if (defeatT > 0) { defeatT -= dt; if (defeatT <= 0) events.emit('bossDefeated'); }
+      if (waveT > 0) { waveT -= dt; if (waveT <= 0 && phase === 1) spawnWave(1); }
       if (!ch.root.visible) return;
       if (speech) { speech.t -= dt; if (speech.t <= 0) { speech = null; hud.speech(null); } }
       if (phase === 1) {
@@ -466,7 +479,7 @@ export function createBoss({ assets, scene, rng, combat, events, hud, spawn, des
         if (lineT <= 0) { lineT = rng.range(5, 8); if (!speech) say(pick(LINES.phase1), 2.4); if (rng.chance(0.4)) events.emit('laugh'); }
         const left = goons.filter((g) => g.alive).length;
         if (left === 0 && goons.length) {
-          if (wave === 0) { wave = 1; setTimeout(() => { if (phase === 1) spawnWave(1); }, 1200); goons = []; }
+          if (wave === 0) { wave = 1; waveT = 1.2; goons = []; }
           else if (wave === 1) { wave = 2; startPhase(2); }
         }
       }

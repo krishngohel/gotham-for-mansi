@@ -109,7 +109,7 @@ export function createFinale({ scene, world, hero, boss, camera, events, rng, ha
       events.emit('finaleStart');
       return new Promise((r) => { resolve = r; });
     },
-    freeRoam() { freeRoam = true; playing = false; },
+    freeRoam() { freeRoam = true; playing = false; set.visible = true; },
     resize(h, fov) { fireworks.resize(h, fov); },
     update(dt, cameraOverride) {
       if (!set.visible) return false;

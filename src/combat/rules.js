@@ -20,7 +20,7 @@ export const MOVES = {
   kick: { damage: 2, breaksGuard: true },
   jumpKick: { damage: 2, knockdown: true, breaksGuard: true },
   diveBomb: { damage: 2, knockdown: true, breaksGuard: true },
-  counter: { damage: 1, knockdown: true },
+  counter: { damage: 1, knockdown: true, breaksGuard: true },
   cape: { damage: 0, stun: 1.5, stunOnly: true },
   batarang: { damage: 0, stun: 1.2, stunOnly: true },
   special: { ko: true },

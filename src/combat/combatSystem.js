@@ -42,6 +42,22 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
     return dir;
   }
 
+  // Line of sight from Batman's chest to the target's: no hitting through walls and containers.
+  const eye = new THREE.Vector3(), aim = new THREE.Vector3();
+  function canSee(e) {
+    eye.set(hero.pos.x, hero.pos.y + 1.2, hero.pos.z);
+    aim.set(e.pos.x - eye.x, e.pos.y + 1.1 - eye.y, e.pos.z - eye.z);
+    const d = aim.length();
+    if (d < 0.8) return true;
+    const hit = hero.collision.raycast(eye, aim.divideScalar(d), d);
+    return !hit || hit.t > d - 0.45;
+  }
+  // Lunges slide along walls instead of passing through them.
+  function moveHero(to, prevY) {
+    hero.pos.copy(to);
+    hero.collision.resolveCylinder(hero.pos, 0.35, 1.8, { prevY });
+  }
+
   function faceTo(target) {
     hero.bat.face(Math.atan2(target.pos.x - hero.pos.x, target.pos.z - hero.pos.z));
   }
@@ -121,7 +137,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
       update(dt) {
         t += dt;
         const k = Math.min(1, t / lunge);
-        hero.pos.lerpVectors(from, to, 1 - (1 - k) * (1 - k));
+        moveHero(tmp.lerpVectors(from, to, 1 - (1 - k) * (1 - k)), from.y);
         // Spinning heel kick: a full turn and a little hop before the heel connects.
         if (spin && !hit) {
           const s = Math.min(1, t / impactAt);
@@ -165,7 +181,10 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
       hero.bat.animator.play(i % 2 ? 'Kick_Round' : 'Melee_Hook', { once: true, timeScale: 1.9, fade: 0.04 });
       t = 0; hit = false;
     };
-    for (const target of targets) { target.glyph = null; director.release(target.id); }
+    // Countered attackers freeze mid-windup until the counter lands, and Batman can't be hit
+    // while he works through them.
+    for (const target of targets) { target.glyph = null; target.countered = true; target.counterT = 0; director.release(target.id); }
+    hero.invulnerable = Math.max(hero.invulnerable, 0.32 * targets.length + 0.15);
     time.slowMo(0.18, 0.35);
     events.emit('counter', { count: targets.length });
     setup();
@@ -175,7 +194,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
       update(dt) {
         t += dt;
         const k = Math.min(1, t / 0.08);
-        hero.pos.lerpVectors(from, to, k);
+        moveHero(tmp.lerpVectors(from, to, k), from.y);
         if (!hit && t >= 0.12) {
           hit = true;
           const target = targets[i];
@@ -295,7 +314,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
       canChain: () => hit && t > 0.6,
       update(dt) {
         t += dt;
-        hero.pos.lerpVectors(from, to, Math.min(1, t / 0.12));
+        moveHero(tmp.lerpVectors(from, to, Math.min(1, t / 0.12)), from.y);
         if (!hit && t > 0.3) {
           hit = true;
           if (target.alive) landHit('special', target, { word: word('special'), power: 2.2, stopTime: 0.15, launch: 5 });
@@ -453,10 +472,19 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
     }
   }
 
-  function stagger(anim, dur) {
+  function stagger(anim, dur, name = 'stagger') {
     let t = 0;
     hero.bat.animator.play(anim, { once: true, timeScale: 1.3, fade: 0.05 });
-    return { name: 'stagger', combat: true, canChain: () => false, update(dt) { t += dt; return t > dur; } };
+    return { name, combat: true, canChain: () => false, update(dt) { t += dt; return t > dur; } };
+  }
+
+  // The one way Batman goes down, whatever did it.
+  function killHero() {
+    if (hero.dead) return;
+    hero.dead = true;
+    hero.health = 0;
+    hero.control = stagger('Death01', 99);
+    events.emit('heroDown');
   }
 
   // ---- enemy attacks landing on the hero ----
@@ -470,13 +498,8 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
     punchChain = kickChain = 0;
     follow.addShake(blocking ? 0.08 : 0.2);
     events.emit('heroHurt', { kind, blocking, damage: dmg, from: e });
-    if (hero.health <= 0) {
-      hero.dead = true;
-      hero.control = stagger('Death01', 99);
-      events.emit('heroDown');
-      return;
-    }
-    if (blocking) { hero.control = stagger('Idle_Shield_Break', 0.28); return; }
+    if (hero.health <= 0) { killHero(); return; }
+    if (blocking) { hero.control = stagger('Idle_Shield_Break', 0.28, 'blockStagger'); return; }
     if (kind === 'charge') {
       hero.invulnerable = 1.6;
       const s = stagger('Hit_Knockback', 1.1);
@@ -492,7 +515,8 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
 
   function tryStart(action, ctx) {
     const inAir = hero.state === 'air' || hero.state === 'glide';
-    const list = alive().filter((e) => e.state !== 'grabbed');
+    const all = alive().filter((e) => e.state !== 'grabbed');
+    const list = action === 'block' ? all : all.filter(canSee);
     if (action === 'block') {
       const windups = list.filter((e) => e.state === 'windup' && e.def.counterable && e.pos.distanceTo(hero.pos) < 7.5)
         .sort((a, b) => a.pos.distanceTo(hero.pos) - b.pos.distanceTo(hero.pos)).slice(0, 2);
@@ -554,13 +578,15 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
       for (const e of list) director.hold(e.id, 1 + rng.next() * 1.6);
     },
     setDifficulty(d) { difficulty = d; director.configure(DIFFICULTY[d]); },
+    killHero,
     get active() { return engaged().length > 0; },
     get cameraMode() { return hero.control?.camera ?? (engaged().some((e) => e.pos.distanceTo(hero.pos) < 14) ? 'combat' : null); },
     update(dt, ctx) {
       combo.tick(dt);
       chainT -= dt;
       if (chainT <= 0) { punchChain = 0; kickChain = 0; }
-      difficulty = getDifficulty();
+      const d = getDifficulty();
+      if (d !== difficulty) { difficulty = d; director.configure(DIFFICULTY[d]); }
       // Buffer the latest press so freeflow chains feel responsive.
       for (const a of ACTIONS) if (ctx.input.pressed(a)) { buffer = a; bufferT = 0.3; }
       bufferT -= dt;
@@ -571,7 +597,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
         if (tryStart(buffer, ctx)) buffer = null;
       }
       // Hold block to guard when nothing else is going on.
-      hero.blocking = !hero.control && hero.grounded && ctx.input.down('block') && engaged().length > 0;
+      hero.blocking = (!hero.control || hero.control.name === 'blockStagger') && hero.grounded && ctx.input.down('block') && engaged().length > 0;
 
       // Enemy AI and the attack director.
       const ectx = { hero, others: enemies, onAttackLand, onAttackEnd, onThrownFly, onLanded };

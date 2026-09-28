@@ -67,7 +67,7 @@ export function createHero({ assets, suit, scene, collision, events }) {
   function integrate(dt) {
     before.copy(pos);
     pos.addScaledVector(vel, dt);
-    const r = collision.resolveCylinder(pos, RADIUS, HEIGHT);
+    const r = collision.resolveCylinder(pos, RADIUS, HEIGHT, { prevY: before.y });
     const pushX = pos.x - (before.x + vel.x * dt), pushZ = pos.z - (before.z + vel.z * dt);
     const pl = Math.hypot(pushX, pushZ);
     if (pl > 1e-5) {

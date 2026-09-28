@@ -16,7 +16,7 @@ export const BALLOONS = [
   { x: 186, y: 24, z: -52, where: 'Behind the Monarch stage' },
   { x: 112, y: 57.8, z: -191, where: 'On an Ace Chemicals smokestack' },
   { x: 135, y: 11.2, z: -118, where: 'Over the chemical vats' },
-  { x: -129, y: 49.4, z: -122, where: 'On a cathedral tower' },
+  { x: -129, y: 49.4, z: -125.6, where: 'On a cathedral tower' },
   { x: -120, y: 38.8, z: -165, where: 'On the cathedral roof ridge' },
 ];
 

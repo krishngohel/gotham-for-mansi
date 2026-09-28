@@ -17,5 +17,6 @@ export function createTimeControl() {
       return dt;
     },
     get stopped() { return stop > 0; },
+    get debug() { return { stop, slow, slowScale }; },
   };
 }

@@ -89,6 +89,8 @@ export function createHud(root) {
       g.style.top = `${y}px`;
     },
     clearGlyphs() { for (const g of glyphs.values()) g.remove(); glyphs.clear(); },
+    // Removes glyphs for enemies that no longer exist (restarts, new waves).
+    pruneGlyphs(keep) { for (const [id, g] of glyphs) if (!keep.has(id)) { g.remove(); glyphs.delete(id); } },
     // A caption at the bottom of the screen. html may contain <kbd> key labels.
     hint(html, ms = 3500) {
       hintEl.innerHTML = html;
