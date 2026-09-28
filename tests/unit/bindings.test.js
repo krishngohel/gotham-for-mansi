@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { ACTIONS, DEFAULT_BINDINGS, keyLabel, rebind, bindingLabel } from '../../src/core/bindings.js';
+import { sanitizeSettings } from '../../src/core/settings.js';
 
 describe('bindings', () => {
   it('binds every action by default', () => {
@@ -57,5 +58,26 @@ describe('chain takedown bindings', () => {
       expect(a.label).toMatch(/^Chain takedown [123]: /);
       expect(a.label).not.toContain('—');
     }
+  });
+});
+
+describe('gadget bindings', () => {
+  it('Tab holds the wheel, R uses the gadget, 4 calls the Bat Swarm', () => {
+    expect(DEFAULT_BINDINGS.gadgetWheel).toEqual(['Tab']);
+    expect(DEFAULT_BINDINGS.batarang).toEqual(['KeyR']);
+    expect(DEFAULT_BINDINGS.chain4).toEqual(['Digit4']);
+    expect(ACTIONS.find((a) => a.id === 'batarang').label).toBe('Use gadget');
+    expect(keyLabel('Tab')).toBe('Tab');
+    for (const id of ['gadgetWheel', 'chain4']) {
+      const a = ACTIONS.find((x) => x.id === id);
+      expect(a.group).toBe('Fight');
+      expect(a.label).not.toMatch(/[–—]/);
+    }
+  });
+  it('old saved bindings keep working and pick up the new defaults', () => {
+    const s = sanitizeSettings({ bindings: { batarang: ['KeyT'] } });
+    expect(s.bindings.batarang).toEqual(['KeyT']);
+    expect(s.bindings.gadgetWheel).toEqual(['Tab']);
+    expect(s.bindings.chain4).toEqual(['Digit4']);
   });
 });

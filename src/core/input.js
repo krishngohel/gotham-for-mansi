@@ -2,24 +2,32 @@
 // Keyboard and mouse follow the rebindable settings; the gamepad uses a fixed Xbox layout.
 
 export const PAD_BUTTONS = {
-  jump: [0], kick: [1], punch: [2], block: [3], grapple: [4], cape: [5], dodge: [6], batarang: [7],
+  jump: [0], kick: [1], punch: [2], block: [3], grapple: [4],
+  // RB (5) is not here: a tap is the cape stun and a hold opens the gadget wheel (createHoldTap).
+  dodge: [6], batarang: [7],
   detective: [8], pause: [9], sprint: [10], special: [11], photo: [12], help: [13], throw: [15],
 };
 
 // Chain takedowns: D-pad left, up and right while block (Y) is held. With block held, D-pad
-// right belongs to chain 3, not grab and throw.
+// right belongs to chain 3, not grab and throw. Y plus LB is the Bat Swarm (chain 4).
 export const PAD_CHORD_HOLD = 3;
-export const PAD_CHORDS = { chain1: 14, chain2: 12, chain3: 15 };
+export const PAD_CHORDS = { chain1: 14, chain2: 12, chain3: 15, chain4: 4 };
 
 // Hoisted once at module load: padActions runs every frame and must not allocate.
 const PAD_BUTTON_ENTRIES = Object.entries(PAD_BUTTONS);
 const PAD_CHORD_ENTRIES = Object.entries(PAD_CHORDS);
 const CHORD_BUTTONS = PAD_CHORD_ENTRIES.map(([, i]) => i);
+// D-pad chord buttons (12 to 15) stay latched: once a chord fires, the D-pad button stays
+// suppressed for its plain action (e.g. throw) until it is physically released, even if block
+// lets go first (players release the two buttons in either order). Chord buttons outside the
+// D-pad, like LB (4) for chain4, are not latched: LB doubles as the grapple button and is held
+// far longer than a quick D-pad tap, so grapple resumes the instant block lets go even if LB is
+// still held; those buttons are only suppressed while block is actually down this frame.
+const STICKY_CHORD_BUTTONS = CHORD_BUTTONS.filter((i) => i >= 12);
+const IMMEDIATE_CHORD_BUTTONS = new Set(CHORD_BUTTONS.filter((i) => i < 12));
 
-// Buttons a chord has consumed this "hold": once block + a D-pad button fire a chain together,
-// that D-pad button stays suppressed for its plain action (e.g. throw) until it is physically
-// released, even if block lets go first (players release the two buttons in either order).
-// Module-scoped so it survives across pollPad's per-frame calls; pass a private Set (or call
+// Buttons a D-pad chord has consumed this "hold" (see STICKY_CHORD_BUTTONS above). Module-scoped
+// so it survives across pollPad's per-frame calls; pass a private Set (or call
 // resetPadChordLatch) to isolate tests.
 const defaultChordLatch = new Set();
 export function resetPadChordLatch(latch = defaultChordLatch) { latch.clear(); }
@@ -29,8 +37,8 @@ export function resetPadChordLatch(latch = defaultChordLatch) { latch.clear(); }
 export function padActions(isDown, out = new Set(), latch = defaultChordLatch) {
   out.clear();
   const chord = isDown(PAD_CHORD_HOLD);
-  for (let n = 0; n < CHORD_BUTTONS.length; n++) {
-    const i = CHORD_BUTTONS[n];
+  for (let n = 0; n < STICKY_CHORD_BUTTONS.length; n++) {
+    const i = STICKY_CHORD_BUTTONS[n];
     if (!isDown(i)) latch.delete(i);
     else if (chord) latch.add(i);
   }
@@ -39,7 +47,8 @@ export function padActions(isDown, out = new Set(), latch = defaultChordLatch) {
     const idx = PAD_BUTTON_ENTRIES[n][1];
     let down = false;
     for (let j = 0; j < idx.length; j++) {
-      if (isDown(idx[j]) && !latch.has(idx[j])) { down = true; break; }
+      const i = idx[j];
+      if (isDown(i) && !latch.has(i) && !(chord && IMMEDIATE_CHORD_BUTTONS.has(i))) { down = true; break; }
     }
     if (down) out.add(action);
   }
@@ -49,6 +58,30 @@ export function padActions(isDown, out = new Set(), latch = defaultChordLatch) {
     if (chord && isDown(i)) out.add(action);
   }
   return out;
+}
+
+// The right bumper: a tap is the cape stun (it fires on release), holding it past PAD_TAP
+// opens the gadget wheel until it is let go. Pure.
+export const PAD_WHEEL = 5;
+export const PAD_TAP = 0.22;
+export function createHoldTap(holdTime = PAD_TAP) {
+  let down = false, t = 0, holding = false;
+  return {
+    get holding() { return holding; },
+    update(isDown, dt) {
+      if (isDown) {
+        if (!down) { down = true; t = 0; holding = false; return null; }
+        t += dt;
+        if (!holding && t >= holdTime) { holding = true; return 'hold'; }
+        return null;
+      }
+      if (!down) return null;
+      down = false;
+      const was = holding;
+      holding = false;
+      return was ? 'release' : 'tap';
+    },
+  };
 }
 
 const DEADZONE = 0.18;
@@ -69,6 +102,8 @@ export function createInput({ target = window, bindings }) {
   const move = { x: 0, y: 0 };
   const look = { dx: 0, dy: 0 };
   const stick = { mx: 0, my: 0, lx: 0, ly: 0 };
+  const rbHold = createHoldTap(PAD_TAP);
+  let capeTap = false;
 
   function setBindings(b) {
     codeToActions = new Map();
@@ -131,20 +166,24 @@ export function createInput({ target = window, bindings }) {
 
   const dz = (v) => (Math.abs(v) < DEADZONE ? 0 : (v - Math.sign(v) * DEADZONE) / (1 - DEADZONE));
 
-  function pollPad() {
+  function pollPad(dt = 0) {
     const pads = navigator.getGamepads?.() ?? [];
     const pad = [...pads].find((p) => p && p.connected);
     const now = new Set();
     if (pad) {
       padActions((i) => !!pad.buttons[i]?.pressed, now);
+      if (rbHold.update(!!pad.buttons[PAD_WHEEL]?.pressed, dt) === 'tap') capeTap = true;
+      if (rbHold.holding) now.add('gadgetWheel');
       pad.buttons.forEach((b, i) => { if (b?.pressed) { if (!rawHeld.has(i)) rawPressed.add(i); rawHeld.add(i); } else rawHeld.delete(i); });
       stick.mx = dz(pad.axes[0] ?? 0); stick.my = dz(pad.axes[1] ?? 0);
       stick.lx = dz(pad.axes[2] ?? 0); stick.ly = dz(pad.axes[3] ?? 0);
       if (now.size || stick.mx || stick.my || stick.lx || stick.ly) device = 'pad';
     } else {
       stick.mx = stick.my = stick.lx = stick.ly = 0;
+      rbHold.update(false, dt);
     }
     for (const a of now) if (!padHeld.has(a)) padPressed.add(a);
+    if (capeTap) { padPressed.add('cape'); capeTap = false; device = 'pad'; }
     for (const a of padHeld) if (!now.has(a)) padReleased.add(a);
     padHeld.clear();
     for (const a of now) padHeld.add(a);
@@ -163,6 +202,11 @@ export function createInput({ target = window, bindings }) {
     get stick() { return stick; },
     pressed: (a) => anyCode(pressedCodes, a) || padPressed.has(a),
     released: (a) => anyCode(releasedCodes, a) || padReleased.has(a),
+    // Raw key presses this frame, for the gadget wheel's 1 to 8 (whatever they are bound to).
+    codePressed: (code) => pressedCodes.has(code),
+    // Hides a key press from every action for the rest of this frame (the open wheel eats 1 to 8,
+    // so chain takedowns on 1 to 3 never fire from a wheel pick).
+    swallow(code) { pressedCodes.delete(code); },
     setBindings,
     captureNext(cb) { capture = cb; },
     cancelCapture() { capture = null; },
@@ -171,7 +215,7 @@ export function createInput({ target = window, bindings }) {
     setEnabled(v) { enabled = v; if (!v) onBlur(); },
     // Call once per frame before reading actions.
     update(dt) {
-      pollPad();
+      pollPad(dt);
       const kx = (anyCode(held, 'right') ? 1 : 0) - (anyCode(held, 'left') ? 1 : 0);
       const ky = (anyCode(held, 'forward') ? 1 : 0) - (anyCode(held, 'back') ? 1 : 0);
       move.x = kx + stick.mx;
