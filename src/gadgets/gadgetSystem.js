@@ -131,8 +131,8 @@ export function createGadgetSystem(deps) {
     return { name: st.name, text: st.text };
   }
   // Only in live play: never dead, in a cutscene or comic, paused, in photo mode, mid chain
-  // takedown or the Bat Swarm (gadgetDefs NO_GADGET_CONTROLS), in a challenge countdown or while
-  // steering the remote batarang.
+  // takedown, stealth takedown or the Bat Swarm (gadgetDefs NO_GADGET_CONTROLS), in a challenge
+  // countdown or while steering the remote batarang.
   function canUseWheel() {
     return isPlaying() && !hero.dead && !gadgetsLocked(hero) && !byId.get('remote')?.active;
   }

@@ -187,6 +187,18 @@ describe('the wheel and its slow time never linger', () => {
       expect(t.wheelUi.show).not.toHaveBeenCalled();
     }
   });
+  it('never opens mid silent takedown or perch drop, even in their chain window', () => {
+    for (const name of ['silent', 'perchDrop']) {
+      const t = setup();
+      t.hero.control = { name, combat: true, canChain: () => true };
+      t.input.hold('gadgetWheel');
+      const ctx = t.frame();
+      expect(t.sys.wheelOpen).toBe(false);
+      expect(ctx.lockInput).toBe(false);
+      expect(t.time.held).toBe(1);
+      expect(t.wheelUi.show).not.toHaveBeenCalled();
+    }
+  });
   it('a chain starting under the wheel closes it', () => {
     const t = setup();
     openWheel(t);
