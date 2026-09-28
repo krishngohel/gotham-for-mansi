@@ -32,6 +32,8 @@ export function createWallRunControl(h, { collision, events }, { wall, speed }) 
       }
       // Cheap distance check against the wall box's footprint instead of a per-frame query
       // allocation; the run ends anyway once the hero drifts off the wall or lands.
+      // XZ-only: safe because findRunWall only offers walls taller than minHeight (4 m), well
+      // above this control's own arc (peaks 1.4 m up), so the hero can't run above the wall's top.
       const dx = Math.max(wall.box.minX - h.pos.x, 0, h.pos.x - wall.box.maxX);
       const dz = Math.max(wall.box.minZ - h.pos.z, 0, h.pos.z - wall.box.maxZ);
       const still = Math.hypot(dx, dz) < 1.2;
