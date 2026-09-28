@@ -172,7 +172,7 @@ export function createChainControl(hero, api, { chain, targets, stealth, timelin
         events.emit('chainSmash', { pos: at.clone() });
         break;
       case 'heel': if (live(e)) api.finish(e, { power: 1.8, launch: 4 }); break;
-      case 'stomp': if (live(e)) api.finish(e, { power: 0.3 }); events.emit('chainStomp'); break;
+      case 'stomp': if (live(e)) { api.finish(e, { power: 0.3 }); events.emit('chainStomp'); } break;
       case 'diveBomb': api.shockwave(center, 4.5, { crit: false, word: null }); break;
       default: break;
     }
@@ -211,10 +211,14 @@ export function createChainControl(hero, api, { chain, targets, stealth, timelin
       const s = steps[i];
       if (!entered) enter(s);
       // Frames rarely fall exactly on clipStart: start the clip as far in as the frame is late,
-      // so its contact frame still lands exactly on the step's contact.
+      // so its contact frame still lands exactly on the step's contact. hero.js advances the
+      // mixer by dt right after this update, so the clip starts one frame's worth earlier (up to
+      // dt * speed before its first frame). The floor keeps it positive after that same-frame
+      // mixer step: a LoopOnce action still below 0 then would finish on its first frame.
       if (s.clip && !clipOn && t >= s.clipStart) {
         clipOn = true;
-        hero.bat.animator.play(s.clip, { once: true, timeScale: s.speed, fade: 0.05, startAt: (t - s.clipStart) * s.speed });
+        const startAt = Math.max((t - dt - s.clipStart) * s.speed, 1e-6 - dt * s.speed);
+        hero.bat.animator.play(s.clip, { once: true, timeScale: s.speed, fade: 0.05, startAt });
       }
       if (s.lunge > 0 && s.at !== 'stay') move(s);
       holdGrip(dt, s);

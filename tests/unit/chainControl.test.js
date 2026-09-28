@@ -114,9 +114,11 @@ describe('chain control', () => {
   it('skips a goon knocked out by something else mid-chain and still finishes', () => {
     const targets = squad();
     targets[1].alive = false;
-    const { log, done } = run('domino', targets);
+    const { log, done, api } = run('domino', targets);
     expect(done).toBe(true);
     expect(of(log, 'finish').map((l) => l[1])).toEqual(['g0', 'g2']);
+    // No stomp sound on a goon who is already down.
+    expect(api.emitted.filter(([n]) => n === 'chainStomp')).toHaveLength(2);
   });
 
   it('a stealth chain wakes only unaware goons within 8 m of where it ends', () => {
@@ -127,15 +129,30 @@ describe('chain control', () => {
     expect(far.aware).toBe(false);
   });
   it('starts each clip so its contact frame lands on the step contact, whatever the frame rate', () => {
+    // Same order as hero.js: the control updates, then the mixer advances every playing clip by
+    // dt * speed in the same frame (including a clip the control started this frame). Hit-stop
+    // frames (dt = 0) freeze both alike.
+    const schedules = [[1 / 60], [1 / 37], [1 / 60, 0, 1 / 45, 0, 0, 1 / 30]];
     for (const id of ['rope', 'head', 'domino']) {
-      for (const dt of [1 / 60, 1 / 37]) {
+      for (const schedule of schedules) {
         const hero = fakeHero();
         const plays = [];
-        let now = 0;
-        hero.bat.animator.play = (name, o) => plays.push({ name, at: now, startAt: o.startAt ?? 0, speed: o.timeScale });
+        let now = 0, cur = null;
+        hero.bat.animator.play = (name, o) => { cur = { name, time: o.startAt ?? 0, speed: o.timeScale, at: null, time0: null }; plays.push(cur); };
         const timeline = buildChainTimeline(id, 3);
         const ctl = createChainControl(hero, fakeApi([], squad()), { chain: CHAINS.find((c) => c.id === id), targets: squad(), stealth: false, timeline });
-        for (let f = 0; f < 600; f++) { now += dt; if (ctl.update(dt)) break; }
+        for (let f = 0; f < 2000; f++) {
+          const dt = schedule[f % schedule.length];
+          now += dt;
+          const done = ctl.update(dt);
+          if (cur) {
+            cur.time += dt * cur.speed;
+            // A LoopOnce action whose time is still negative after a real step finishes at frame 0.
+            if (dt > 0) expect(cur.time).toBeGreaterThanOrEqual(0);
+            if (cur.at === null) { cur.at = now; cur.time0 = cur.time; }
+          }
+          if (done) break;
+        }
         const beats = { ...STOCK_BEATS, ...CHAIN_BEATS };
         let checked = 0;
         for (const s of timeline.steps) {
@@ -143,7 +160,8 @@ describe('chain control', () => {
           if (!b) continue;
           const p = plays.find((q) => q.name === s.clip && q.at >= s.start - 1e-9);
           const clipContact = s.beat ? b[s.beat] : b.contact;
-          expect(p.at + (clipContact - p.startAt) / p.speed).toBeCloseTo(s.start + s.contact, 6);
+          // The clip's contact frame, in chain time, from the clip time the mixer showed.
+          expect(p.at + (clipContact - p.time0) / p.speed).toBeCloseTo(s.start + s.contact, 5);
           checked += 1;
         }
         expect(checked).toBeGreaterThan(0);
