@@ -30,6 +30,13 @@ export const MOVES = {
   slam: { damage: 2, knockdown: true, breaksGuard: true },
   throw: { damage: 1, knockdown: true, breaksGuard: true, noHeavy: true },
   thrownInto: { damage: 1, knockdown: true, breaksGuard: true },
+  // Gadgets.
+  gel: { damage: 1, knockdown: true, breaksGuard: true },
+  remote: { damage: 0, stun: 1.5, stunOnly: true },
+  claw: { damage: 0, stun: 1.2, stunOnly: true },
+  smoke: { damage: 0, stun: 3, stunOnly: true },
+  popper: { damage: 0, stun: 3, stunOnly: true },
+  shatter: { ko: true },
 };
 
 // How much of each attack a raised guard absorbs.

@@ -370,3 +370,21 @@ describe('combo shield and threshold (WayneTech)', () => {
     expect(c.damaged()).toBe(false);
   });
 });
+
+describe('gadget moves', () => {
+  const e = (type, o = {}) => ({ type, health: ENEMY[type].health, stunned: false, down: false, ...o });
+  it('gel knocks goons down and breaks a knife guard; brutes shrug it off unless stunned', () => {
+    expect(resolveHit('gel', e('grunt')).outcome).toBe('knockdown');
+    expect(resolveHit('gel', e('knife')).outcome).toBe('knockdown');
+    expect(resolveHit('gel', e('brute')).outcome).toBe('immune');
+    expect(resolveHit('gel', e('brute', { stunned: true })).outcome).toBe('knockdown');
+  });
+  it('remote, claw, smoke and popper only stun, even brutes', () => {
+    for (const m of ['remote', 'claw', 'smoke', 'popper']) expect(resolveHit(m, e('brute')).outcome, m).toBe('stun');
+    expect(resolveHit('smoke', e('grunt')).stun).toBe(3);
+    expect(resolveHit('popper', e('grunt')).stun).toBe(3);
+  });
+  it('shatter knocks anyone out', () => {
+    expect(resolveHit('shatter', e('brute')).outcome).toBe('ko');
+  });
+});

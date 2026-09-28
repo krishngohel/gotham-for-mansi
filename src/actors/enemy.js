@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { createGoon, footGround, enemyPlantsFeet } from './characters.js';
 import { ENEMY } from '../combat/rules.js';
+import { yankVelocity } from '../gadgets/aim.js';
 
 const IDLE_POSES = ['Idle_Talking_Loop', 'Idle_TalkingPhone_Loop', 'Idle_FoldArms_Loop', 'Idle_Loop'];
 const GRUNT_ATTACKS = ['Punch_Cross', 'Punch_Jab', 'Melee_Hook'];
@@ -26,6 +27,7 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
     idlePose: rng.pick(IDLE_POSES),
     glyph: null,
     tiedWith: null, tiedT: 0,
+    frozenT: 0, danceT: 0, lostT: 0, shattered: false,
     radius: 0.42 * scale,
     get x() { return pos.x; },
     get z() { return pos.z; },
@@ -79,7 +81,64 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
     return was;
   };
 
-  e.ready = (hero) => e.state === 'engage' && e.alive && !e.down && tmp.set(hero.pos.x - pos.x, 0, hero.pos.z - pos.z).length() < 6.5;
+  // Freeze blast: stuck in ice for `sec`. No AI and no animation (the pose stays in the ice).
+  // Any hit shatters it (applyHit). Returns whether it was mid-attack.
+  e.freeze = (sec) => {
+    if (!e.alive || e.def.boss) return false;
+    const was = e.state === 'windup' || e.state === 'attack';
+    e.glyph = null;
+    e.countered = false;
+    e.knock.set(0, 0, 0);
+    e.frozenT = sec;
+    e.shattered = false;
+    setState('frozen');
+    return was;
+  };
+  e.thaw = () => {
+    if (e.state !== 'frozen') return;
+    e.frozenT = 0;
+    setState(e.aware ? 'engage' : 'idle');
+  };
+
+  // Party popper: stunned and dancing for `sec`. A hit ends the dance early.
+  e.dance = (sec) => {
+    if (!e.alive || e.down || e.air || e.def.boss) return false;
+    const was = e.state === 'windup' || e.state === 'attack';
+    e.glyph = null;
+    e.stunned = true;
+    e.stunT = Math.max(e.stunT, sec);
+    e.danceT = sec;
+    setState('dance');
+    play('Dance_Loop', { fade: 0.15 });
+    return was;
+  };
+
+  // Smoke: loses track of Batman for `sec`: no wind-ups, and the goon drifts off its ring.
+  // Part D's stealth can define e.search(from) to send it looking instead.
+  e.lose = (sec, from) => {
+    if (e.lostT <= 0) e.ringDist += 3;
+    e.lostT = Math.max(e.lostT, sec);
+    e.ringAngle += Math.PI * (0.5 + rng.next());
+    e.search?.(from);
+  };
+
+  // Batclaw: yanked on an arc to `to` (in front of Batman). It lands down, so the next punch is a
+  // free knockout; yanked off a ledge, it falls and onLanded knocks it out.
+  e.yank = (to) => {
+    if (!e.alive || e.def.boss || e.state === 'frozen') return false;
+    const was = e.state === 'windup' || e.state === 'attack';
+    e.glyph = null;
+    e.countered = false;
+    const v = yankVelocity(pos, to);
+    e.launch(v.vx, v.vy, v.vz);
+    e.down = true;
+    e.downT = Math.max(e.downT, 1.8);
+    setState('down');
+    play('Hit_Knockback', { once: true, timeScale: 1.3, fade: 0.05 });
+    return was;
+  };
+
+  e.ready = (hero) => e.state === 'engage' && e.alive && !e.down && e.lostT <= 0 && tmp.set(hero.pos.x - pos.x, 0, hero.pos.z - pos.z).length() < 6.5;
 
   e.startWindup = (windup, hero) => {
     setState('windup');
@@ -116,6 +175,8 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
   // launch: vertical launch speed for knockdowns/KOs (0 = slide along the ground).
   e.applyHit = (result, from, { power = 1, launch = 0 } = {}) => {
     if (!e.alive) return;
+    // A hit on ice shatters it: out cold, whatever the move was.
+    if (e.state === 'frozen') { e.shattered = true; e.frozenT = 0; e.health = 0; result = { outcome: 'ko', damage: 0, stun: 0 }; }
     e.countered = false;
     const wasWindup = e.state === 'windup' || e.state === 'attack';
     e.glyph = null;
@@ -191,6 +252,12 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
       ch.animator.update(dt);
       return;
     }
+    if (e.state === 'frozen') {
+      e.frozenT -= dt;
+      if (e.frozenT <= 0) e.thaw();
+      return;
+    }
+    if (e.lostT > 0) { e.lostT -= dt; if (e.lostT <= 0) e.ringDist = Math.max(3.6, e.ringDist - 3); }
     switch (e.state) {
       case 'idle':
         play(e.idlePose, { fade: 0.3 });
@@ -212,7 +279,7 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
           speed = gd > 4 ? def.speed : 1.4;
           moveX = gx / gd; moveZ = gz / gd;
         }
-        if (dist < 8) faceHero(hero, 8, dt);
+        if (dist < 8 && e.lostT <= 0) faceHero(hero, 8, dt);
         else if (speed) ch.face(Math.atan2(moveX, moveZ));
         if (speed > 2) play('Jog_Fwd_Loop', { fade: 0.2 });
         else if (speed > 0) play(type === 'brute' ? 'Zombie_Walk_Fwd_Loop' : 'Walk_Loop', { fade: 0.2 });
@@ -270,6 +337,10 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
       case 'tied':
         e.tiedT -= dt;
         if (e.tiedT <= 0) { e.tiedWith = null; setState('getup'); play('LayToIdle', { once: true, timeScale: 1.4, fade: 0.1 }); }
+        break;
+      case 'dance':
+        e.danceT -= dt;
+        if (e.danceT <= 0) { e.stunned = false; e.stunT = 0; setState(e.aware ? 'engage' : 'idle'); }
         break;
       case 'ko':
         break;

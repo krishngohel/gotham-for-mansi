@@ -29,7 +29,7 @@ const inRange = (origin, e, radius, maxRise) => Math.abs(e.pos.y - origin.y) <= 
 export function chainEligible(e) {
   if (!e || !e.alive || e.down || e.air) return false;
   if (e.def?.boss || e.type === 'joker') return false;
-  return e.state !== 'grabbed' && e.state !== 'chained' && e.state !== 'tied';
+  return e.state !== 'grabbed' && e.state !== 'chained' && e.state !== 'tied' && e.state !== 'frozen';
 }
 
 export function stealthChainReady(origin, enemies, { radius = CHAIN_RULES.stealthRadius, min = CHAIN_RULES.stealthMin, maxRise = CHAIN_RULES.maxRise } = {}) {

@@ -181,3 +181,10 @@ describe('lunge maths', () => {
     expect(lungePoint(a, b, 2, 0).x).toBe(4);                           // clamped
   });
 });
+
+describe('gadget states and chains', () => {
+  it('a goon in ice cannot be chained; a dancing one can', () => {
+    expect(chainEligible(goon('f', 1, 1, { state: 'frozen' }))).toBe(false);
+    expect(chainEligible(goon('d', 1, 1, { state: 'dance' }))).toBe(true);
+  });
+});
