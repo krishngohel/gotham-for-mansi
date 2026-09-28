@@ -23,10 +23,10 @@ function harness({ reach, groundY = null } = {}) {
     },
   };
   const follow = { forward: (o) => o.set(0, 0, 1), right: (o) => o.set(-1, 0, 0), addShake() {}, hitKick() {}, actionShot() {} };
-  const events = { emit() {}, on() {} };
+  const events = { log: [], emit(type, data) { this.log.push({ type, data }); }, on() {} };
   const time = { hitStop() {}, slowMo() {} };
   const combat = createCombat({ hero, follow, time, events, rng: createRng(1), getDifficulty: () => 'normal', reach });
-  return { hero, combat };
+  return { hero, combat, events };
 }
 
 function goon(z, { knockback = 3 } = {}) {
@@ -39,6 +39,27 @@ function goon(z, { knockback = 3 } = {}) {
     update() {}, ready: () => false, wake() {}, startWindup() {},
     // Targeting reads flat coordinates.
     get x() { return this.pos.x; }, get z() { return this.pos.z; },
+  };
+  return e;
+}
+
+// A goon already tied up (down, state 'tied'), standing in for enemy.js's real applyHit just
+// enough to check what finishTarget/breakTied did: KO zeroes health and kills it, a knockdown
+// (an armored brute) only sets it down.
+function tiedGoon(id, z, { type = 'grunt', def = ENEMY[type] } = {}) {
+  const e = {
+    id, type, def, scale: 1, radius: 0.42, pos: new THREE.Vector3(0, 10, z),
+    alive: true, aware: true, state: 'tied', down: true, air: false, stunned: false, health: 40, glyph: null,
+    tiedWith: [], calls: [],
+    applyHit(result, from, opts) {
+      e.calls.push({ result, opts });
+      if (result.outcome === 'ko') { e.alive = false; e.state = 'ko'; }
+      else if (result.outcome === 'knockdown') { e.state = 'down'; }
+      return false;
+    },
+    ch: { headWorld(out) { return out.copy(e.pos); }, face() {} },
+    update() {}, ready: () => false, wake() {}, startWindup() {},
+    get x() { return e.pos.x; }, get z() { return e.pos.z; },
   };
   return e;
 }
@@ -102,5 +123,73 @@ describe('strike approach', () => {
     expect(hero.pos.z).toBeLessThanOrEqual(1.01);
     for (const p of path) expect(p.z).toBeLessThanOrEqual(1.01);
     expect(hero.pos.y).toBe(10);
+  });
+});
+
+describe('tied bundle knockout', () => {
+  // A punch on a downed, tied goon (selectTarget's allowDown reaches it) runs the same
+  // ground-takedown swing as runKick uses for a kick, just with action 'punch'.
+  function runPunch(list) {
+    const { hero, combat, events } = harness();
+    combat.setEnemies(list);
+    const dt = 1 / 120;
+    combat.update(dt, ctxFor('punch'));
+    expect(hero.control?.name).toBe('strike');
+    const ctl = hero.control;
+    for (let i = 0; i < 400 && hero.control === ctl; i++) {
+      combat.update(dt, ctxFor(null));
+      if (ctl.update(dt)) hero.control = null;
+    }
+    return { hero, combat, events };
+  }
+
+  it('one punch on a tied grunt pair knocks the whole bundle out', () => {
+    const a = tiedGoon('a', 2.6);
+    const b = tiedGoon('b', 2.7);
+    a.tiedWith = [b];
+    b.tiedWith = [a];
+    const { combat, events } = runPunch([a, b]);
+    expect(a.alive).toBe(false);
+    expect(b.alive).toBe(false);
+    expect(a.state).toBe('ko');
+    expect(b.state).toBe('ko');
+    expect(a.calls[0].result.outcome).toBe('ko');
+    expect(b.calls[0].result.outcome).toBe('ko');
+    const tiedBreak = events.log.find((ev) => ev.type === 'tiedBreak');
+    expect(tiedBreak?.data.count).toBe(2);
+    expect(events.log.filter((ev) => ev.type === 'ko')).toHaveLength(2);
+    expect(events.log.some((ev) => ev.type === 'critical')).toBe(true);
+    expect(combat.combo.value).toBeGreaterThan(0);
+  });
+
+  it('an armored brute in the bundle only goes down, while its tied partner still KOs', () => {
+    const a = tiedGoon('a', 2.6, { type: 'grunt' });
+    const c = tiedGoon('c', 2.7, { type: 'brute', def: ENEMY.brute });
+    a.tiedWith = [c];
+    c.tiedWith = [a];
+    const { events } = runPunch([a, c]);
+    expect(a.alive).toBe(false);
+    expect(a.state).toBe('ko');
+    expect(c.alive).toBe(true);
+    expect(c.state).toBe('down');
+    expect(c.calls[0].result.outcome).toBe('knockdown');
+    const tiedBreak = events.log.find((ev) => ev.type === 'tiedBreak');
+    expect(tiedBreak?.data.count).toBe(2);
+    // Only the grunt's KO fires a 'ko' event; the brute's knockdown does not.
+    expect(events.log.filter((ev) => ev.type === 'ko')).toHaveLength(1);
+  });
+
+  it('a tied goon untied by the timer is no longer swept up by a hit on its old partner', () => {
+    const a = tiedGoon('a', 2.6);
+    const b = tiedGoon('b', 2.7);
+    a.tiedWith = [b];
+    b.tiedWith = [a];
+    b.state = 'engage'; // already got up before the punch lands
+    const { events } = runPunch([a, b]);
+    expect(a.alive).toBe(false);
+    expect(b.alive).toBe(true);
+    expect(b.calls).toHaveLength(0);
+    const tiedBreak = events.log.find((ev) => ev.type === 'tiedBreak');
+    expect(tiedBreak?.data.count).toBe(1);
   });
 });
