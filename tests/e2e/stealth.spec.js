@@ -12,6 +12,11 @@ async function enterRoom(page, step) {
   await page.waitForFunction(ready, null, { timeout: 90000 });
   await page.waitForFunction(() => window.__game.stealth?.active, null, { timeout: 30000 });
   await page.evaluate(() => window.__game.comic.playing && window.__game.comic.skip());
+  // The pointer isn't locked yet on a direct ?at= entry (no title-screen click acquired it), and
+  // since main's merge the first unlocked click only re-acquires the lock and swallows whatever
+  // action it buffered (src/game/game.js's canvas click handler, for Safari). Spend that click
+  // here, harmlessly, so the click used for the actual takedown below fires normally.
+  await page.mouse.click(640, 360);
   await page.waitForTimeout(1000);
 }
 
