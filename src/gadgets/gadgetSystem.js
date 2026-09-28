@@ -34,10 +34,15 @@ export function createGadgetSystem(deps) {
   // The last slot the mouse and the stick pointed at: they only move the pick when that changes,
   // so a key pick (1 to 8) isn't overwritten by a cursor resting on another slot.
   let cursorSlot = null, stickSlot = null;
+  // Set when the wheel opens; the next update, if it is still open, it has been on screen for a
+  // rendered frame and 'wheelSeen' fires (the tutorial prompt only counts from then).
+  let unseen = false;
 
   const sys = {
     hero, combat, api: combat.gadgetApi, follow, time, events, input, fx, gfx, breakables, collision, camera, state, effects, progress,
     cameraFocus: null, cameraMode: null, wheelOpen: false,
+    // A ?gadgets=all dev run: handlers must not write progress or call save() while it is set.
+    devAll,
     hint(id, arg) { events.emit('hint', { id, arg }); },
     // A short gadget pose (throw, spray, fire). On the ground it holds locomotion off for `dur`, so
     // the clip isn't cut by the idle; otherwise it just plays.
@@ -68,7 +73,8 @@ export function createGadgetSystem(deps) {
 
   function equip(id) {
     if (!state.equip(id)) return false;
-    if (saved.equipped !== id) { saved.equipped = id; save(); }
+    // ?gadgets=all is a dev run: its picks never reach the real save.
+    if (!devAll && saved.equipped !== id) { saved.equipped = id; save(); }
     hudCode = -1;
     events.emit('gadgetEquip', { id });
     return true;
@@ -95,6 +101,7 @@ export function createGadgetSystem(deps) {
     time.hold('wheel', 0.2);
     pickCode = state.hudCode(GADGET_IDS[wheel.pick]);
     wheelUi.show(GADGET_IDS.map((id) => state.isUnlocked(id)), wheel.pick, info(wheel.pick));
+    unseen = true;
     events.emit('wheelOpen');
   }
   function closeWheel(apply = true) {
@@ -108,6 +115,7 @@ export function createGadgetSystem(deps) {
     if (slot !== null && GADGET_IDS[slot] !== state.equipped) equip(GADGET_IDS[slot]);
   }
   function updateWheel() {
+    if (wheel.open && unseen) { unseen = false; events.emit('wheelSeen'); }
     if (input.pressed('gadgetWheel')) openWheel();
     if (!wheel.open) return;
     // Play stopped or a chain began under the wheel: shut it without equipping.

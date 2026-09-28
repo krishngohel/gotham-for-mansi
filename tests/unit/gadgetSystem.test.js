@@ -16,7 +16,7 @@ function fakeInput() {
     endFrame() { pressed.clear(); released.clear(); codes.clear(); this.look.dx = 0; this.look.dy = 0; },
   };
 }
-function setup({ unlocked = [], step = 0 } = {}) {
+function setup({ unlocked = [], step = 0, devAll = false } = {}) {
   const events = createEvents(), time = createTimeControl(), input = fakeInput();
   const wheelUi = { show: vi.fn(), setPick: vi.fn(), setInfo: vi.fn(), hide: vi.fn(), warm() {} };
   const gadgetHud = { set: vi.fn() };
@@ -30,7 +30,7 @@ function setup({ unlocked = [], step = 0 } = {}) {
   const sys = createGadgetSystem({
     hero, combat: { gadgetApi: {}, enemies: [], consumeInput() {} }, follow: {}, time, events, input, fx: {}, gfx: {}, breakables: {},
     progress, save, collision: {}, camera: {}, effects: upgradeEffects([]), wheelUi, gadgetHud,
-    getBindings: () => DEFAULT_BINDINGS, isPlaying: () => flags.playing, factories,
+    getBindings: () => DEFAULT_BINDINGS, isPlaying: () => flags.playing, factories, devAll,
   });
   const frame = (dt = 0.016) => { const ctx = {}; sys.update(dt, time.scale(dt), ctx); input.endFrame(); return ctx; };
   return { sys, input, time, events, wheelUi, gadgetHud, fired, progress, save, frame, flags, hero };
@@ -204,5 +204,54 @@ describe('the wheel and its slow time never linger', () => {
     openWheel(t);
     expect(t.sys.fire({}, {})).toBe(true);
     expect(t.fired).toEqual([]);
+  });
+});
+
+describe('fix round 1', () => {
+  it('?gadgets=all never writes the save: open, pick, equip, fire, unlock', () => {
+    const t = setup({ devAll: true });
+    const seen = [];
+    t.events.on('gadgetUnlocked', ({ id }) => seen.push(id));
+    t.input.hold('gadgetWheel'); t.frame();
+    t.input.key('Digit3'); t.frame();
+    t.input.letGo('gadgetWheel'); t.frame();
+    expect(t.sys.state.equipped).toBe('gel');
+    t.sys.equip('smoke');
+    t.sys.fire({}, {});
+    t.progress.step = STEPS.findIndex((s) => s.id === 'toYard');
+    t.events.emit('step', {});
+    t.sys.unlockCheck();
+    for (let i = 0; i < 5; i++) t.frame(1);
+    expect(t.save).not.toHaveBeenCalled();
+    expect(t.progress.gadgets.equipped).toBe('batarang');
+    expect(t.progress.gadgets.unlocked).toEqual([]);
+    expect(seen).toEqual([]);
+  });
+  it('a key pick is not overwritten by a mouse cursor resting on another slot', () => {
+    const t = setup({ unlocked: ['remote', 'gel'] });
+    t.input.hold('gadgetWheel'); t.frame();
+    // Up and to the right: slot 1 (remote).
+    t.input.look.dx = 50; t.input.look.dy = -50; t.frame();
+    expect(t.sys.debug.pick).toBe(1);
+    t.input.key('Digit3'); t.frame();
+    t.frame(); // the cursor has not moved
+    t.input.letGo('gadgetWheel'); t.frame();
+    expect(t.sys.state.equipped).toBe('gel');
+  });
+  it('the wheel tutorial only counts as seen once the wheel has been on screen for a frame', () => {
+    const t = setup();
+    const events = [];
+    t.events.on('wheelSeen', () => events.push('seen'));
+    // A press and release inside one frame never draws the wheel.
+    t.input.hold('gadgetWheel'); t.input.letGo('gadgetWheel'); t.frame();
+    expect(t.sys.wheelOpen).toBe(false);
+    expect(events).toEqual([]);
+    // Held across a frame, it was drawn once: now it counts, once.
+    t.input.hold('gadgetWheel'); t.frame();
+    expect(events).toEqual([]);
+    t.frame(); t.frame();
+    expect(events).toEqual(['seen']);
+    t.input.letGo('gadgetWheel'); t.frame();
+    expect(events).toEqual(['seen']);
   });
 });

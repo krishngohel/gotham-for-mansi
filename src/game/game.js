@@ -416,7 +416,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       throwRelease: 'throw', slam: 'slam', glideStart: 'glide', grapple: 'grapple', grappleBoost: 'grappleBoost', counter: 'counter', cape: 'cape',
       batarangThrow: 'batarang', dodge: 'dodge', special: 'special', jumpKick: 'kick',
       ladderOn: 'ladder', ledgeGrab: 'ledge', zipOn: 'zip', wallRun: 'wallrun', diveStart: 'divebomb', takedown: 'takedown',
-      wheelOpen: 'gadgetWheel',
+      wheelSeen: 'gadgetWheel',
     };
     for (const [ev, id] of Object.entries(PROMPT_DONE)) events.on(ev, () => prompts.done(id));
     events.on('gadgetUnlocked', ({ id }) => {
