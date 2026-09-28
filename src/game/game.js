@@ -245,11 +245,11 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     events.on('impact', ({ pos, outcome }) => fx.impact(pos, outcome === 'hit' ? 0.7 : 1.1));
     events.on('word', ({ text, pos, big }) => { const p = toScreen(pos); if (!p.behind) hud.sfx(text, p.x, p.y, big); });
     events.on('critical', () => hud.critical());
-    events.on('critical', () => {
+    events.on('critical', ({ target } = {}) => {
       if (!settings.impactFrames) return;
-      const t = combat.enemies.find((e) => e.alive) ?? null;
-      const p = t ? toScreen(t.pos.clone().setY(t.pos.y + 1)) : { x: innerWidth / 2, y: innerHeight / 2 };
-      ink.impact(p.x / innerWidth, 1 - p.y / innerHeight);
+      const p = target ? toScreen(target.pos.clone().setY(target.pos.y + 1)) : null;
+      const at = p && !p.behind ? p : { x: innerWidth / 2, y: innerHeight / 2 };
+      ink.impact(at.x / innerWidth, 1 - at.y / innerHeight);
     });
     events.on('heroHurt', ({ damage }) => { hud.damage(damage); hud.setHealth(hero.health / hero.maxHealth); });
     const HINTS = {
