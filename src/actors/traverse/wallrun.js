@@ -45,5 +45,11 @@ export function createWallRunControl(h, { collision, events }, { wall, speed }) 
       }
       return false;
     },
+    // Anything that hits the hero knocks them off the wall.
+    knockOff() {
+      h.bat.tilt.rotation.set(0, 0, 0);
+      h.lastClimbT = 0;
+      h.setState('air');
+    },
   };
 }

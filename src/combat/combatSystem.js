@@ -652,7 +652,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
       const ready = [];
       for (const e of enemies) {
         e.update(dt, ectx);
-        if (e.aware) ready.push({ id: e.id, ready: e.ready(hero) && !hero.dead && hero.control?.name !== 'ladder' && hero.control?.name !== 'ledge' });
+        if (e.aware) ready.push({ id: e.id, ready: e.ready(hero) && !hero.dead && !['ladder', 'ledge', 'zip', 'wallrun'].includes(hero.control?.name) });
       }
       for (const id of director.tick(dt, ready)) {
         const e = enemies.find((x) => x.id === id);
