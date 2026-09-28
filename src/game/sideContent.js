@@ -9,6 +9,7 @@ import { createPlayStats } from './playStats.js';
 import { createSideHud } from '../ui/sideHud.js';
 import { CHALLENGES, pillarPos } from './challenges.js';
 import { createChallengeRunner } from './challengeRunner.js';
+import { attachArena } from './arenaChallenge.js';
 import { CRIME_SPOTS, isCrimeId } from './crimes.js';
 
 export const MILESTONE_TEXT = {
@@ -36,6 +37,7 @@ export function createSideContent(deps) {
     canStart: (ch) => flow.mode === 'play' && !hero.dead && !offLimits() && !combat.active && !encounters.active
       && (ch.kind !== 'arena' || !encounters.id || isCrimeId(encounters.id)),
   });
+  attachArena(challenges, { events, encounters, ui });
   const MARKER_RANGE = 60;
   const tmp = new THREE.Vector3();
   let pillarHint = false;
