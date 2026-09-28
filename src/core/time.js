@@ -16,6 +16,8 @@ export function createTimeControl() {
     slowMo(sec, scale) { slow = Math.max(slow, sec); slowScale = scale; },
     hold(id, scale) { holds.set(id, Math.min(1, Math.max(0.01, scale))); refresh(); },
     release(id) { if (holds.delete(id)) refresh(); },
+    // Drops every hold at once: a pause, a death, a cutscene or a new run never inherits one.
+    releaseAll() { if (holds.size) { holds.clear(); refresh(); } },
     scale(dt) {
       if (stop > 0) {
         const used = Math.min(stop, dt);

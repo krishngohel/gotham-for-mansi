@@ -131,6 +131,16 @@ describe('gadget hooks', () => {
     combat.update(0.016, ctxWith());
     expect(useGadget).not.toHaveBeenCalled();
   });
+  it('holding block under the open wheel does not guard', () => {
+    const { hero, combat } = setup();
+    combat.setEnemies([makeGoon('g', 'grunt', 0, 3)]);
+    const ctx = { ...ctxWith(), input: { ...ctxWith().input, down: (a) => a === 'block' } };
+    combat.update(0.016, ctx);
+    expect(hero.blocking).toBe(true);
+    ctx.lockInput = true;
+    combat.update(0.016, ctx);
+    expect(hero.blocking).toBe(false);
+  });
   it('areaBlast knocks down goons in reach; brutes shrug it off; far goons are safe', () => {
     const { combat } = setup();
     const near = makeGoon('n', 'grunt', 0, 2), far = makeGoon('f', 'grunt', 0, 6), brute = makeGoon('b', 'brute', 1, 0);

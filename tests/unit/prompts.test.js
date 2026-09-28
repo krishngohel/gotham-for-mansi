@@ -76,3 +76,23 @@ describe('createPromptQueue: traversal hints', () => {
     expect(hud.calls[1][0]).toBe(promptText('divebomb', DEFAULT_BINDINGS));
   });
 });
+
+import { GADGETS } from '../../src/gadgets/gadgetDefs.js';
+
+describe('promptText: gadgets', () => {
+  const IDS = {
+    gadgetWheel: ['gadgetWheel', 'batarang'], gadgetRemote: ['batarang'], gadgetGel: ['batarang'], gadgetSmoke: ['batarang'],
+    gadgetLauncher: ['batarang', 'jump'], gadgetClaw: ['batarang'], gadgetFreeze: ['batarang'], gadgetPopper: ['batarang'],
+  };
+  for (const [id, actions] of Object.entries(IDS)) {
+    it(`${id} shows its keys and has no dashes`, () => {
+      const text = promptText(id, DEFAULT_BINDINGS);
+      expect(text.length).toBeGreaterThan(0);
+      expect(text).not.toMatch(/[\u2013\u2014]/);
+      for (const a of actions) expect(text).toContain(keyLabel(DEFAULT_BINDINGS[a][0]));
+    });
+  }
+  it('every gadget has a prompt', () => {
+    for (const g of GADGETS) expect(PROMPT_IDS).toContain(g.promptId);
+  });
+});

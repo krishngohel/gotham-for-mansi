@@ -35,6 +35,14 @@ const ENTRIES = [
   ['takedown', (k) => `Hanging under an unaware goon? ${k('punch')} pulls them over the edge. Landing on one from above works too.`],
   ['challenges', () => `Glowing bat pillars start challenges: glide rings, a rooftop run and an arena fight. Walk into one to begin.`],
   ['photo', (k) => `Press ${k('photo')} for photo mode. Frame a shot, add a caption and save it as a picture.`],
+  ['gadgetWheel', (k) => `Hold ${k('gadgetWheel')} for the gadget wheel. Time slows while it is open. Point the mouse at a gadget or press 1 to 8, then let go to equip it. ${k('batarang')} uses it.`],
+  ['gadgetRemote', (k) => `Remote batarang: press ${k('batarang')}, then steer it with the mouse for 3 seconds. It stuns every goon it passes and smashes glass signs. ${k('batarang')} again drops it.`],
+  ['gadgetGel', (k) => `Explosive gel: tap ${k('batarang')} to spray up to three blobs on floors or walls, then hold ${k('batarang')} to set them all off. Cracked walls with a yellow ring break open.`],
+  ['gadgetSmoke', (k) => `Smoke pellet: ${k('batarang')} drops a cloud five meters across. Goons inside are stunned and lose track of you.`],
+  ['gadgetLauncher', (k) => `Line launcher: ${k('batarang')} fires a line to the wall ahead, up to 40 m, and you ride it across. It works mid-glide too. ${k('jump')} lets go.`],
+  ['gadgetClaw', (k) => `Batclaw: ${k('batarang')} yanks the goon you aim at right to you for a free punch. It rips brute armor off and tears down vent covers and weak railings.`],
+  ['gadgetFreeze', (k) => `Freeze blast: ${k('batarang')} traps a goon in ice. One hit shatters it and knocks them out.`],
+  ['gadgetPopper', (k) => `Party popper: ${k('batarang')} throws a confetti bomb. Goons nearby forget the fight and dance.`],
 ];
 
 export const PROMPT_IDS = ENTRIES.map(([id]) => id);

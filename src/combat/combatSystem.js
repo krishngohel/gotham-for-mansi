@@ -923,8 +923,8 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
       if (!ctx.lockInput && buffer && free && hero.state !== 'roll' && ctl?.name !== 'grapple' && !glideKick) {
         if (tryStart(buffer, ctx)) inputBuffer.consume(buffer);
       }
-      // Hold block to guard when nothing else is going on.
-      hero.blocking = (!hero.control || hero.control.name === 'blockStagger') && hero.grounded && ctx.input.down('block') && engaged().length > 0;
+      // Hold block to guard when nothing else is going on (not under the open gadget wheel).
+      hero.blocking = !ctx.lockInput && (!hero.control || hero.control.name === 'blockStagger') && hero.grounded && ctx.input.down('block') && engaged().length > 0;
 
       // Enemy AI and the attack director.
       const ectx = { hero, others: enemies, onAttackLand, onAttackEnd, onThrownFly, onLanded };
