@@ -4,9 +4,14 @@ import { resolveHit, damageToHero, DIFFICULTY, inShockwave, shouldDiveBomb } fro
 import { selectTarget } from './targeting.js';
 import { createCombo } from './combo.js';
 import { createDirector } from './director.js';
+import { KICK_BEATS } from '../actors/kicks.js';
 
 const PUNCHES = ['Punch_Jab', 'Punch_Cross', 'Punch_Jab'];
-const KICKS = ['Kick_Front', 'Kick_Round'];
+// Regular kicks cycle through these; the chain finisher is the spinning heel kick.
+const KICKS = ['Kick_Front', 'Kick_Round', 'Kick_Side'];
+// Playback speed per kick clip; damage lands on the clip's contact frame at that speed.
+const KICK_SPEED = { Kick_Front: 1.25, Kick_Round: 1.2, Kick_Side: 1.2, Kick_Spin: 1.15, Knee_Strike: 1.6 };
+const kickContact = (clip, speed) => KICK_BEATS[clip].contact / speed;
 const WORDS = {
   counter: ['KRAK!', 'WHAM!'], kick: ['THWACK!', 'WHUMP!'], ko: ['POW!', 'BLAM!', 'KAPOW!'], special: ['THWAMP!'],
   dive: ['KRUNCH!'], heavy: ['KA-BOOM!', 'WHAMMO!'], spin: ['SWOOSH-THWACK!', 'KRAKOOM!'], slam: ['BADOOM!'], throw: ['WHEEE-CRASH!', 'YOINK!'],
@@ -22,6 +27,8 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
   let buffer = null;
   let bufferT = 0;
   let punchChain = 0, kickChain = 0, chainT = 0;
+  // Which regular kick and which beatdown strike comes next (variety only; not chain state).
+  let kickIdx = 0, beatIdx = 0;
   const tmp = new THREE.Vector3(), dir = new THREE.Vector3(), chest = new THREE.Vector3();
   const pick = (a) => a[Math.floor(rng.next() * a.length)];
 
@@ -115,19 +122,22 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
     const stop = 1.0 * target.scale + (isKick ? 0.35 : 0);
     const to = new THREE.Vector3().lerpVectors(from, target.pos, Math.max(0, (d - stop) / (d || 1)));
     to.y = from.y;
-    const lunge = THREE.MathUtils.clamp(d / 22, 0.05, 0.24);
+    let lunge = THREE.MathUtils.clamp(d / 22, 0.05, 0.24);
     let clip, speed;
     if (ground) { clip = 'Sword_Attack'; speed = 1.8; }
     else if (move === 'heavy') { clip = 'Melee_Hook'; speed = 1.35; }
-    else if (move === 'spinKick') { clip = 'Kick_Round'; speed = 1.05; }
-    else if (isKick) { clip = KICKS[(kickChain + 1) % KICKS.length]; speed = 1.45; }
-    else if (beatdown) { clip = PUNCHES[punchChain % PUNCHES.length]; speed = 2.6; }
+    else if (move === 'spinKick') { clip = 'Kick_Spin'; speed = KICK_SPEED.Kick_Spin; }
+    else if (isKick) { clip = KICKS[kickIdx++ % KICKS.length]; speed = KICK_SPEED[clip]; }
+    else if (beatdown) { clip = beatIdx++ % 2 ? 'Knee_Strike' : PUNCHES[(beatIdx >> 1) % PUNCHES.length]; speed = clip === 'Knee_Strike' ? KICK_SPEED.Knee_Strike : 2.6; }
     else { clip = PUNCHES[(punchChain - 1 + PUNCHES.length) % PUNCHES.length]; speed = 1.8; }
     const spin = move === 'spinKick';
-    const impactAt = lunge + (spin ? 0.34 : move === 'heavy' ? 0.2 : isKick ? 0.18 : beatdown ? 0.06 : 0.11);
-    const end = impactAt + (spin ? 0.35 : isKick ? 0.3 : move === 'heavy' ? 0.32 : beatdown ? 0.12 : 0.22);
+    // Authored kicks land damage on their clip's contact frame; the lunge finishes before it.
+    const kickClip = KICK_BEATS[clip];
+    const impactAt = kickClip ? kickContact(clip, speed) : lunge + (move === 'heavy' ? 0.2 : beatdown ? 0.06 : 0.11);
+    if (kickClip) lunge = Math.min(lunge, impactAt - 0.03);
+    const end = kickClip && !beatdown ? Math.min(kickClip.duration / speed, impactAt + 0.35)
+      : impactAt + (move === 'heavy' ? 0.32 : beatdown ? 0.12 : 0.22);
     let t = 0, hit = false;
-    const baseYaw = Math.atan2(target.pos.x - from.x, target.pos.z - from.z);
     faceTo(target);
     hero.bat.animator.play(clip, { once: true, timeScale: speed, fade: 0.05 });
     events.emit('swing', { kind, finisher: move === 'heavy' || spin });
@@ -138,15 +148,10 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
         t += dt;
         const k = Math.min(1, t / lunge);
         moveHero(tmp.lerpVectors(from, to, 1 - (1 - k) * (1 - k)), from.y);
-        // Spinning heel kick: a full turn and a little hop before the heel connects.
-        if (spin && !hit) {
-          const s = Math.min(1, t / impactAt);
-          hero.bat.face(baseYaw + (1 - s) * Math.PI * 2 * (s > 0.05 ? 1 : 0));
-          hero.pos.y = from.y + Math.sin(s * Math.PI) * 0.45;
-        }
+        // Spinning heel kick: the full turn is authored in Kick_Spin itself, pivoting on the
+        // planted foot, so the body is not turned again here.
         if (!hit && t >= impactAt) {
           hit = true;
-          hero.pos.y = from.y;
           if (!target.alive) return false;
           if (move === 'heavy') landHit('heavy', target, { word: word('heavy'), power: 1.8, launch: 3, crit: true });
           else if (spin) landHit('spinKick', target, { word: word('spin'), power: 2.2, launch: 6.5, crit: true });
@@ -178,7 +183,8 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
       to = new THREE.Vector3().lerpVectors(from, target.pos, Math.max(0, (d - 1.1 * target.scale) / (d || 1)));
       to.y = from.y;
       faceTo(target);
-      hero.bat.animator.play(i % 2 ? 'Kick_Round' : 'Melee_Hook', { once: true, timeScale: 1.9, fade: 0.04 });
+      // A fast front snap kick's contact frame (0.29 s / 2.4) lands on the 0.12 s hit below.
+      hero.bat.animator.play(i % 2 ? 'Kick_Front' : 'Melee_Hook', { once: true, timeScale: i % 2 ? 2.4 : 1.9, fade: 0.04 });
       t = 0; hit = false;
     };
     // Countered attackers freeze mid-windup until the counter lands, and Batman can't be hit
@@ -306,6 +312,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
     if (!target.finishable) combo.spend();
     hero.invulnerable = 1;
     hero.bat.animator.play('Kick_Round', { once: true, timeScale: 1.1, fade: 0.05 });
+    const contact = kickContact('Kick_Round', 1.1);
     events.emit('special', { target });
     for (const e of alive()) { if (e.state === 'windup') { director.release(e.id); e.glyph = null; e.state = 'engage'; } }
     critical(target, { slow: 0.8, scale: 0.28 });
@@ -315,7 +322,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
       update(dt) {
         t += dt;
         moveHero(tmp.lerpVectors(from, to, Math.min(1, t / 0.12)), from.y);
-        if (!hit && t > 0.3) {
+        if (!hit && t >= contact) {
           hit = true;
           if (target.alive) landHit('special', target, { word: word('special'), power: 2.2, stopTime: 0.15, launch: 5 });
         }
@@ -334,7 +341,8 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
     faceTo(target);
     hero.cape.setWings(false);
     hero.bat.tilt.rotation.set(0, 0, 0);
-    hero.bat.animator.play('Kick_Flying', { once: true, timeScale: 1.1, fade: 0.05 });
+    // Play the flying kick so its extension frame arrives exactly when the flight ends.
+    hero.bat.animator.play('Kick_Flying', { once: true, timeScale: THREE.MathUtils.clamp(KICK_BEATS.Kick_Flying.contact / dur, 0.7, 2.2), fade: 0.05 });
     events.emit(kind === 'diveBomb' ? 'diveBomb' : 'jumpKick');
     return {
       name: kind, combat: true,
