@@ -9,7 +9,7 @@ import { MOCAP_SPEED, MOCAP_START, MOCAP_BEATS } from '../config/mocap.js';
 import { rootMotionAt } from './reach.js';
 import { CHAIN_RULES, chainForAction, chainAvailability, selectChainTargets, chainCost, tiedGroup, chainOutcome } from './chains.js';
 import { buildChainTimeline } from './chainTimeline.js';
-import { createChainControl } from './chainControl.js';
+import { createChainControl, CHAIN_SHOTS } from './chainControl.js';
 
 const PUNCHES = ['Punch_Jab', 'Punch_Cross', 'Punch_Jab'];
 // Regular kicks alternate the front push kick and the roundhouse (the front kick alone at
@@ -148,7 +148,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     target.ch.headWorld(chest, 0.2);
     events.emit('word', { text: 'KAPOW!', pos: chest.clone(), big: true });
     events.emit('tiedBreak', { count: group.length });
-    critical(target, { slow: 0.6, scale: 0.3, variant: 'rope' });
+    critical(target, { slow: 0.6, scale: 0.3, variant: 'rope', shot: CHAIN_SHOTS.kapow });
     if (kos && engaged().length === 0) events.emit('lastHit', { target });
     return { outcome: kos ? 'ko' : 'knockdown', damage: 0, stun: 0 };
   }

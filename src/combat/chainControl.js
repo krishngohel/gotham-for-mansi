@@ -14,11 +14,14 @@ const GRIP_OPEN = 0.62, GRIP_SHUT = 0.24, SNAP_TIME = 0.08, PULL_TIME = 0.18;
 const HEAD_TOP = 0.2, HEEL_SOLE = 0.07;
 const STOMP_HEEL = CHAIN_BEATS.Chain_Stomp.heel;
 const DAZED = 'Idle_Shield_Break'; // the goons' stun clip: how a held goon waits for his turn
-// The action camera per chain: wide over the tangled heap, tight on the heads, high over the crater.
+// The action camera per chain: wide over the tangled heap, tight on the heads, high over the crater
+// (looking a little above the pile so Batman, standing in it, fits with headroom), and for the
+// KAPOW that breaks a tied bundle, above the heap rather than under the roof looking up.
 export const CHAIN_SHOTS = {
   rope: { dist: 4.6, lift: 0.9, back: 1.6 },
   head: { dist: 2.4, lift: -0.25, back: 0.5 },
-  domino: { dist: 3.8, lift: 2.6, back: 1.0 },
+  domino: { dist: 4.4, lift: 2.4, back: 1.2, rise: 0.75 },
+  kapow: { dist: 4.4, lift: 1.5, back: 1.4, rise: 0.6 },
 };
 const angleDiff = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 const live = (e) => !!e && e.alive;
