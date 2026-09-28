@@ -75,7 +75,7 @@ export function findRunWall(collision, pos, velX, velZ, { maxAngle = 0.61, reach
     const sx = fz * side, sz = -fx * side; // perpendicular probe; side -1 is the wall the tests call left
     const px = pos.x + sx * reach, pz = pos.z + sz * reach;
     for (const b of collision.query(px - 0.2, pz - 0.2, px + 0.2, pz + 0.2)) {
-      if (b.tag !== 'building' || b.maxY - b.minY < minHeight || b.maxY < pos.y + 2.5 || b.minY > pos.y + 0.5) continue;
+      if (b.tag !== 'building' || b.maxY - b.minY <= minHeight || b.maxY < pos.y + 2.5 || b.minY > pos.y + 0.5) continue;
       const face = outsideFace(b, pos.x, pos.z);
       if (!face) continue;
       // Travel must run along the face: the angle between velocity and the face plane.

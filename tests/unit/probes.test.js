@@ -43,7 +43,7 @@ describe('findLedge', () => {
 });
 
 describe('wrapCorner', () => {
-  it('wraps the south-west outside corner onto the west face', () => {
+  it('wraps the south-west outside corner onto the west face (axis x, dir -1)', () => {
     const l = findLedge(world(), { x: 1, y: 8.2, z: 10.5 }, 0, -1);
     const w = wrapCorner(world(), l, -1);
     expect(w.nx).toBe(-1);
@@ -51,22 +51,79 @@ describe('wrapCorner', () => {
     expect(w.x).toBe(0);
     expect(w.z).toBeCloseTo(9.65, 5);
   });
-  it('refuses to wrap onto a face with no headroom', () => {
-    // East face at the north end is under the rooftop box.
-    const l = findLedge(world(), { x: 9, y: 8.2, z: -0.5 }, 0, 1);
-    expect(l).toBe(null);
+  it('wraps onto an axis z ledge (east face) with dir 1', () => {
+    // Ledge on east face (nx=1, nz=0), wrap toward max z (dir 1) goes to north face (nx=0, nz=1)
+    const c = createCollision({ floor: () => 0 });
+    c.addBox(0, 0, 0, 10, 10, 10, 'building');
+    const l = findLedge(c, { x: 10.5, y: 8.2, z: 5 }, -1, 0);
+    expect(l).not.toBe(null);
+    expect(l.axis).toBe('z');
+    const w = wrapCorner(c, l, 1);
+    expect(w).not.toBe(null);
+    expect(w.axis).toBe('x');
+    expect(w.nz).toBe(1);
+    expect(w.z).toBe(10);
+  });
+  it('wraps with dir 1 on an axis x ledge (north face)', () => {
+    // Ledge on north face (nx=0, nz=1), wrap toward max x (dir 1) goes to east face (nx=1, nz=0)
+    const c = createCollision({ floor: () => 0 });
+    c.addBox(0, 0, 0, 10, 10, 10, 'building');
+    const l = findLedge(c, { x: 5, y: 8.2, z: 10.5 }, 0, -1);
+    expect(l).not.toBe(null);
+    expect(l.axis).toBe('x');
+    const w = wrapCorner(c, l, 1);
+    expect(w).not.toBe(null);
+    expect(w.axis).toBe('z');
+    expect(w.nx).toBe(1);
+    expect(w.x).toBe(10);
+  });
+  it('wraps successfully on axis z ledge (east face) with dir 1 toward north', () => {
+    // Test axis z ledge wrapping (already covered by initial test, verify it works)
+    const c = createCollision({ floor: () => 0 });
+    c.addBox(0, 0, 0, 10, 10, 10, 'building');
+    const l = findLedge(c, { x: 10.5, y: 8.2, z: 5 }, -1, 0);
+    expect(l).not.toBe(null);
+    expect(l.axis).toBe('z');
+    const w = wrapCorner(c, l, 1);
+    expect(w).not.toBe(null);
+    expect(w.axis).toBe('x');
+  });
+  it('refuses to wrap when adjacent face is blocked', () => {
+    // Build: main box plus blocking box at wrap destination
+    const c = createCollision({ floor: () => 0 });
+    c.addBox(0, 0, 0, 10, 10, 10, 'building');
+    // Box positioned to block the west face wrap-to point
+    c.addBox(-2, 9, 5, -0.1, 12, 10, 'building');
+    const l = findLedge(c, { x: 5, y: 8.2, z: 10.5 }, 0, -1);
+    expect(l).not.toBe(null);
+    const w = wrapCorner(c, l, -1);
+    expect(w).toBe(null);
   });
 });
 
 describe('findRunWall', () => {
-  it('finds a tall wall beside a hero running along it', () => {
+  it('finds a tall wall beside a hero running along it (side -1)', () => {
     const r = findRunWall(world(), { x: 10.6, y: 0.5, z: 5 }, 0, 10);
     expect(r).not.toBe(null);
     expect(r.nx).toBe(1);
     expect(r.side).toBe(-1);
   });
+  it('finds a wall on the other side (side 1)', () => {
+    // Hero left of building running parallel; building found on right side (side 1)
+    const c = createCollision({ floor: () => 0 });
+    c.addBox(0, 0, 0, 10, 10, 10, 'building');
+    const r = findRunWall(c, { x: -0.5, y: 3, z: 5 }, 0, 10);
+    expect(r).not.toBe(null);
+    expect(r.nx).toBe(-1);
+    expect(r.side).toBe(1);
+  });
   it('rejects a steep approach angle', () => {
     expect(findRunWall(world(), { x: 10.6, y: 0.5, z: 5 }, -9, 3)).toBe(null);
+  });
+  it('rejects a wall exactly 4 m tall', () => {
+    const c = createCollision({ floor: () => 0 });
+    c.addBox(0, 0, 0, 10, 4, 10, 'building');
+    expect(findRunWall(c, { x: 10.6, y: 0.5, z: 5 }, 0, 10)).toBe(null);
   });
   it('rejects walls that are not buildings or are too short', () => {
     const c = createCollision({ floor: () => 0 });
