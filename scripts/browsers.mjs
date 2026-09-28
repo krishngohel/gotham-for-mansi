@@ -6,8 +6,8 @@ const url = process.env.BASE ?? 'http://localhost:5201/';
 const out = process.env.OUT ?? 'browser-check';
 mkdirSync(out, { recursive: true });
 const targets = [
-  ['chromium', () => chromium.launch({ args: ['--ignore-gpu-blocklist', '--use-angle=d3d11'] })],
-  ['edge', () => chromium.launch({ channel: 'msedge', args: ['--ignore-gpu-blocklist'] })],
+  ['chromium', () => chromium.launch({ args: ['--ignore-gpu-blocklist', '--use-angle=d3d11', '--mute-audio'] })],
+  ['edge', () => chromium.launch({ channel: 'msedge', args: ['--ignore-gpu-blocklist', '--mute-audio'] })],
   ['firefox', () => firefox.launch({ firefoxUserPrefs: { 'webgl.force-enabled': true } })],
 ];
 for (const [name, launch] of targets) {

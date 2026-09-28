@@ -1,7 +1,7 @@
 // Dev helper: loads a look-test URL, runs a JS action, waits, screenshots.
 import { chromium } from 'playwright-core';
 const [url, out, action = '', delay = '240'] = process.argv.slice(2);
-const browser = await chromium.launch({ args: ['--ignore-gpu-blocklist', '--use-angle=d3d11'] });
+const browser = await chromium.launch({ args: ['--ignore-gpu-blocklist', '--use-angle=d3d11', '--mute-audio'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 const logs = [];
 page.on('console', (m) => { if (m.type() === 'error') logs.push(m.text()); });

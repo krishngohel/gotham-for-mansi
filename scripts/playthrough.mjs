@@ -6,7 +6,7 @@ import { mkdirSync } from 'node:fs';
 const base = process.env.BASE ?? 'http://localhost:5200/';
 const out = process.env.OUT ?? 'playthrough';
 mkdirSync(out, { recursive: true });
-const browser = await chromium.launch({ args: ['--ignore-gpu-blocklist', '--use-angle=d3d11'] });
+const browser = await chromium.launch({ args: ['--ignore-gpu-blocklist', '--use-angle=d3d11', '--mute-audio'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 const errors = [];
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });

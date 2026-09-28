@@ -8,7 +8,7 @@ import { mkdirSync } from 'node:fs';
 const [url, outDir, stepsJson] = process.argv.slice(2);
 const steps = JSON.parse(stepsJson.trim().startsWith('[') ? stepsJson : (await import('node:fs')).readFileSync(stepsJson, 'utf8'));
 mkdirSync(outDir, { recursive: true });
-const browser = await chromium.launch({ args: ['--ignore-gpu-blocklist', '--use-angle=d3d11'] });
+const browser = await chromium.launch({ args: ['--ignore-gpu-blocklist', '--use-angle=d3d11', '--mute-audio'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 const logs = [];
 page.on('console', (m) => { if (m.type() === 'error') logs.push(m.text()); });

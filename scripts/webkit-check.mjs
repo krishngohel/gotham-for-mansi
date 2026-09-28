@@ -4,6 +4,13 @@ const url = process.argv[2] ?? 'http://localhost:5202/';
 const out = process.argv[3] ?? 'webkit-check';
 const b = await webkit.launch();
 const p = await b.newPage({ viewport: { width: 1440, height: 900 } });
+// WebKit has no --mute-audio: the game boots with its saved volume at 0 instead.
+await p.addInitScript(() => {
+  try {
+    const k = 'gotham-mansi-settings-v1', s = JSON.parse(localStorage.getItem(k) ?? '{}');
+    localStorage.setItem(k, JSON.stringify({ ...s, volume: { master: 0, music: 0, sfx: 0 } }));
+  } catch { /* storage blocked: nothing to mute through */ }
+});
 const errors = [];
 p.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 p.on('pageerror', (e) => errors.push(e.message));

@@ -17,7 +17,7 @@ const SPOTS = {
 const DISTANCES = [8, 14];
 const LIMIT = 8000;
 
-const browser = await chromium.launch({ args: ['--ignore-gpu-blocklist', '--use-angle=d3d11'] });
+const browser = await chromium.launch({ args: ['--ignore-gpu-blocklist', '--use-angle=d3d11', '--mute-audio'] });
 const rows = [];
 const errors = [];
 for (const [label, spot] of Object.entries(SPOTS)) {

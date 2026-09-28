@@ -6,7 +6,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 const [base, outDir, quick] = process.argv.slice(2);
 mkdirSync(outDir, { recursive: true });
 console.log('audit start');
-const browser = await chromium.launch({ args: ['--ignore-gpu-blocklist', '--use-angle=d3d11'] });
+const browser = await chromium.launch({ args: ['--ignore-gpu-blocklist', '--use-angle=d3d11', '--mute-audio'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 page.on('pageerror', (e) => console.log('pageerror', e.message));
 

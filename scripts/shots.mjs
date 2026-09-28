@@ -11,7 +11,7 @@ const shots = [
   ['tower', '?at=toTower', "window.__game.teleport({x: -40, y: 0, z: -110}); window.__game.follow.snapBehind(-2.3, -0.6)"],
 ];
 await mkdir('docs/screens', { recursive: true });
-const browser = await chromium.launch({ args: ['--ignore-gpu-blocklist', '--use-angle=d3d11'] });
+const browser = await chromium.launch({ args: ['--ignore-gpu-blocklist', '--use-angle=d3d11', '--mute-audio'] });
 const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
 for (const [name, query, setup] of shots) {
   await page.goto(base + query + '&god=1');
