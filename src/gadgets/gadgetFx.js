@@ -11,6 +11,10 @@ import { PALETTE } from '../config/palette.js';
 
 export const GFX_LIMITS = { gel: 3, puffs: 14, ice: 6, iceShots: 2, confetti: 900, trail: 32, debris: 40 };
 const CONFETTI = [PALETTE.signal, PALETTE.balloon, PALETTE.detective, PALETTE.jokerGreen, PALETTE.jokerPurple, PALETTE.paper];
+// A burst piece reads as a fleck at fight range (6-10 m); the sky-lettering multiplier keeps
+// "HAPPY BIRTHDAY" legible from the ground even though it shares the same Points/material.
+const CONFETTI_SIZE = 0.16;
+const CONFETTI_LETTER_MULT = 3;
 const UP = new THREE.Vector3(0, 1, 0);
 
 let smokeTex = null;
@@ -46,6 +50,50 @@ function tinyTexture() {
   return tinyTex;
 }
 
+// Confetti points all share one PointsMaterial (the burst and the sky-lettering both draw from
+// the same pool), so a per-vertex "aSizeMul" attribute lets each particle scale the shared base
+// size independently: 1x for a burst fleck, CONFETTI_LETTER_MULT for a held letter pixel.
+function confettiMaterial() {
+  const mat = new THREE.PointsMaterial({ size: CONFETTI_SIZE, vertexColors: true, sizeAttenuation: true });
+  mat.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', 'attribute float aSizeMul;\n#include <common>')
+      .replace('gl_PointSize = size;', 'gl_PointSize = size * aSizeMul;');
+  };
+  return mat;
+}
+
+// The trail is a camera-facing ribbon (a triangle strip of quads), not a 1px Line: the shared
+// ink post-process outlines thin lines in black regardless of their material color, which was
+// swallowing the batarang trail's gold. A ribbon is real geometry, so its color reads correctly
+// and its width attenuates with distance the same way the rest of the scene does.
+function trailMaterial() {
+  return new THREE.ShaderMaterial({
+    uniforms: { uColor: { value: new THREE.Color(PALETTE.signal) }, uWidth: { value: 0.14 } },
+    side: THREE.DoubleSide,
+    vertexShader: /* glsl */ `
+      attribute vec3 aTangent;
+      attribute float aSide;
+      uniform float uWidth;
+      void main() {
+        vec3 t = aTangent;
+        if (dot(t, t) < 1e-8) t = vec3(0.0, 0.0, 1.0);
+        t = normalize(t);
+        vec3 viewDir = normalize(cameraPosition - position);
+        vec3 right = cross(viewDir, t);
+        float rl = length(right);
+        right = rl < 1e-5 ? vec3(1.0, 0.0, 0.0) : right / rl;
+        vec3 offsetPos = position + right * (aSide * uWidth * 0.5);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(offsetPos, 1.0);
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform vec3 uColor;
+      void main() { gl_FragColor = vec4(uColor, 1.0); }
+    `,
+  });
+}
+
 export function gadgetMaterials() {
   const ice = toonMaterial({ color: 0xcdefff, emissive: 0x24506e });
   ice.transparent = true;
@@ -55,9 +103,9 @@ export function gadgetMaterials() {
     gel: toonMaterial({ color: 0x9fe3ff, emissive: 0x1d5f80 }),
     ice,
     smoke: new THREE.SpriteMaterial({ map: smokeTexture(), transparent: true, depthWrite: false }),
-    confetti: new THREE.PointsMaterial({ size: 0.42, vertexColors: true, sizeAttenuation: true }),
+    confetti: confettiMaterial(),
     line: new THREE.LineBasicMaterial({ color: PALETTE.ink }),
-    trail: new THREE.LineBasicMaterial({ color: PALETTE.signal }),
+    trail: trailMaterial(),
     debris: toonMaterial({ color: 0xffffff }),
     // Breakables (src/world/breakables.js) use textured toon materials: one warm copy each of the
     // plain and the instanced variant.
@@ -88,6 +136,30 @@ function lineOf(n, mat) {
   return l;
 }
 
+// A billboard ribbon along n centreline points: two vertices (aSide -1/+1) per point, offset
+// sideways in the vertex shader from the camera-facing right vector. Index buffer is static.
+function ribbonOf(n, mat) {
+  const g = new THREE.BufferGeometry();
+  const pos = new THREE.BufferAttribute(new Float32Array(n * 2 * 3), 3).setUsage(THREE.DynamicDrawUsage);
+  const tan = new THREE.BufferAttribute(new Float32Array(n * 2 * 3), 3).setUsage(THREE.DynamicDrawUsage);
+  const side = new THREE.BufferAttribute(new Float32Array(n * 2), 1);
+  for (let i = 0; i < n; i++) { side.array[i * 2] = -1; side.array[i * 2 + 1] = 1; }
+  g.setAttribute('position', pos);
+  g.setAttribute('aTangent', tan);
+  g.setAttribute('aSide', side);
+  const idx = new Uint16Array(Math.max(0, n - 1) * 6);
+  for (let i = 0; i < n - 1; i++) {
+    const a = i * 2, b = a + 1, c = a + 2, d = a + 3, o = i * 6;
+    idx[o] = a; idx[o + 1] = b; idx[o + 2] = c;
+    idx[o + 3] = b; idx[o + 4] = d; idx[o + 5] = c;
+  }
+  g.setIndex(new THREE.BufferAttribute(idx, 1));
+  const mesh = new THREE.Mesh(g, mat);
+  mesh.layers.set(LAYER_FX);
+  mesh.frustumCulled = false;
+  return mesh;
+}
+
 // One of everything, for the boot warm cast.
 export function createGadgetWarm() {
   const m = gadgetMaterials(), g = geos();
@@ -99,6 +171,7 @@ export function createGadgetWarm() {
   const pg = new THREE.BufferGeometry();
   pg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(9), 3));
   pg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(9).fill(1), 3));
+  pg.setAttribute('aSizeMul', new THREE.BufferAttribute(new Float32Array(3).fill(1), 1));
   const confetti = new THREE.Points(pg, m.confetti);
   confetti.layers.set(LAYER_FX);
   const debris = new THREE.InstancedMesh(g.debris, m.debris, 1);
@@ -106,7 +179,7 @@ export function createGadgetWarm() {
   const texturedInst = new THREE.InstancedMesh(g.box, m.textured, 1);
   group.add(
     new THREE.Mesh(g.gel, m.gel), new THREE.Mesh(g.ice, m.ice), new THREE.Mesh(g.shot, m.ice), puff, confetti,
-    lineOf(2, m.line), lineOf(GFX_LIMITS.trail, m.trail), debris, new THREE.Mesh(g.box, m.textured), texturedInst,
+    lineOf(2, m.line), ribbonOf(GFX_LIMITS.trail, m.trail), debris, new THREE.Mesh(g.box, m.textured), texturedInst,
   );
   return group;
 }
@@ -306,13 +379,15 @@ export function createGadgetFx(scene) {
   // letter cell (2), holding the letter (3) or fluttering down (4). ----
   const N = GFX_LIMITS.confetti;
   const cpos = new Float32Array(N * 3), ccol = new Float32Array(N * 3), cvel = new Float32Array(N * 3), cgoal = new Float32Array(N * 3);
-  const cmode = new Uint8Array(N), clife = new Float32Array(N);
+  const cmode = new Uint8Array(N), clife = new Float32Array(N), csize = new Float32Array(N).fill(1);
   for (let i = 0; i < N; i++) cpos[i * 3 + 1] = -1000;
   const cgeo = new THREE.BufferGeometry();
   const cposAttr = new THREE.BufferAttribute(cpos, 3).setUsage(THREE.DynamicDrawUsage);
   const ccolAttr = new THREE.BufferAttribute(ccol, 3).setUsage(THREE.DynamicDrawUsage);
+  const csizeAttr = new THREE.BufferAttribute(csize, 1).setUsage(THREE.DynamicDrawUsage);
   cgeo.setAttribute('position', cposAttr);
   cgeo.setAttribute('color', ccolAttr);
+  cgeo.setAttribute('aSizeMul', csizeAttr);
   const points = new THREE.Points(cgeo, m.confetti);
   points.layers.set(LAYER_FX);
   points.frustumCulled = false;
@@ -332,12 +407,16 @@ export function createGadgetFx(scene) {
         cvel[j] = Math.cos(a) * out; cvel[j + 1] = 5 + Math.random() * 7; cvel[j + 2] = Math.sin(a) * out;
         cmode[i] = 1;
         clife[i] = 2.5 + Math.random() * 1.5;
+        csize[i] = 1;
         paint(i);
       }
       ccolAttr.needsUpdate = true;
+      csizeAttr.needsUpdate = true;
     },
     // Confetti flies from `from` to spell `pts` (skyLetters.js) on an upright plane through
     // `anchor`, running along the horizontal unit vector `right`; holds 5 s, then flutters down.
+    // Sized up (CONFETTI_LETTER_MULT) so the letters stay legible from the ground even though
+    // they share the burst's smaller base point size.
     letters(from, anchor, right, pts) {
       for (const p of pts) {
         const i = take(), j = i * 3;
@@ -345,9 +424,11 @@ export function createGadgetFx(scene) {
         cgoal[j] = anchor.x + right.x * p.x; cgoal[j + 1] = anchor.y + p.y; cgoal[j + 2] = anchor.z + right.z * p.x;
         cmode[i] = 2;
         clife[i] = 1.1 + Math.random() * 0.5;
+        csize[i] = CONFETTI_LETTER_MULT;
         paint(i);
       }
       ccolAttr.needsUpdate = true;
+      csizeAttr.needsUpdate = true;
     },
     get live() { return clive; },
   };
@@ -396,18 +477,31 @@ export function createGadgetFx(scene) {
     hide(name) { lineObjs[name].visible = false; },
   };
   const T = GFX_LIMITS.trail;
-  const trailLine = lineOf(T, m.trail);
+  const trailLine = ribbonOf(T, m.trail);
   trailLine.visible = false;
   scene.add(trailLine);
   const ring = new Float32Array(T * 3);
+  const trailPts = new Float32Array(T * 3);
   let head = 0;
   function writeTrail() {
-    const a = trailLine.geometry.attributes.position;
+    const posAttr = trailLine.geometry.attributes.position, tanAttr = trailLine.geometry.attributes.aTangent;
     for (let k = 0; k < T; k++) {
       const i = (((head - k) % T) + T) % T;
-      a.array[k * 3] = ring[i * 3]; a.array[k * 3 + 1] = ring[i * 3 + 1]; a.array[k * 3 + 2] = ring[i * 3 + 2];
+      trailPts[k * 3] = ring[i * 3]; trailPts[k * 3 + 1] = ring[i * 3 + 1]; trailPts[k * 3 + 2] = ring[i * 3 + 2];
     }
-    a.needsUpdate = true;
+    for (let k = 0; k < T; k++) {
+      const px = trailPts[k * 3], py = trailPts[k * 3 + 1], pz = trailPts[k * 3 + 2];
+      posAttr.array[k * 6] = px; posAttr.array[k * 6 + 1] = py; posAttr.array[k * 6 + 2] = pz;
+      posAttr.array[k * 6 + 3] = px; posAttr.array[k * 6 + 4] = py; posAttr.array[k * 6 + 5] = pz;
+      // Tangent toward the next-older ring point; the tail-most point reuses its neighbour's.
+      const k2 = k < T - 1 ? k + 1 : k - 1;
+      let tx = trailPts[k * 3] - trailPts[k2 * 3], ty = trailPts[k * 3 + 1] - trailPts[k2 * 3 + 1], tz = trailPts[k * 3 + 2] - trailPts[k2 * 3 + 2];
+      if (k === T - 1) { tx = -tx; ty = -ty; tz = -tz; }
+      tanAttr.array[k * 6] = tx; tanAttr.array[k * 6 + 1] = ty; tanAttr.array[k * 6 + 2] = tz;
+      tanAttr.array[k * 6 + 3] = tx; tanAttr.array[k * 6 + 4] = ty; tanAttr.array[k * 6 + 5] = tz;
+    }
+    posAttr.needsUpdate = true;
+    tanAttr.needsUpdate = true;
   }
   const trail = {
     start(p) {
