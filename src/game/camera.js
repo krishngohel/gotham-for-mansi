@@ -2,11 +2,11 @@
 import * as THREE from 'three';
 
 const MODES = {
-  ground: { dist: 4.2, height: 1.55, side: 0.55, fov: 0 },
-  sprint: { dist: 4.9, height: 1.5, side: 0.45, fov: 7 },
+  ground: { dist: 3.4, height: 1.5, side: 0.62, fov: 0 },
+  sprint: { dist: 4.1, height: 1.45, side: 0.5, fov: 7 },
   glide: { dist: 7, height: 1.3, side: 0, fov: 12 },
   zip: { dist: 5.2, height: 1.4, side: 0.3, fov: 9 },
-  combat: { dist: 5.8, height: 1.7, side: 0.2, fov: 3 },
+  combat: { dist: 5.2, height: 1.65, side: 0.25, fov: 3 },
   takedown: { dist: 2.6, height: 1.3, side: 0.9, fov: -8 },
 };
 

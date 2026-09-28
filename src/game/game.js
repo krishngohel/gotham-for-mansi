@@ -302,10 +302,20 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     }
 
     const api = {
-      hero, follow, combat, hud, flow, encounters, balloons, boss, finale, comic, grapple, update,
+      hero, follow, combat, hud, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn,
       winFight: () => { for (const e of combat.enemies) if (e.alive && e.type !== 'joker') { e.health = 0; e.applyHit({ outcome: 'ko' }, hero.pos); } },
     };
     if (params.get('god') === '1') events.on('heroHurt', () => { hero.health = hero.maxHealth; hud.setHealth(1); });
+    // ?fight=test drops a mixed squad on the GCPD roof (combat sandbox).
+    if (params.get('fight') === 'test') {
+      const b = SITES.start;
+      combat.setEnemies([
+        spawn('grunt', { x: b.x - 4, y: b.y, z: b.z - 6 }), spawn('grunt', { x: b.x + 4, y: b.y, z: b.z - 6 }),
+        spawn('grunt', { x: b.x, y: b.y, z: b.z - 9 }), spawn('knife', { x: b.x - 6, y: b.y, z: b.z - 2 }),
+        spawn('brute', { x: b.x + 6, y: b.y, z: b.z - 12 }),
+      ]);
+      for (const e of combat.enemies) e.wake();
+    }
     Object.assign(window.__game, api, { teleport: (site) => {
         const p = { ...(SITES[site] ?? site) };
         const g = world.collision.groundBelow(p.x, p.y + 4, p.z, 0.3);
