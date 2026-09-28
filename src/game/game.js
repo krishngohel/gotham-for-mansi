@@ -14,7 +14,7 @@ import { createInkPipeline } from '../render/inkPipeline.js';
 import { paletteAt } from '../render/comicPalette.js';
 import { loadAssets } from '../actors/assets.js';
 import { createHero } from '../actors/hero.js';
-import { buildKickClips } from '../actors/kicks.js';
+import { buildReachTable } from '../combat/reach.js';
 import { buildClimbClips } from '../actors/climbAnims.js';
 import { createEnemy } from '../actors/enemy.js';
 import { SITES } from '../world/mapData.js';
@@ -79,14 +79,16 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   const mark = (n) => performance.mark?.(`boot:${n}`);
   // Models download while the fonts load (the city's painted signs need the fonts first).
   const assetsPromise = loadAssets('./assets/', (f) => onProgress(0.1 + f * 0.6)).then((a) => { mark('assets'); return a; });
+  const DEV_TOOLS = import.meta.env.DEV || params.get('god') === '1';
   await loadFonts();
   mark('fonts');
   onProgress(0.1);
   const world = createWorld(scene, quality);
   mark('world');
   const assets = await assetsPromise;
-  for (const c of buildKickClips(SkeletonUtils.clone(assets.bodies.m), assets.clips)) assets.clips.set(c.name, c);
   for (const c of buildClimbClips(SkeletonUtils.clone(assets.bodies.m), assets.clips)) assets.clips.set(c.name, c);
+  // Where each strike's fist or foot is on its contact frame, so lunges connect.
+  const reach = buildReachTable(SkeletonUtils.clone(assets.bodies.m), assets.clips);
   mark('clips');
   onProgress(0.9);
   // Characters that only appear later (goons, the Joker, every suit) join the city for the
@@ -110,8 +112,11 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     duck: (on) => audio.setVolumes(on ? { ...settings.volume, music: settings.volume.music * 0.35 } : settings.volume),
   });
   const menus = createMenus({ root: document.body, settings, storage, input, sound: (n) => audio.play(n), onChange: () => applySettings() });
+  // Comic-style frame counter in the corner (Settings > Video hides it, or adds the GPU line).
   const fpsEl = Object.assign(document.createElement('div'), { className: 'fps' });
+  fpsEl.innerHTML = '<span class="n">--</span><span class="u">fps</span><span class="d"></span>';
   document.body.appendChild(fpsEl);
+  const fpsNum = fpsEl.querySelector('.n'), fpsD = fpsEl.querySelector('.d');
   const gpu = gpuRenderer(renderer.getContext());
   const gpuName = gpuShortName(gpu);
   let gpuHintBox = maybeShowGpuHint(document.body, gpu, storage);
@@ -134,6 +139,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     dynRes.setEnabled(settings.dynamicRes && params.get('dynres') !== '0');
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.pixelRatioCap) * sanitizeResScale(settings.renderScale, dynRes.scale));
     fpsEl.style.display = settings.showFps ? '' : 'none';
+    fpsEl.classList.toggle('detail', settings.fpsDetails);
     game?.follow.configure(settings);
     if (game) {
       game.combat.setDifficulty(settings.difficulty);
@@ -205,7 +211,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const comicFx = createComicFx(document.body);
     const fx = createFx(scene);
     const rng = createRng(99);
-    const combat = createCombat({ hero, follow, time, events, rng, getDifficulty: () => settings.difficulty });
+    const combat = createCombat({ hero, follow, time, events, rng, reach, getDifficulty: () => settings.difficulty });
     hero.combat = combat;
     const key = (a) => `<kbd>${bindingLabel(settings.bindings, a)}</kbd>`;
     const screen = new THREE.Vector3();
@@ -236,7 +242,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const prompts = createPromptQueue(hud, () => settings.bindings, () => settings.hints);
     const waypoint = createWaypoint(hudRoot.querySelector('.hud') ?? hudRoot);
     const beacon = createBeacon(scene);
-    const boss = createBoss({ assets, scene, rng, combat, events, hud, spawn, despawn, hero, time, getDifficulty: () => settings.difficulty });
+    const boss = createBoss({ assets, scene, rng, combat, events, hud, spawn, despawn, hero, time, getDifficulty: () => settings.difficulty, collision: world.collision });
     boss.joker.health = 999;
     const finale = createFinale({ scene, world, hero, boss, camera, events, rng });
 
@@ -312,6 +318,12 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
 
     // ---- HUD reactions ----
     events.on('impact', ({ pos, outcome }) => fx.impact(pos, outcome === 'hit' ? 0.7 : 1.1));
+    // Dev only (dev server or ?god=1): contact-frame bookkeeping for tools/contact-shots.mjs,
+    // and ?hitstop=<s> stretches every hit-stop so a screenshot lands inside the freeze.
+    if (DEV_TOOLS) {
+      events.on('impact', ({ move, outcome, target }) => { window.__impacts = (window.__impacts ?? 0) + 1; window.__lastImpact = { n: window.__impacts, move, outcome, target: target?.type ?? null, at: performance.now() }; });
+      if (params.get('hitstop')) { const floor = Number(params.get('hitstop')), orig = time.hitStop; time.hitStop = (sec) => orig(Math.max(sec, floor)); }
+    }
     events.on('word', ({ text, pos, big }) => { const p = toScreen(pos); if (!p.behind) hud.sfx(text, p.x, p.y, big); });
     events.on('zipOn', () => events.emit('word', { text: 'ZZZIP!', pos: hero.pos.clone().setY(hero.pos.y + 2), big: false }));
     events.on('diveStart', () => events.emit('word', { text: 'FWOOSH!', pos: hero.pos.clone(), big: false }));
@@ -473,6 +485,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       winFight: () => { for (const e of combat.enemies) if (e.alive && e.type !== 'joker') { e.health = 0; e.applyHit({ outcome: 'ko' }, hero.pos); } },
     };
     if (params.get('god') === '1') events.on('heroHurt', () => { hero.health = hero.maxHealth; hud.setHealth(1); });
+    if (DEV_TOOLS) window.__game.reach = reach;
     // ?fight=test drops a mixed squad on the GCPD roof (combat sandbox).
     if (params.get('fight') === 'test') {
       const b = SITES.start;
@@ -669,7 +682,12 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     audio.update(real);
     state.frame += 1;
     fpsT += real; fpsN += 1;
-    if (fpsT >= 1) { state.fps = Math.round(fpsN / fpsT); fpsT = 0; fpsN = 0; fpsEl.textContent = `${state.fps} fps · ${Math.round(settings.renderScale * dynRes.scale * 100)}% · ${gpuName}`; }
+    // Refreshed four times a second: quick enough to see a stutter, slow enough to read.
+    if (fpsT >= 0.25) {
+      state.fps = Math.round(fpsN / fpsT); fpsT = 0; fpsN = 0;
+      fpsNum.textContent = String(state.fps);
+      if (settings.fpsDetails) fpsD.textContent = `${Math.round(settings.renderScale * dynRes.scale * 100)}% · ${gpuName}`;
+    }
   }
 
   applySettings();

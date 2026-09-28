@@ -6,3 +6,5 @@
 - Finale music: "Happy Birthday To You" (orchestral) by Tom Kincaid / VOLE.wtf, released CC0. https://vole.wtf/happy-birthday/
 - The Joker's voice lines were generated with Seed Audio 1.0 on Higgsfield from lines written for this game.
 - Suit-select card art was generated with Higgsfield (Seedream 4.5) from prompts written by the developer. The heroes' suit textures are painted procedurally in code (scripts/paint-suits.mjs).
+- Kick motion capture (roundhouse, Spartan kick, lunge spin kick, rising flying kick, step knee strike) applied to the game's own body with Meshy's auto-rigger through Higgsfield, then retargeted onto the Quaternius skeleton by scripts/retarget-mocap.mjs.
+

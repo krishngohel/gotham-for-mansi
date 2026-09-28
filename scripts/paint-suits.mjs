@@ -218,7 +218,9 @@ function anatomy(key, lm, bone) {
   const sx = lm.shoulderX, ex = lm.elbowX;
   const armY = bone('upperarm_l').y;
   const thighX = Math.abs(bone('thigh_l').x), ky = lm.kneeY, hipY = bone('pelvis').y;
-  const W = f ? 0.007 : 0.009, w = f ? 0.0042 : 0.0052, t = 0.0016;
+  // Widths sized for the third-person camera (about 3.4 m away): under a 1024 texture and mipmaps a
+  // line thinner than ~5 mm blurs into the suit colour at that distance.
+  const W = f ? 0.011 : 0.014, w = f ? 0.0065 : 0.008, t = f ? 0.0026 : 0.003;
 
   // --- torso, front
   if (!f) {
@@ -287,9 +289,10 @@ function makePainter(key, lm, bone) {
   const colors = SUIT_COLORS[key];
   const f = key === 'f';
   const C = {
-    // Batman's grey is lifted a little in the paint only: under the game's night lighting the flat
-    // suit colour reads near-black, and the reference is a medium grey.
-    suit: f ? rgb(colors.suit) : mix(rgb(colors.suit), [255, 255, 255], 0.14), cowl: rgb(colors.cowl), skin: rgb(colors.skin), belt: rgb(colors.belt),
+    // The suit colours are lifted in the paint only: under the game's night lighting, toon bands
+    // and the ink pass the flat palette values read near-black at gameplay distance. Batman's grey
+    // is pushed toward the reference's light-medium grey; Batwoman's near-black toward a true navy.
+    suit: f ? mix(rgb(colors.suit), [70, 96, 168], 0.6) : mix(rgb(colors.suit), [255, 255, 255], 0.42), cowl: rgb(colors.cowl), skin: rgb(colors.skin), belt: rgb(colors.belt),
     glove: rgb(colors.glove), boot: rgb(colors.boot), emblem: rgb(colors.emblem), ink: rgb(PALETTE.ink),
   };
   const fwd = lm.fwd;
@@ -302,7 +305,7 @@ function makePainter(key, lm, bone) {
   // since paint follows the curve of the chest).
   // Batwoman's sits on the upper chest above the bust, under a shallower cowl V so the head and
   // upper wings are not cut off.
-  const emScale = f ? 0.0026 : 0.0031;
+  const emScale = f ? 0.0027 : 0.0034;
   const emblemY = lm.chestY + (f ? 0.06 : 0);
   const emblem = batOutline().map(([x, y]) => [x * emScale, emblemY + y * emScale]);
   const emblemBox = [-0.2, 0.2, emblemY - 0.09, emblemY + 0.1];
@@ -405,9 +408,9 @@ function makePainter(key, lm, bone) {
       // Comic key light: from above, a little from the character's left, and symmetric front to
       // back so each view gets its own shadow side. Hatching where the surface turns away.
       const lit = 0.8 * n.y + 0.5 * Math.abs(n.z) + 0.3 * n.x;
-      const dark = clamp01((-0.02 - lit) / 0.4);
+      const dark = clamp01((-0.08 - lit) / 0.4);
       if (dark > 0) {
-        const w1 = 0.0016 + 0.0014 * dark;
+        const w1 = 0.0022 + 0.0016 * dark;
         if (onHatch(p, w1)) return C.ink;
         if (dark > 0.7) {
           const d2 = Math.abs(fract(p.dot(hatchDir2) / hatchPeriod) - 0.5) * hatchPeriod;
@@ -428,7 +431,7 @@ async function paintBody(key) {
   const paint = makePainter(key, lm, bone);
   const img = Buffer.alloc(SIZE * SIZE * 3);
   const p = new THREE.Vector3(), n = new THREE.Vector3(), tu = new THREE.Vector3(), tv = new THREE.Vector3(), q = new THREE.Vector3();
-  const edgeW = 0.0024;
+  const edgeW = 0.0034;
   const bg = rgb(SUIT_COLORS[key].suit);
   // 2x2 supersampling in the tangent plane for clean edges.
   const offs = [[-0.25, -0.25], [0.25, -0.25], [-0.25, 0.25], [0.25, 0.25]];

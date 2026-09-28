@@ -43,9 +43,9 @@ export async function optimizeMesh(file) {
 }
 
 export async function optimizeAll() {
-  for (const f of ['anims1.glb', 'anims2.glb']) await optimizeAnims(f);
+  for (const f of ['anims1.glb', 'anims2.glb', 'anims_mocap.glb']) await optimizeAnims(f);
   for (const f of ['hero_m.glb', 'hero_f.glb', 'hair_long.glb', 'outfits.glb']) await optimizeMesh(f);
-  for (const f of ['outfits.glb', 'hero_m.glb', 'hero_f.glb', 'hair_long.glb', 'anims1.glb', 'anims2.glb'])
+  for (const f of ['outfits.glb', 'hero_m.glb', 'hero_f.glb', 'hair_long.glb', 'anims1.glb', 'anims2.glb', 'anims_mocap.glb'])
     console.log(f, ((await stat(path.join(DIR, f))).size / 1e6).toFixed(2), 'MB');
 }
 

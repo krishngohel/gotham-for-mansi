@@ -15,6 +15,33 @@ describe('cloth', () => {
     expect(cloth.rest.length).toBe(8 + 9 + 12);
   });
 
+  it('lets no free particle drop below the floor', () => {
+    const cloth = make();
+    const pins = pinsAt(cloth, 0.5); // a 1 m cloth pinned 0.5 m up: the hem would hang through y = 0
+    hangFrom(cloth, pins);
+    for (let i = 0; i < 300; i++) stepCloth(cloth, 1 / 120, { pins, floor: 0.02 });
+    for (let i = cloth.cols; i < cloth.n; i++) expect(cloth.pos[i * 3 + 1]).toBeGreaterThanOrEqual(0.02 - 1e-6);
+    // Without a floor the same cloth hangs through it.
+    const free = make();
+    hangFrom(free, pins);
+    for (let i = 0; i < 300; i++) stepCloth(free, 1 / 120, { pins });
+    expect(Math.min(...Array.from({ length: free.n }, (_, i) => free.pos[i * 3 + 1]))).toBeLessThan(0);
+  });
+
+  it('floors each point on its own ground so a hem hangs past an edge', () => {
+    const cloth = make();
+    const pins = pinsAt(cloth, 0.5);
+    hangFrom(cloth, pins);
+    // Ground at 0.1 under the left half of the cloth, nothing under the right half.
+    const floors = new Float32Array(cloth.n);
+    for (let i = 0; i < cloth.n; i++) floors[i] = (i % cloth.cols) < 2 ? 0.1 : -Infinity;
+    for (let i = 0; i < 300; i++) stepCloth(cloth, 1 / 120, { pins, floor: floors });
+    const bottom = (c) => cloth.pos[((cloth.rows - 1) * cloth.cols + c) * 3 + 1];
+    expect(bottom(0)).toBeGreaterThanOrEqual(0.1 - 1e-6);
+    expect(bottom(1)).toBeGreaterThanOrEqual(0.1 - 1e-6);
+    expect(bottom(4)).toBeLessThan(0);
+  });
+
   it('keeps pinned particles on their pins and stays near rest length', () => {
     const cloth = make();
     const pins = pinsAt(cloth);
