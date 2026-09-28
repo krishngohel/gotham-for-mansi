@@ -168,7 +168,12 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0 6px; margin: 0 2px; bo
 .gpu-hint { position: fixed; left: 50%; top: 14px; transform: translateX(-50%); z-index: 40; max-width: min(560px, calc(100vw - 32px)); display: flex; gap: 12px; align-items: center; padding: 10px 14px; background: var(--paper); color: var(--ink); border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); font: 19px 'Patrick Hand SC', 'Barlow Condensed', sans-serif; }
 .gpu-hint p { margin: 0; line-height: 1.25; }
 .gpu-hint button { flex: none; font: 700 16px 'Barlow Condensed', sans-serif; padding: 6px 12px; background: var(--signal); color: var(--ink); border: 2px solid var(--ink); cursor: pointer; }
-.fps { position: fixed; right: 8px; bottom: 6px; z-index: 6; font: 700 14px 'Barlow Condensed', sans-serif; color: var(--paper); text-shadow: 1px 1px 0 var(--ink); }
+/* Frame counter: a small paper tag in the corner, inked like the rest of the HUD. */
+.fps { position: fixed; right: 12px; bottom: 10px; z-index: 6; display: flex; align-items: baseline; gap: 4px; padding: 2px 8px 3px; background: var(--paper); color: var(--ink); border: 2px solid var(--ink); box-shadow: 2px 2px 0 var(--ink); transform: rotate(-1.5deg); pointer-events: none; opacity: 0.92; }
+.fps .n { font: 20px/1 'Bangers', cursive; letter-spacing: 1px; min-width: 26px; text-align: right; }
+.fps .u { font: 700 11px/1 'Barlow Condensed', sans-serif; letter-spacing: 1px; text-transform: uppercase; }
+.fps .d { display: none; font: 600 11px/1 'Barlow Condensed', sans-serif; letter-spacing: 0.5px; margin-left: 4px; padding-left: 6px; border-left: 2px solid var(--ink); }
+.fps.detail .d { display: inline; }
 
 .sfx.big { font-size: 104px; -webkit-text-stroke: 5px var(--ink); text-shadow: 7px 7px 0 var(--ink); color: #ffe45c; animation-duration: 1s; }
 .hud-speed { position: absolute; inset: -10%; pointer-events: none; opacity: 0;
@@ -194,3 +199,69 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0 6px; margin: 0 2px; bo
   outline: 0.7vmin solid #0b0b12; outline-offset: -4.6vmin;
   transform: rotate(-1deg);
 }
+
+/* ---- side content (Plan 3C) ---- */
+/* top: 130px keeps this clear of .hud-combo (left: 34px, top: 22px, ~100px tall at full digits),
+   which sits right above it in the arena where the combo matters most. .radio and .side-toast
+   are pushed down to match so the whole left column still stacks without overlap. */
+.ch-panel { position: absolute; left: 28px; top: 130px; min-width: 220px; padding: 8px 14px 10px; background: var(--paper); color: var(--ink); border: 3px solid var(--ink); box-shadow: 5px 5px 0 var(--ink); transform: rotate(-1deg); display: none; }
+.ch-panel.show { display: block; }
+.ch-name { font: 22px 'Bangers', cursive; letter-spacing: 1px; color: var(--balloon); -webkit-text-stroke: 1px var(--ink); }
+.ch-time { font: 700 34px/1 'Barlow Condensed', sans-serif; }
+.ch-sub { font: 18px 'Patrick Hand SC', cursive; }
+.ch-count { position: absolute; left: 50%; top: 38%; padding: 6px 34px; font: 120px/1 'Bangers', cursive; color: var(--signal); -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill; background: var(--paper); border: 5px solid var(--ink); box-shadow: 10px 10px 0 var(--ink); opacity: 0; transform: translate(-50%, -50%) rotate(-4deg); pointer-events: none; }
+.ch-count.pop { animation: chcount 0.8s ease-out forwards; }
+@keyframes chcount {
+  0% { opacity: 0; transform: translate(-50%, -50%) rotate(-4deg) scale(0.4); }
+  20% { opacity: 1; transform: translate(-50%, -50%) rotate(-4deg) scale(1.1); }
+  35% { transform: translate(-50%, -50%) rotate(-4deg) scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) rotate(-4deg) scale(1); }
+}
+.ch-hint { position: absolute; left: 50%; bottom: 150px; transform: translateX(-50%) rotate(-1deg); padding: 8px 16px; background: var(--signal); color: var(--ink); border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); font: 22px 'Patrick Hand SC', cursive; opacity: 0; transition: opacity 0.3s; }
+.ch-hint.show { opacity: 1; }
+.radio, .side-toast { position: absolute; left: 28px; max-width: 360px; padding: 8px 14px 10px; color: var(--ink); border: 3px solid var(--ink); box-shadow: 5px 5px 0 var(--ink); transform: translateX(-16px) rotate(-1.5deg); opacity: 0; transition: opacity 0.3s, transform 0.3s; }
+.radio { top: 256px; background: var(--signal); }
+.side-toast { top: 356px; background: #fffdf5; }
+.radio.show, .side-toast.show { opacity: 1; transform: translateX(0) rotate(-1.5deg); }
+.radio-title, .toast-title { font: 20px 'Bangers', cursive; letter-spacing: 1.5px; color: var(--balloon); -webkit-text-stroke: 1px var(--ink); }
+.radio-text, .toast-text { font: 21px/1.2 'Patrick Hand SC', cursive; }
+.ch-markers { position: absolute; inset: 0; pointer-events: none; }
+.ch-marker { position: absolute; left: 0; top: 0; width: 44px; height: 22px; margin: -11px 0 0 -22px; filter: drop-shadow(2px 2px 0 var(--ink)); }
+.ch-marker path { fill: var(--paper); stroke: var(--ink); stroke-width: 5; }
+.ch-marker[data-medal="bronze"] path { fill: #c07a3c; }
+.ch-marker[data-medal="silver"] path { fill: #c9ccd6; }
+.ch-marker[data-medal="gold"] path { fill: var(--signal); }
+
+.photo-overlay { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 21; }
+.photo-flash { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 23; }
+.photo-flash.on { animation: phflash 0.45s ease-out; }
+@keyframes phflash { 0% { opacity: 0.85; } 100% { opacity: 0; } }
+.menu.photo-panel { position: fixed; right: 20px; top: 20px; width: 340px; max-height: calc(100vh - 40px); padding: 16px 18px; z-index: 22; transform: rotate(0.6deg); }
+.menu.photo-panel.hidden { display: none; }
+.photo-panel h2 { margin: 0 0 8px; }
+.ph-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 6px 0; font: 20px 'Patrick Hand SC', cursive; }
+.ph-row input { width: 180px; font: 18px 'Patrick Hand SC', cursive; padding: 4px 6px; border: 3px solid var(--ink); background: #fffdf5; text-transform: uppercase; }
+.ph-actions { display: flex; gap: 10px; margin-top: 10px; }
+.ph-keys { font-size: 14px; line-height: 1.25; }
+.photo-on .hud, .photo-on .speed-lines, .photo-on .action-panel, .photo-on .fps { display: none !important; }
+
+.challenges-menu, .progress-menu { width: min(900px, 94vw); }
+.cr-list { display: grid; gap: 8px; margin: 10px 0; }
+.cr-row { display: grid; grid-template-columns: 36px 1fr auto; column-gap: 12px; align-items: center; padding: 8px 12px; background: #fff8e6; border: 3px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); }
+.cr-medal { grid-row: span 2; width: 30px; height: 30px; border-radius: 50%; border: 3px solid var(--ink); background: var(--paper); }
+.cr-row.medal-bronze .cr-medal { background: #c07a3c; }
+.cr-row.medal-silver .cr-medal { background: #c9ccd6; }
+.cr-row.medal-gold .cr-medal { background: var(--signal); }
+.cr-title, .cr-best { font: 700 22px 'Barlow Condensed', sans-serif; text-transform: uppercase; }
+.cr-best { text-align: right; }
+.cr-blurb, .cr-goal { font: 16px 'Patrick Hand SC', cursive; }
+.cr-goal { text-align: right; }
+.pg-wrap { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+.pg-map { width: min(320px, 80vw); height: auto; aspect-ratio: 1; border: 4px solid var(--ink); box-shadow: 5px 5px 0 var(--ink); transform: rotate(-1deg); background: var(--paper); }
+.pg-parts { flex: 1; min-width: 260px; display: grid; gap: 8px; }
+.pg-head { display: flex; justify-content: space-between; font: 700 20px 'Barlow Condensed', sans-serif; text-transform: uppercase; }
+.pg-bar { height: 12px; border: 2px solid var(--ink); background: #fff8e6; }
+.pg-bar i { display: block; height: 100%; background: var(--balloon); }
+.pg-detail { font: 16px 'Patrick Hand SC', cursive; }
+.pg-stats { font: 18px 'Patrick Hand SC', cursive; margin: 14px 0 8px; }

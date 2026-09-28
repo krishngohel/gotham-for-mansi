@@ -9,6 +9,7 @@ import MANSI from '../mansi.config.js';
 
 export function createFlow(d) {
   const { hero, encounters, hud, events, progress, storage, comic, stage, prompts, waypoint, beacon, balloons, pickups, collision } = d;
+  const side = d.side ?? { holdStory: () => false, marker: () => null, onRespawn: () => null };
   const objectives = createObjectives(STEPS, progress.step);
   let mode = 'play';
   let target = null;
@@ -93,7 +94,11 @@ export function createFlow(d) {
     return true;
   }
 
-  events.on('fightStart', () => { fightStarted = true; beacon.set(null); });
+  events.on('fightStart', ({ id }) => {
+    if (objectives.step?.fight !== id) return;
+    fightStarted = true;
+    beacon.set(null);
+  });
   events.on('fightDone', ({ id }) => {
     hero.health = hero.maxHealth;
     hud.setHealth(1);
@@ -115,16 +120,20 @@ export function createFlow(d) {
     }, 1500);
   });
 
-  function respawn() {
+  function respawn({ manual = false } = {}) {
     hero.dead = false;
     hero.health = hero.maxHealth;
     hud.setHealth(1);
     hud.clearGlyphs();
     const finished = objectives.done || STEPS[objectives.index]?.type === 'credits';
-    const p = finished ? { ...SITES.start } : respawnPoint();
+    // Side content first: it clears a crime fight or a challenge and may want the hero back at a
+    // challenge marker instead of the story checkpoint. `manual` distinguishes a pause-menu
+    // "Restart from checkpoint" (the hero was never actually knocked down) from a real death.
+    const over = side.onRespawn({ manual });
+    const p = over ?? (finished ? { ...SITES.start } : respawnPoint());
     // Face the objective, not whatever wall we happened to be looking at.
-    const aim = finished ? null : target;
-    const yaw = aim ? Math.atan2(aim.x - p.x, aim.z - p.z) : hero.bat.yaw;
+    const aim = over || finished ? null : target;
+    const yaw = over?.yaw ?? (aim ? Math.atan2(aim.x - p.x, aim.z - p.z) : hero.bat.yaw);
     hero.teleport(p, yaw);
     const s = objectives.step;
     if (s?.type === 'fight') encounters.restart();
@@ -172,7 +181,7 @@ export function createFlow(d) {
       if (mode !== 'play') return;
       const s = objectives.step;
       encounters.update(dt, hero);
-      if (s && target && s.type !== 'fight' && s.type !== 'boss' && s.type !== 'cutscene') {
+      if (s && target && !side.holdStory() && s.type !== 'fight' && s.type !== 'boss' && s.type !== 'cutscene') {
         const dxz = Math.hypot(hero.pos.x - target.x, hero.pos.z - target.z);
         const dy = Math.abs(hero.pos.y - target.y);
         if (dxz < (s.radius ?? 8) && dy < 6) {
@@ -182,7 +191,7 @@ export function createFlow(d) {
       }
       const near = target && Math.hypot(hero.pos.x - target.x, hero.pos.z - target.z) < 7 && Math.abs(hero.pos.y - target.y) < 5;
       const showMarker = target && !near && !(s?.type === 'fight' && fightStarted) && s?.type !== 'cutscene' && s?.type !== 'boss';
-      waypoint.update(showMarker ? target : null, camera, hero.pos);
+      waypoint.update(side.marker() ?? (showMarker ? target : null), camera, hero.pos);
       beacon.update(t, hero.pos);
       const b = balloons.update(t, hero.pos);
       if (b >= 0) collectBalloon(b);

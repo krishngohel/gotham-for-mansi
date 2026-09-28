@@ -20,6 +20,7 @@ export const ACTIONS = [
   { id: 'chain3', label: 'Chain takedown 3: Domino Drop (combo 12)', group: 'Fight' },
   { id: 'detective', label: 'Detective vision', group: 'Other' },
   { id: 'help', label: 'Controls help', group: 'Other' },
+  { id: 'photo', label: 'Photo mode', group: 'Other' },
   { id: 'pause', label: 'Pause and settings', group: 'Other' },
 ];
 
@@ -44,6 +45,7 @@ export const DEFAULT_BINDINGS = {
   chain3: ['Digit3'],
   detective: ['KeyV'],
   help: ['KeyH'],
+  photo: ['KeyO'],
   pause: ['Escape', 'KeyP'],
 };
 

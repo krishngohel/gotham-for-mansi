@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { sanitizeClip, createAnimator } from '../../src/actors/animator.js';
 import { classifySuitVertex, classifyGoonVertex } from '../../src/actors/outfits.js';
+import { heroPlantsFeet, enemyPlantsFeet } from '../../src/actors/characters.js';
 
 const lm = {
   fwd: 1, neckY: 1.5, headCenter: { x: 0, y: 1.66, z: 0.02 }, headRadius: 0.1, headTop: 1.8, eyeY: 1.68,
@@ -61,5 +62,20 @@ describe('animator.prime', () => {
     anim.prime(['A']);
     expect(anim.mixer.existingAction(clip)).toBeTruthy();
     expect(() => anim.prime(['nope'])).toThrow();
+  });
+});
+
+describe('foot planting gate', () => {
+  it('lets the hero sample the ground under each foot only when standing free', () => {
+    expect(heroPlantsFeet({ control: null, grounded: true })).toBe(true);
+    expect(heroPlantsFeet({ control: { name: 'ledge' }, grounded: true })).toBe(false);
+    expect(heroPlantsFeet({ control: { name: 'ladder' }, grounded: false })).toBe(false);
+    expect(heroPlantsFeet({ control: null, grounded: false })).toBe(false);
+  });
+  it('lets a goon sample the ground only while up, alive and on the ground', () => {
+    expect(enemyPlantsFeet({ air: false, down: false, alive: true })).toBe(true);
+    expect(enemyPlantsFeet({ air: true, down: false, alive: true })).toBe(false);
+    expect(enemyPlantsFeet({ air: false, down: true, alive: true })).toBe(false);
+    expect(enemyPlantsFeet({ air: false, down: false, alive: false })).toBe(false);
   });
 });

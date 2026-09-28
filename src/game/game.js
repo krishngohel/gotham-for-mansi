@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { loadSettings } from '../core/settings.js';
-import { loadProgress, saveProgress, sanitizeProgress, DEFAULT_PROGRESS } from '../core/save.js';
+import { loadProgress, saveProgress, sanitizeProgress, DEFAULT_PROGRESS, newGameProgress } from '../core/save.js';
 import { createInput } from '../core/input.js';
 import { createEvents, onceEachId } from '../core/events.js';
 import { createTimeControl } from '../core/time.js';
@@ -41,7 +41,11 @@ import { createFlow } from './flow.js';
 import { STEPS } from './story.js';
 import { wireAudio } from './sound.js';
 import { createBoss } from './boss.js';
+import { tracker } from './progressTracker.js';
+import { goldStandardPages, fromKrishnPages } from './rewardPages.js';
 import { createFinale } from './finale.js';
+import { createSideContent } from './sideContent.js';
+import { createPhotoMode } from '../ui/photoMode.js';
 import { createWarmCast } from './warmCast.js';
 import { drawEverything, uploadTextures, readyObjects } from '../render/prewarm.js';
 import { createDynamicRes, sanitizeResScale } from '../render/dynamicRes.js';
@@ -112,8 +116,11 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     duck: (on) => audio.setVolumes(on ? { ...settings.volume, music: settings.volume.music * 0.35 } : settings.volume),
   });
   const menus = createMenus({ root: document.body, settings, storage, input, sound: (n) => audio.play(n), onChange: () => applySettings() });
+  // Comic-style frame counter in the corner (Settings > Video hides it, or adds the GPU line).
   const fpsEl = Object.assign(document.createElement('div'), { className: 'fps' });
+  fpsEl.innerHTML = '<span class="n">--</span><span class="u">fps</span><span class="d"></span>';
   document.body.appendChild(fpsEl);
+  const fpsNum = fpsEl.querySelector('.n'), fpsD = fpsEl.querySelector('.d');
   const gpu = gpuRenderer(renderer.getContext());
   const gpuName = gpuShortName(gpu);
   let gpuHintBox = maybeShowGpuHint(document.body, gpu, storage);
@@ -136,6 +143,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     dynRes.setEnabled(settings.dynamicRes && params.get('dynres') !== '0');
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.pixelRatioCap) * sanitizeResScale(settings.renderScale, dynRes.scale));
     fpsEl.style.display = settings.showFps ? '' : 'none';
+    fpsEl.classList.toggle('detail', settings.fpsDetails);
     game?.follow.configure(settings);
     if (game) {
       game.combat.setDifficulty(settings.difficulty);
@@ -167,6 +175,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     audio.music('title');
     menus.title({
       canContinue: progress.step > 0,
+      percent: tracker.score(progress).percent,
       onContinue: () => begin(progress.suit ?? 'm', false),
       onNew: () => menus.suitSelect({ gold: progress.goldUnlocked, onPick: (s) => begin(s, true), onBack: showTitle }),
     });
@@ -178,7 +187,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     audio.unlock();
     // Don't let the integrated-GPU hint sit over the boss bar once a run is under way.
     if (gpuHintBox) { gpuHintBox.remove(); gpuHintBox = null; }
-    if (fresh) progress = { ...sanitizeProgress(DEFAULT_PROGRESS), balloons: progress.balloons, goldUnlocked: progress.goldUnlocked };
+    if (fresh) progress = newGameProgress(progress);
     progress.suit = suit;
     saveProgress(storage, progress);
     game = buildRun(suit);
@@ -240,7 +249,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const prompts = createPromptQueue(hud, () => settings.bindings, () => settings.hints);
     const waypoint = createWaypoint(hudRoot.querySelector('.hud') ?? hudRoot);
     const beacon = createBeacon(scene);
-    const boss = createBoss({ assets, scene, rng, combat, events, hud, spawn, despawn, hero, time, getDifficulty: () => settings.difficulty });
+    const boss = createBoss({ assets, scene, rng, combat, events, hud, spawn, despawn, hero, time, getDifficulty: () => settings.difficulty, collision: world.collision });
     boss.joker.health = 999;
     const finale = createFinale({ scene, world, hero, boss, camera, events, rng });
 
@@ -281,14 +290,37 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       },
     };
 
+    // Late-bound: side content needs the flow, and the flow asks side content three questions.
+    const sideHooks = { holdStory: () => false, marker: () => null, onRespawn: () => null };
     const flow = createFlow({
       hero, encounters, hud, events, progress, storage, comic, stage, prompts, waypoint, beacon, balloons, pickups,
-      collision: world.collision, follow, boss, finale, neonParty,
+      collision: world.collision, follow, boss, finale, neonParty, side: sideHooks,
       onCredits: () => {
         document.exitPointerLock?.();
         input.setEnabled(false);
         menus.credits({ final: true, onClose: () => { menus.hide(); input.setEnabled(true); flow.freeRoam(); } });
       },
+    });
+    const side = createSideContent({
+      scene, assets, hero, follow, combat, encounters, events, flow, prompts, progress, storage, rng,
+      hudRoot: hudRoot.querySelector('.hud') ?? hudRoot, collision: world.collision, buildings: world.data.buildings,
+    });
+    Object.assign(sideHooks, side.flowHooks);
+    const photo = createPhotoMode({
+      root: document.body, camera, renderer, ink, scene, hero, input,
+      sound: (n) => audio.play(n),
+      getTime: () => state.t,
+      getIssue: () => `No. ${progress.stats.photos + 1}`,
+      onOpen: () => {
+        state.paused = true;
+        state.pauseMenu = false;
+        input.setEnabled(false);
+        document.exitPointerLock?.();
+        document.body.classList.add('photo-on');
+        events.emit('photoOpen');
+      },
+      onClose: () => { document.body.classList.remove('photo-on'); events.emit('photoClose'); resume(); },
+      onSaved: () => { side.photoTaken(); events.emit('photoSaved'); },
     });
 
     // ---- HUD reactions ----
@@ -338,10 +370,15 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     };
     for (const [ev, id] of Object.entries(PROMPT_DONE)) events.on(ev, () => prompts.done(id));
     events.on('swing', ({ kind, finisher }) => { prompts.done(kind === 'kick' ? 'kick' : 'punch'); if (finisher) prompts.done('finisher'); });
-    events.on('step', ({ step }) => { if (step.id === 'toDocks') setTimeout(() => prompts.show(['detective', 'balloons']), 30000); });
+    events.on('step', ({ step }) => {
+      if (step.id === 'toDocks') {
+        setTimeout(() => prompts.show(['detective', 'balloons']), 30000);
+        setTimeout(() => prompts.show(['photo']), 120000);
+      }
+    });
 
     // Progress tracking (Plan 3C): one moveLearned event the first time each traversal move happens.
-    const MOVE_IDS = { ladderOn: 'ladder', ledgeGrab: 'ledge', zipOn: 'zipline', wallRun: 'wallrun', diveImpact: 'divebomb' };
+    const MOVE_IDS = { ladderOn: 'ladder', ledgeGrab: 'ledge', zipOn: 'zipline', wallRun: 'wallrun', diveImpact: 'divebomb', throwRelease: 'throw', slam: 'slam', counter: 'counter' };
     onceEachId(events, MOVE_IDS, 'moveLearned');
 
     const sound = wireAudio({ audio, events, hero, combat, flow, settings, voice });
@@ -395,6 +432,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       const playing = flow.mode === 'play' || flow.mode === 'dead';
       const dt = playing && !state.paused ? time.scale(real) : 0;
       if (playing && !state.paused) {
+        if (input.pressed('photo') && flow.mode === 'play' && !hero.dead) { photo.open(); return; }
         if (input.pressed('detective')) state.detectiveOn = !state.detectiveOn;
         pickGrapple(real);
         // Grapple is only locked while a fight is actually around you.
@@ -420,9 +458,10 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         }
         combat.update(dt, ctx);
         hero.update(dt, ctx);
+        side.update(dt, real, { toScreen });
         fx.update(dt);
         chainFx.update(dt);
-        if (hero.pos.y < -0.8) { events.emit('splash'); hero.teleport(hero.lastSafe); }
+        if (hero.pos.y < -0.8) { hero.teleport(hero.lastSafe); events.emit('splash'); }
         follow.update(real, hero.pos, input.look, combat.cameraMode ?? hero.cameraMode(), hero.speed);
         comicFx.update(real, { speed: hero.control?.speed ?? Math.hypot(hero.vel.x, hero.vel.y, hero.vel.z), actionActive: follow.actionActive });
         palT -= real;
@@ -460,7 +499,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     }
 
     const api = {
-      hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, chainFx,
+      hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, side, stage, photo, chainFx,
       winFight: () => { for (const e of combat.enemies) if (e.alive && e.type !== 'joker') { e.health = 0; e.applyHit({ outcome: 'ko' }, hero.pos); } },
     };
     if (params.get('god') === '1') events.on('heroHurt', () => { hero.health = hero.maxHealth; hud.setHealth(1); });
@@ -492,22 +531,59 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     state.pauseMenu = true;
     input.setEnabled(false);
     document.exitPointerLock?.();
-    menus.pause({
-      onResume: resume,
-      onRestart: () => { resume(); game.flow.respawn(); },
-      onTitle: () => { location.search = ''; },
-    });
+    menus.pause(pauseOptions());
   }
+  // Built fresh on every pause so the info line and the challenge button are current.
+  function pauseOptions() {
+    const side = game.side;
+    const opts = {
+      onResume: resume,
+      onRestart: () => { resume(); game.flow.respawn({ manual: true }); },
+      onTitle: () => { side.save(); location.search = ''; },
+      info: side.pauseInfo(),
+      onQuitChallenge: () => { side.challenges.quit(); resume(); },
+      onChallenges: () => menus.challengesPage(side.challengesPage(), { onBack: () => menus.pause(opts), onRead: () => readPage('goldStandard', () => menus.pause(opts)) }),
+      onProgress: () => menus.progressPage(side.progressPage(), { onBack: () => menus.pause(opts), onRead: () => readPage('fromKrishn', () => menus.pause(opts)) }),
+      onPhoto: () => { menus.hide(); game.photo.open(); },
+    };
+    return opts;
+  }
+  // Reward comics open from the pause menu. stage.shot moves the camera for its panels, so the
+  // paused view is put back before the comic shows.
+  function readPage(kind, back) {
+    menus.hide();
+    const p = camera.position.clone(), q = camera.quaternion.clone();
+    const pages = kind === 'goldStandard' ? goldStandardPages(game.stage) : fromKrishnPages(game.stage);
+    camera.position.copy(p);
+    camera.quaternion.copy(q);
+    game.comic.play(pages).then(back);
+  }
+  // Safari only grants pointer lock inside a real user gesture, and rejects the request
+  // (Promise) otherwise, e.g. from Esc or the pad's B button. Swallowing that rejection keeps
+  // it from surfacing as an uncaught error; the lock then waits for the player's next click.
+  const lockPointer = () => {
+    try {
+      canvas.requestPointerLock?.()?.catch?.(() => {
+        if (state.phase === 'play' && !state.paused) game?.hud.hint('Click to look around.', 2200);
+      });
+    } catch { /* some engines throw synchronously instead of rejecting */ }
+  };
   function resume({ lock = true } = {}) {
     menus.hide();
     state.paused = false;
     state.pauseMenu = false;
     input.setEnabled(true);
-    if (lock) canvas.requestPointerLock?.();
+    if (lock) lockPointer();
   }
 
   // Gamepad: pause and help, comic pages, and menu navigation (D-pad to move, A to press, B to go back).
   function padControls() {
+    if (game?.photo.active) return;
+    if (game?.comic.playing) {
+      if (input.padButton(0)) game.comic.advance();
+      if (input.padButton(1)) game.comic.skip();
+      return;
+    }
     if (state.phase === 'title' || state.paused || menus.open) {
       const buttons = [...document.querySelectorAll('.menu-layer.show button')];
       if (!buttons.length) return;
@@ -523,11 +599,6 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       return;
     }
     if (!game) return;
-    if (game.comic.playing) {
-      if (input.padButton(0)) game.comic.advance();
-      if (input.padButton(1)) game.comic.skip();
-      return;
-    }
     if (input.padButton(9)) pause();
     else if (input.padButton(13) && game.flow.mode === 'play') {
       state.paused = true;
@@ -542,6 +613,11 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   });
   window.addEventListener('keydown', (e) => {
     if (state.phase !== 'play' || !game) return;
+    if (e.target?.closest?.('input[type="text"], textarea')) return;
+    if (game.photo.active) {
+      if (settings.bindings.pause.includes(e.code) || settings.bindings.photo.includes(e.code)) { e.preventDefault(); game.photo.close(); }
+      return;
+    }
     const pauseKeys = settings.bindings.pause, helpKeys = settings.bindings.help;
     if (pauseKeys.includes(e.code) && !input.capturing && !game.comic.playing) { e.preventDefault(); state.paused ? (menus.open ? resume() : null) : pause(); }
     else if (helpKeys.includes(e.code) && !state.paused && game.flow.mode === 'play') {
@@ -552,9 +628,21 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       menus.help(resume);
     }
   });
-  canvas.addEventListener('click', () => { audio.unlock(); if (state.phase === 'play' && !state.paused) canvas.requestPointerLock?.(); });
+  canvas.addEventListener('click', (e) => {
+    audio.unlock();
+    if (state.phase !== 'play' || state.paused) return;
+    if (!document.pointerLockElement) {
+      // This click's only job is re-acquiring the lock (Esc, or Safari losing it on its own);
+      // the mousedown that already buffered a punch press for it must not fire one too.
+      lockPointer();
+      input.swallowCode('Mouse' + e.button);
+    }
+  });
   window.addEventListener('mousedown', () => audio.unlock(), { once: true });
   window.addEventListener('keydown', () => audio.unlock(), { once: true });
+  // Cheap (localStorage write): catches a tab close or app switch that skips the pause menu,
+  // so at most one save interval's worth of stats is ever at risk instead of up to 20 s.
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') game?.side.save(); });
 
   window.__game = { state, renderer, ink, dynRes, camera, scene, world, input, events, audio, voice, settings, time, get progress() { return progress; }, begin, lightningNow: () => { weather.next = 0; } };
 
@@ -587,7 +675,9 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   function step(now) {
     const real = Math.min(0.05, (now - last) / 1000);
     last = now;
-    state.t += real;
+    const photoOn = !!game?.photo.active;
+    // Photo mode freezes time: rain, lightning, traffic and the ink's boiling line all hold still.
+    if (!photoOn) state.t += real;
     input.update(real);
     let focus = camera.position;
     if (state.phase === 'title') {
@@ -599,17 +689,23 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       // A cutscene, the finale or the credits never run under a pause menu.
       if (state.pauseMenu && !['play', 'dead'].includes(game.flow.mode)) resume({ lock: false });
       game.update(real);
+      if (photoOn) game.photo.update(real);
       focus = game.hero.pos;
     }
     padControls();
-    lightning(real);
-    world.update(state.t, real, focus, camera, game?.hero ?? null);
+    if (!photoOn) lightning(real);
+    world.update(state.t, photoOn ? 0 : real, focus, camera, game?.hero ?? null);
     ink.render(scene, camera, state.t);
     input.endFrame();
     audio.update(real);
     state.frame += 1;
     fpsT += real; fpsN += 1;
-    if (fpsT >= 1) { state.fps = Math.round(fpsN / fpsT); fpsT = 0; fpsN = 0; fpsEl.textContent = `${state.fps} fps · ${Math.round(settings.renderScale * dynRes.scale * 100)}% · ${gpuName}`; }
+    // Refreshed four times a second: quick enough to see a stutter, slow enough to read.
+    if (fpsT >= 0.25) {
+      state.fps = Math.round(fpsN / fpsT); fpsT = 0; fpsN = 0;
+      fpsNum.textContent = String(state.fps);
+      if (settings.fpsDetails) fpsD.textContent = `${Math.round(settings.renderScale * dynRes.scale * 100)}% · ${gpuName}`;
+    }
   }
 
   applySettings();

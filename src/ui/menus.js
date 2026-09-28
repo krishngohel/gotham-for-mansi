@@ -2,6 +2,7 @@
 import { ACTIONS, DEFAULT_BINDINGS, keyLabel, rebind } from '../core/bindings.js';
 import { saveSettings } from '../core/settings.js';
 import { promptText } from './prompts.js';
+import { drawProgressMap } from './progressMap.js';
 import MANSI from '../mansi.config.js';
 
 const MOVING_AROUND = ['ladder', 'ledge', 'zip', 'wallrun', 'divebomb', 'takedown'];
@@ -11,7 +12,7 @@ const PAD_LAYOUT = [
   ['Move / camera', 'Left stick / right stick'], ['Jump, glide', 'A'], ['Punch', 'X'], ['Kick', 'B'], ['Block, counter', 'Y'],
   ['Grab and throw', 'D-pad right'], ['Grapple', 'LB'], ['Cape stun', 'RB'], ['Dodge', 'LT'], ['Batarang', 'RT'], ['Sprint', 'L3'], ['Special takedown', 'R3'],
   ['Chain takedowns', 'Hold Y, then D-pad left, up or right'],
-  ['Detective vision', 'View'], ['Pause', 'Menu'],
+  ['Detective vision', 'View'], ['Photo mode', 'D-pad up'], ['Pause', 'Menu'],
 ];
 
 function el(tag, cls, html) {
@@ -45,15 +46,17 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
   function save() { saveSettings(storage, settings); onChange(settings); }
 
   // ---------- title ----------
-  function title({ canContinue, onContinue, onNew, onCredits }) {
+  function title(opts) {
+    const { canContinue, percent = null, onContinue, onNew } = opts;
+    const again = () => title(opts);
     const node = el('div', 'menu title-menu');
     node.appendChild(el('div', 'logo', `<span class="kicker">A birthday special</span><span class="l1">Gotham needs you,</span><span class="l2">${MANSI.name}</span>`));
     const list = el('div', 'mlist');
-    if (canContinue) list.appendChild(button('Continue', onContinue, 'primary'));
+    if (canContinue) list.appendChild(button(percent == null ? 'Continue' : `Continue, ${percent}%`, onContinue, 'primary'));
     list.appendChild(button(canContinue ? 'New game' : 'Start', onNew, canContinue ? '' : 'primary'));
-    list.appendChild(button('Settings', () => openSettings(() => title({ canContinue, onContinue, onNew, onCredits }))));
-    list.appendChild(button('Controls', () => help(() => title({ canContinue, onContinue, onNew, onCredits }))));
-    list.appendChild(button('Credits', () => credits({ onClose: () => title({ canContinue, onContinue, onNew, onCredits }) })));
+    list.appendChild(button('Settings', () => openSettings(again)));
+    list.appendChild(button('Controls', () => help(again)));
+    list.appendChild(button('Credits', () => credits({ onClose: again })));
     node.appendChild(list);
     node.appendChild(el('div', 'foot', 'Best with a mouse and headphones.'));
     show(node);
@@ -80,17 +83,84 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
   }
 
   // ---------- pause ----------
-  function pause({ onResume, onRestart, onTitle }) {
+  // opts: { onResume, onRestart, onTitle, info?: { challenge, crimesStopped, percent },
+  //         onQuitChallenge?, onChallenges?, onProgress?, onPhoto? }
+  function pause(opts) {
+    const { onResume, onRestart, onTitle, info = {}, onQuitChallenge, onChallenges, onProgress, onPhoto } = opts;
+    const again = () => pause(opts);
     const node = el('div', 'menu pause-menu');
     node.appendChild(el('h2', '', 'Paused'));
     const list = el('div', 'mlist');
     list.appendChild(button('Resume', onResume, 'primary'));
-    list.appendChild(button('Controls', () => help(() => pause({ onResume, onRestart, onTitle }))));
-    list.appendChild(button('Settings', () => openSettings(() => pause({ onResume, onRestart, onTitle }))));
+    if (info.challenge && onQuitChallenge) list.appendChild(button('Quit challenge', onQuitChallenge));
+    if (onChallenges) list.appendChild(button('Challenges', onChallenges));
+    if (onProgress) list.appendChild(button(info.percent != null ? `Progress, ${info.percent}%` : 'Progress', onProgress));
+    if (onPhoto) list.appendChild(button('Photo mode', onPhoto));
+    list.appendChild(button('Controls', () => help(again)));
+    list.appendChild(button('Settings', () => openSettings(again)));
     list.appendChild(button('Restart from checkpoint', onRestart));
     list.appendChild(button('Quit to title', onTitle));
     node.appendChild(list);
+    if (info.crimesStopped != null) node.appendChild(el('p', 'note', `Crimes stopped: ${info.crimesStopped}`));
     show(node);
+  }
+
+  // ---------- challenges ----------
+  function challengesPage(data, { onBack, onRead }) {
+    const node = el('div', 'menu challenges-menu');
+    node.appendChild(el('h2', '', 'Challenges'));
+    const list = el('div', 'cr-list');
+    for (const c of data.list) {
+      const row = el('div', `cr-row medal-${c.medal ?? 'none'}`, '<span class="cr-medal"></span><span class="cr-title"></span><span class="cr-best"></span><span class="cr-blurb"></span><span class="cr-goal"></span>');
+      row.querySelector('.cr-title').textContent = c.name;
+      row.querySelector('.cr-best').textContent = c.best ?? 'Not tried yet';
+      row.querySelector('.cr-blurb').textContent = c.blurb;
+      row.querySelector('.cr-goal').textContent = c.goal;
+      list.appendChild(row);
+    }
+    node.appendChild(list);
+    node.appendChild(el('p', 'note', 'Walk into a glowing bat pillar to start. Detective vision shows every pillar through walls.'));
+    if (data.goldStandard) node.appendChild(button(`Read: ${MANSI.name}'s Gold Standard`, onRead, 'primary'));
+    else node.appendChild(el('p', 'note', `Gold in every challenge unlocks a comic page: ${MANSI.name}'s Gold Standard.`));
+    node.appendChild(button('Back', onBack, 'small'));
+    show(node);
+  }
+
+  // ---------- progress ----------
+  function progressPage(data, { onBack, onRead }) {
+    const node = el('div', 'menu progress-menu');
+    node.appendChild(el('h2', '', `Progress: ${data.percent}%`));
+    const wrap = el('div', 'pg-wrap');
+    const map = el('canvas', 'pg-map');
+    const parts = el('div', 'pg-parts');
+    for (const p of data.parts) {
+      const row = el('div', 'pg-row', '<div class="pg-head"><span class="pg-label"></span><span class="pg-count"></span></div><div class="pg-bar"><i></i></div><div class="pg-detail"></div>');
+      row.querySelector('.pg-label').textContent = p.label;
+      row.querySelector('.pg-count').textContent = `${p.done}/${p.total}`;
+      row.querySelector('.pg-bar i').style.width = `${Math.round(p.fraction * 100)}%`;
+      row.querySelector('.pg-detail').textContent = p.detail;
+      parts.appendChild(row);
+    }
+    wrap.append(map, parts);
+    node.appendChild(wrap);
+    const stats = el('p', 'pg-stats');
+    stats.textContent = data.statsLine;
+    node.appendChild(stats);
+    if (data.fromKrishn) node.appendChild(button(`Read: From ${MANSI.fromName}`, onRead, 'primary'));
+    node.appendChild(button('Back', onBack, 'small'));
+    show(node);
+    // Sized and drawn once the map is actually laid out, so the backing store matches its real
+    // CSS box (min(320px, 80vw), see .pg-map) instead of guessing it. Backing store = CSS size x
+    // device pixel ratio (capped at 2), floored at 540 so non-Retina screens keep today's crispness.
+    // drawProgressMap scales its own drawing to canvas.width/height, so this alone fixes the soft
+    // render on Retina screens (DPR 2, e.g. a 2021 MacBook Air); it's still one draw per open, no
+    // per-frame redraw.
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const boxSize = map.getBoundingClientRect().width || 320;
+    const backing = Math.max(540, Math.round(boxSize * dpr));
+    map.width = backing;
+    map.height = backing;
+    drawProgressMap(map, data.map);
   }
 
   // ---------- controls help ----------
@@ -116,6 +186,8 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
     node.appendChild(el('h3', '', 'Chain takedowns'));
     for (const id of CHAIN_TIPS) node.appendChild(el('p', 'tip', promptText(id, settings.bindings)));
     node.appendChild(el('p', 'tip', 'Rope-a-Dope (6) ties up to three goons together. Headbanger (9) smashes two heads together. Domino Drop (12) bounces off every head into a dive-bomb. From stealth they are free and silent.'));
+    node.appendChild(el('h3', '', 'Extras'));
+    for (const id of ['challenges', 'photo']) node.appendChild(el('p', 'tip', promptText(id, settings.bindings)));
     node.appendChild(el('p', 'tip', 'Tips: counter every blue bolt, dodge the red ones. Kick or cape-stun knife goons. Batarang the Joker mid-throw.'));
     node.appendChild(button('Back', onBack, 'small'));
     show(node);
@@ -205,6 +277,7 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
       body.appendChild(el('p', 'note', 'Lowers the render scale a little when frames run late, and raises it again when there is room.'));
       body.appendChild(slider('Halftone dots', settings.halftone, 0, 1.5, 0.05, (v) => { settings.halftone = v; }, (v) => `${Math.round(v * 100)}%`));
       body.appendChild(toggle('Show FPS', settings.showFps, (v) => { settings.showFps = v; }));
+      body.appendChild(toggle('FPS details (GPU, render scale)', settings.fpsDetails, (v) => { settings.fpsDetails = v; }));
     } else if (tab === 'audio') {
       body.appendChild(slider('Master', settings.volume.master, 0, 1, 0.05, (v) => { settings.volume.master = v; }, (v) => `${Math.round(v * 100)}%`));
       body.appendChild(slider('Music', settings.volume.music, 0, 1, 0.05, (v) => { settings.volume.music = v; }, (v) => `${Math.round(v * 100)}%`));
@@ -236,5 +309,5 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
     show(node);
   }
 
-  return { title, suitSelect, pause, help, openSettings, credits, hide, get open() { return !!current; } };
+  return { title, suitSelect, pause, challengesPage, progressPage, help, openSettings, credits, hide, get open() { return !!current; } };
 }

@@ -35,6 +35,8 @@ const ENTRIES = [
   ['takedown', (k) => `Hanging under an unaware goon? ${k('punch')} pulls them over the edge. Landing on one from above works too.`],
   ['chain', (k) => `Combo at 6 or more, or two goons nearby who haven't seen you? Press ${k('chain1')}, ${k('chain2')} or ${k('chain3')} for a chain takedown that goes goon to goon.`],
   ['chainTied', (k) => `Tied up! They can't get up for a few seconds. One more hit, ${k('punch')} or ${k('kick')}, knocks the whole bundle out.`],
+  ['challenges', () => `Glowing bat pillars start challenges: glide rings, a rooftop run and an arena fight. Walk into one to begin.`],
+  ['photo', (k) => `Press ${k('photo')} for photo mode. Frame a shot, add a caption and save it as a picture.`],
 ];
 
 export const PROMPT_IDS = ENTRIES.map(([id]) => id);

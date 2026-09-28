@@ -14,10 +14,10 @@ uniform sampler2D tDepth;
 uniform sampler2D tNormal;
 uniform vec2 uTexel;
 uniform float uNear, uFar, uTime, uFlash, uDetective, uHalftone, uHalftoneAmount;
-uniform float uWobble, uHatch, uMidDots, uSkyDots, uColorEdges, uMisreg, uPaletteAmt, uImpact, uPaperTex;
+uniform float uWobble, uHatch, uMidDots, uSkyDots, uColorEdges, uMisreg, uPaletteAmt, uImpact, uPaperTex, uFilter;
 uniform vec2 uImpactCenter;
 uniform vec3 uPalette[6];
-uniform vec3 uInk, uPaper, uDetectiveTint;
+uniform vec3 uInk, uPaper, uDetectiveTint, uAccent;
 varying vec2 vUv;
 
 float viewDepth(vec2 uv) { return -perspectiveDepthToViewZ(texture2D(tDepth, uv).x, uNear, uFar); }
@@ -155,6 +155,30 @@ void main() {
     col = mix(col, mix(bw, uInk, rays * 0.9), uImpact);
   }
 
+  // Photo-mode filters (0 = the normal ink look). Uniform-driven, so no new shader program.
+  if (uFilter > 0.5) {
+    float Lf = pow(max(luma(col), 0.0), 1.0 / 2.2);
+    if (uFilter < 1.5) {
+      // Noir: black, white and one accent colour (the balloon red).
+      float mx = max(col.r, max(col.g, col.b)), mn = min(col.r, min(col.g, col.b));
+      float red = smoothstep(0.35, 0.6, (mx - mn) / max(mx, 1e-3)) * step(max(col.g, col.b), col.r * 0.7);
+      vec3 bw = mix(uInk, uPaper, smoothstep(0.18, 0.42, Lf));
+      col = mix(mix(bw, uAccent * (0.35 + 0.9 * Lf), red), uInk, edge);
+    } else if (uFilter < 2.5) {
+      // Pop: loud colour and big dots.
+      vec3 gl = vec3(luma(col));
+      col = clamp(gl + (col - gl) * 1.9, 0.0, 1.0) * 1.12;
+      vec2 pc = mat2(0.7071, -0.7071, 0.7071, 0.7071) * frag / (uHalftone * 2.2);
+      float pr = 0.34 * smoothstep(0.15, 0.7, Lf);
+      float pd = 1.0 - smoothstep(pr - 0.05, pr + 0.05, length(fract(pc) - 0.5));
+      col = mix(col, col * 0.45, pd * 0.8);
+    } else {
+      // Sepia.
+      vec3 s = vec3(dot(col, vec3(0.393, 0.769, 0.189)), dot(col, vec3(0.349, 0.686, 0.168)), dot(col, vec3(0.272, 0.534, 0.131)));
+      col = mix(col, s, 0.92);
+    }
+  }
+
   // Paper: fibres, a slow grain, and warm paper white in the highlights.
   if (uPaperTex > 0.0) {
     float fib = vnoise(frag * vec2(0.9, 0.12)) * 0.5 + vnoise(frag * 0.35) * 0.5;
@@ -203,6 +227,8 @@ export function createInkPipeline(renderer, quality, { gpuTime = false } = {}) {
     uInk: { value: new THREE.Color(PALETTE.ink) },
     uPaper: { value: new THREE.Color(PALETTE.paper) },
     uDetectiveTint: { value: new THREE.Color(PALETTE.detective) },
+    uAccent: { value: new THREE.Color(PALETTE.balloon) },
+    uFilter: { value: 0 },
     uWobble: { value: 0 }, uHatch: { value: 0 }, uMidDots: { value: 0 }, uSkyDots: { value: 0 },
     uColorEdges: { value: 0 }, uMisreg: { value: 0 }, uPaletteAmt: { value: 0 }, uPaperTex: { value: 0 },
     uImpact: { value: 0 }, uImpactCenter: { value: new THREE.Vector2(0.5, 0.5) },
@@ -252,6 +278,8 @@ export function createInkPipeline(renderer, quality, { gpuTime = false } = {}) {
   }
   function setPalette(a) { for (let i = 0; i < 6; i++) uniforms.uPalette.value[i].setRGB(a[i * 3], a[i * 3 + 1], a[i * 3 + 2]); }
   function impact(cx, cy) { uniforms.uImpactCenter.value.set(cx, cy); impactFrames = 2; }
+  const FILTER_INDEX = { ink: 0, noir: 1, pop: 2, sepia: 3 };
+  function setFilter(name) { uniforms.uFilter.value = FILTER_INDEX[name] ?? 0; }
 
   function render(scene, camera, time) {
     uniforms.uImpact.value = impactFrames > 0 ? 1 : 0;
@@ -313,5 +341,5 @@ export function createInkPipeline(renderer, quality, { gpuTime = false } = {}) {
     try { await renderer.compileAsync(scene, camera); } finally { renderer.setRenderTarget(null); }
   }
 
-  return { uniforms, setSize, render, setComic, setPalette, impact, compileAsync, get gpuMs() { return gpuMs; } };
+  return { uniforms, setSize, render, setComic, setPalette, impact, setFilter, compileAsync, get gpuMs() { return gpuMs; } };
 }

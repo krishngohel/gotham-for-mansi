@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { PALETTE } from '../config/palette.js';
 import { LAYER_FX } from '../render/layers.js';
-import { createBat } from './characters.js';
+import { createBat, footGround, heroPlantsFeet } from './characters.js';
 import { createCape } from './cape.js';
 import { ladderGrab, ladderTopGrab, zipClosest } from '../world/climbables.js';
 import { createLadderControl } from './traverse/ladder.js';
@@ -27,6 +27,7 @@ const GLIDE_CRUISE = 17;  // m/s
 export function createHero({ assets, suit, scene, collision, events, climbables = { ladders: [], ziplines: [] }, settings = { autoLedge: true } }) {
   const bat = createBat(assets, ['m', 'f', 'gold'].includes(suit) ? suit : 'm');
   scene.add(bat.root);
+  const groundUnderFoot = footGround(collision);
   const cape = createCape(bat, bat.colors.cape);
   scene.add(cape.mesh);
 
@@ -47,7 +48,7 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
   const ladderOpts = { reach: 0.7, facingX: undefined, facingZ: undefined }; // reused options for ladderGrab
 
   const h = {
-    bat, cape, pos, vel, collision, dead: false,
+    bat, cape, cable, pos, vel, collision, dead: false,
     state: 'ground', stateT: 0, grounded: true, airT: 0, coyote: 0, jumpBuffer: 0,
     health: 100, maxHealth: 100,
     glide: { speed: 0, heading: 0 },
@@ -381,6 +382,7 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
     h.stateT += dt;
     h.lastClimbT += dt;
     h.invulnerable = Math.max(0, h.invulnerable - dt);
+    bat.groundAt = heroPlantsFeet(h) ? groundUnderFoot : null;
     if (h.frozen) { bat.animator.update(dt); return; }
     if (h.control) {
       const ctl = h.control;
@@ -395,10 +397,15 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
     bat.animator.update(dt);
   };
 
+  const groundUnderHem = (x, z) => collision.groundBelow(x, pos.y + 0.3, z, 0.02);
   h.updateCape = (dt) => {
     // Air rushing past the cape.
     const wind = [-vel.x * 0.8 + 0.6, -vel.y * 0.5 + (h.state === 'glide' ? 6 : 0), -vel.z * 0.8 + 0.3];
-    cape.update(dt, wind);
+    // While the hero stands, the hem rests on whatever is within a step of the feet under each of
+    // its points (a roof, a parapet) and hangs free past an edge; hanging, climbing or airborne
+    // the whole cloth falls free.
+    const standing = !h.control && h.grounded && (h.state === 'ground' || h.state === 'roll');
+    cape.update(dt, wind, standing ? groundUnderHem : null);
   };
 
   h.teleport = (p, yaw = bat.yaw) => {

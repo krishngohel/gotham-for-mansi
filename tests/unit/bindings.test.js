@@ -28,6 +28,10 @@ describe('bindings', () => {
   it('joins labels for display', () => {
     expect(bindingLabel({ ...DEFAULT_BINDINGS, punch: ['Mouse0'] }, 'punch')).toBe('LMB');
   });
+  it('binds photo mode to O by default', () => {
+    expect(DEFAULT_BINDINGS.photo).toEqual(['KeyO']);
+    expect(ACTIONS.find((a) => a.id === 'photo').label).toBe('Photo mode');
+  });
 });
 
 describe('rebind conflicts', () => {
