@@ -96,6 +96,28 @@ describe('chain control', () => {
     expect(of(log, 'word').map((l) => l[1])).toEqual(['KONK!', 'THWACK!']);
   });
 
+  it('Headbanger keeps facing across the two goons from the grab through the smash', () => {
+    // The smash step stays put: it must not turn Batman to face goon 2, which would swing the two
+    // held goons from his hands to in front of and behind him.
+    const log = [];
+    const hero = fakeHero();
+    const targets = squad();
+    const api = fakeApi(log, targets);
+    const finish = api.finish;
+    api.finish = (e) => { log.push(['at', e.id, e.pos.x - hero.pos.x, e.pos.z - hero.pos.z, hero.bat.yaw]); return finish(e); };
+    const ctl = createChainControl(hero, api, { chain: CHAINS[1], targets, stealth: false, timeline: buildChainTimeline('head', 3) });
+    for (let f = 0; f < 600 && !ctl.update(1 / 60); f++);
+    const smash = of(log, 'at').slice(0, 2);
+    expect(smash.map((l) => l[1])).toEqual(['g0', 'g1']);
+    const side = smash.map(([, , dx, dz, yaw]) => {
+      const fwd = dx * Math.sin(yaw) + dz * Math.cos(yaw);
+      expect(Math.abs(fwd)).toBeLessThan(0.05);
+      return dx * Math.cos(yaw) - dz * Math.sin(yaw);
+    });
+    expect(Math.abs(side[0])).toBeGreaterThan(0.2);
+    expect(Math.sign(side[0])).toBe(-Math.sign(side[1]));
+  });
+
   it('Domino Drop stomps each head, bounces high and dive-bombs the pile', () => {
     const { log, maxY, hero } = run('domino', squad());
     expect(of(log, 'finish').map((l) => l[1])).toEqual(['g0', 'g1', 'g2']);

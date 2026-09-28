@@ -84,8 +84,10 @@ export function createChainControl(hero, api, { chain, targets, stealth, timelin
       const a = targets[0].pos, b = targets[1].pos;
       const yaw = Math.atan2(b.x - a.x, b.z - a.z) + Math.PI / 2;
       hero.bat.face(Math.abs(angleDiff(yaw, hero.bat.yaw)) < Math.PI / 2 ? yaw : yaw + Math.PI);
-    } else if (e) faceTo(e.pos.x, e.pos.z);
-    else if (s.at !== 'stay') faceTo(center.x, center.z);
+    } else if (s.at !== 'stay') {
+      // A step that stays put (the Headbanger smash) keeps the facing it has.
+      if (e) faceTo(e.pos.x, e.pos.z); else faceTo(center.x, center.z);
+    }
   }
 
   // The plan is applied as per-frame deltas on top of the resolved position (as strike lunges
