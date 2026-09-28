@@ -2,7 +2,11 @@ import { ACTIONS, DEFAULT_BINDINGS } from './bindings.js';
 
 const KEY = 'gotham-mansi-settings-v1';
 
+// Bumped when a default changes in a way that older saves should pick up once (see sanitizeSettings).
+export const SETTINGS_REV = 2;
+
 export const DEFAULT_SETTINGS = {
+  rev: SETTINGS_REV,
   bindings: DEFAULT_BINDINGS,
   sensitivity: 1,
   invertY: false,
@@ -15,7 +19,8 @@ export const DEFAULT_SETTINGS = {
   renderScale: 1,
   dynamicRes: true,
   halftone: 1,
-  showFps: false,
+  showFps: true,
+  fpsDetails: false,
   volume: { master: 0.8, music: 0.6, sfx: 0.9 },
   difficulty: 'normal',
   hints: true,
@@ -54,7 +59,11 @@ export function sanitizeSettings(raw = {}) {
   const d = DEFAULT_SETTINGS;
   const r = raw && typeof raw === 'object' ? raw : {};
   const v = r.volume && typeof r.volume === 'object' ? r.volume : {};
+  // Rev 2 turned the FPS counter on by default. A save from before that takes the new default
+  // once; the player's later choice is saved with the current rev and respected from then on.
+  const fpsMigrated = num(r.rev, 0, SETTINGS_REV, 0) >= 2;
   return {
+    rev: SETTINGS_REV,
     bindings: sanitizeBindings(r.bindings),
     sensitivity: num(r.sensitivity, 0.2, 3, d.sensitivity),
     invertY: bool(r.invertY, d.invertY),
@@ -67,7 +76,8 @@ export function sanitizeSettings(raw = {}) {
     renderScale: num(r.renderScale, 0.5, 1, d.renderScale),
     dynamicRes: bool(r.dynamicRes, d.dynamicRes),
     halftone: num(r.halftone, 0, 1.5, d.halftone),
-    showFps: bool(r.showFps, d.showFps),
+    showFps: fpsMigrated ? bool(r.showFps, d.showFps) : d.showFps,
+    fpsDetails: bool(r.fpsDetails, d.fpsDetails),
     volume: {
       master: num(v.master, 0, 1, d.volume.master),
       music: num(v.music, 0, 1, d.volume.music),

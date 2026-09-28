@@ -200,6 +200,7 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
       body.appendChild(el('p', 'note', 'Lowers the render scale a little when frames run late, and raises it again when there is room.'));
       body.appendChild(slider('Halftone dots', settings.halftone, 0, 1.5, 0.05, (v) => { settings.halftone = v; }, (v) => `${Math.round(v * 100)}%`));
       body.appendChild(toggle('Show FPS', settings.showFps, (v) => { settings.showFps = v; }));
+      body.appendChild(toggle('FPS details (GPU, render scale)', settings.fpsDetails, (v) => { settings.fpsDetails = v; }));
     } else if (tab === 'audio') {
       body.appendChild(slider('Master', settings.volume.master, 0, 1, 0.05, (v) => { settings.volume.master = v; }, (v) => `${Math.round(v * 100)}%`));
       body.appendChild(slider('Music', settings.volume.music, 0, 1, 0.05, (v) => { settings.volume.music = v; }, (v) => `${Math.round(v * 100)}%`));

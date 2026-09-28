@@ -106,8 +106,11 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     duck: (on) => audio.setVolumes(on ? { ...settings.volume, music: settings.volume.music * 0.35 } : settings.volume),
   });
   const menus = createMenus({ root: document.body, settings, storage, input, sound: (n) => audio.play(n), onChange: () => applySettings() });
+  // Comic-style frame counter in the corner (Settings > Video hides it, or adds the GPU line).
   const fpsEl = Object.assign(document.createElement('div'), { className: 'fps' });
+  fpsEl.innerHTML = '<span class="n">--</span><span class="u">fps</span><span class="d"></span>';
   document.body.appendChild(fpsEl);
+  const fpsNum = fpsEl.querySelector('.n'), fpsD = fpsEl.querySelector('.d');
   const gpu = gpuRenderer(renderer.getContext());
   const gpuName = gpuShortName(gpu);
   maybeShowGpuHint(document.body, gpu, storage);
@@ -130,6 +133,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     dynRes.setEnabled(settings.dynamicRes && params.get('dynres') !== '0');
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.pixelRatioCap) * settings.renderScale * dynRes.scale);
     fpsEl.style.display = settings.showFps ? '' : 'none';
+    fpsEl.classList.toggle('detail', settings.fpsDetails);
     game?.follow.configure(settings);
     if (game) {
       game.combat.setDifficulty(settings.difficulty);
@@ -229,7 +233,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const prompts = createPromptQueue(hud, () => settings.bindings, () => settings.hints);
     const waypoint = createWaypoint(hudRoot.querySelector('.hud') ?? hudRoot);
     const beacon = createBeacon(scene);
-    const boss = createBoss({ assets, scene, rng, combat, events, hud, spawn, despawn, hero, time, getDifficulty: () => settings.difficulty });
+    const boss = createBoss({ assets, scene, rng, combat, events, hud, spawn, despawn, hero, time, getDifficulty: () => settings.difficulty, collision: world.collision });
     boss.joker.health = 999;
     const finale = createFinale({ scene, world, hero, boss, camera, events, rng });
 
@@ -576,7 +580,12 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     audio.update(real);
     state.frame += 1;
     fpsT += real; fpsN += 1;
-    if (fpsT >= 1) { state.fps = Math.round(fpsN / fpsT); fpsT = 0; fpsN = 0; fpsEl.textContent = `${state.fps} fps · ${Math.round(settings.renderScale * dynRes.scale * 100)}% · ${gpuName}`; }
+    // Refreshed four times a second: quick enough to see a stutter, slow enough to read.
+    if (fpsT >= 0.25) {
+      state.fps = Math.round(fpsN / fpsT); fpsT = 0; fpsN = 0;
+      fpsNum.textContent = String(state.fps);
+      if (settings.fpsDetails) fpsD.textContent = `${Math.round(settings.renderScale * dynRes.scale * 100)}% · ${gpuName}`;
+    }
   }
 
   applySettings();

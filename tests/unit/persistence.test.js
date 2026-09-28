@@ -38,6 +38,21 @@ describe('settings', () => {
     expect(sanitizeSettings({ lineWobble: false, impactFrames: false }).lineWobble).toBe(false);
     expect(sanitizeSettings({ impactFrames: 3 }).impactFrames).toBe(true);
   });
+  it('shows the FPS counter by default and migrates older saves once', () => {
+    expect(sanitizeSettings({}).showFps).toBe(true);
+    expect(sanitizeSettings({}).fpsDetails).toBe(false);
+    // A pre-rev-2 save that had the counter off takes the new default once...
+    expect(sanitizeSettings({ showFps: false }).showFps).toBe(true);
+    expect(sanitizeSettings({ showFps: false, rev: 1 }).showFps).toBe(true);
+    // ...and a choice made since is kept.
+    expect(sanitizeSettings({ showFps: false, rev: 2 }).showFps).toBe(false);
+    expect(sanitizeSettings({ showFps: true, rev: 2 }).showFps).toBe(true);
+    expect(sanitizeSettings({ fpsDetails: true, rev: 2 }).fpsDetails).toBe(true);
+    const st = memoryStorage();
+    saveSettings(st, sanitizeSettings({ showFps: false }));
+    saveSettings(st, { ...loadSettings(st), showFps: false });
+    expect(loadSettings(st).showFps).toBe(false);
+  });
   it('keeps autoLedge as a boolean and defaults it on', () => {
     expect(sanitizeSettings({}).autoLedge).toBe(true);
     expect(sanitizeSettings({ autoLedge: false }).autoLedge).toBe(false);

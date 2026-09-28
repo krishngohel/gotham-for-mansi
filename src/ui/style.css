@@ -160,7 +160,12 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0 6px; margin: 0 2px; bo
 .gpu-hint { position: fixed; left: 50%; top: 14px; transform: translateX(-50%); z-index: 40; max-width: min(560px, calc(100vw - 32px)); display: flex; gap: 12px; align-items: center; padding: 10px 14px; background: var(--paper); color: var(--ink); border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); font: 19px 'Patrick Hand SC', 'Barlow Condensed', sans-serif; }
 .gpu-hint p { margin: 0; line-height: 1.25; }
 .gpu-hint button { flex: none; font: 700 16px 'Barlow Condensed', sans-serif; padding: 6px 12px; background: var(--signal); color: var(--ink); border: 2px solid var(--ink); cursor: pointer; }
-.fps { position: fixed; right: 8px; bottom: 6px; z-index: 6; font: 700 14px 'Barlow Condensed', sans-serif; color: var(--paper); text-shadow: 1px 1px 0 var(--ink); }
+/* Frame counter: a small paper tag in the corner, inked like the rest of the HUD. */
+.fps { position: fixed; right: 12px; bottom: 10px; z-index: 6; display: flex; align-items: baseline; gap: 4px; padding: 2px 8px 3px; background: var(--paper); color: var(--ink); border: 2px solid var(--ink); box-shadow: 2px 2px 0 var(--ink); transform: rotate(-1.5deg); pointer-events: none; opacity: 0.92; }
+.fps .n { font: 20px/1 'Bangers', cursive; letter-spacing: 1px; min-width: 26px; text-align: right; }
+.fps .u { font: 700 11px/1 'Barlow Condensed', sans-serif; letter-spacing: 1px; text-transform: uppercase; }
+.fps .d { display: none; font: 600 11px/1 'Barlow Condensed', sans-serif; letter-spacing: 0.5px; margin-left: 4px; padding-left: 6px; border-left: 2px solid var(--ink); }
+.fps.detail .d { display: inline; }
 
 .sfx.big { font-size: 104px; -webkit-text-stroke: 5px var(--ink); text-shadow: 7px 7px 0 var(--ink); color: #ffe45c; animation-duration: 1s; }
 .hud-speed { position: absolute; inset: -10%; pointer-events: none; opacity: 0;
