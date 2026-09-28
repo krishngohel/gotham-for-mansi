@@ -11,6 +11,7 @@ import { findLedge, findRunWall } from './traverse/probes.js';
 import { createLedgeControl } from './traverse/ledge.js';
 import { createZipControl } from './traverse/zipline.js';
 import { createWallRunControl } from './traverse/wallrun.js';
+import { createDiveControl } from './traverse/divebomb.js';
 
 const GRAVITY = 26;
 const JUMP_V = 9.4;
@@ -217,6 +218,10 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
       const lean = 1.0 + ctrl * 0.45;
       bat.tilt.rotation.x += (lean * bat.lm.fwd - bat.tilt.rotation.x) * Math.min(1, dt * 5);
       bat.tilt.rotation.z += (-turn / dt * 0.12 - bat.tilt.rotation.z) * Math.min(1, dt * 4);
+      if (input.pressed('kick') && heightAboveGround() > 6 && h.combat) {
+        h.control = createDiveControl(h, { events, combat: h.combat });
+        return;
+      }
       if (!input.down('jump')) {
         setState('air');
         h.airT = 0.5;

@@ -1,6 +1,6 @@
 // Freeflow combat: turns hero input into moves against enemies and resolves enemy attacks on the hero.
 import * as THREE from 'three';
-import { resolveHit, damageToHero, DIFFICULTY } from './rules.js';
+import { resolveHit, damageToHero, DIFFICULTY, inShockwave } from './rules.js';
 import { selectTarget } from './targeting.js';
 import { createCombo } from './combo.js';
 import { createDirector } from './director.js';
@@ -569,9 +569,30 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
 
   const ACTIONS = ['block', 'punch', 'kick', 'throw', 'cape', 'batarang', 'dodge', 'special'];
 
+  // A dive-bomb impact: knocks down every downable goon in range. Armored enemies (brutes)
+  // shrug it off via the same immunity resolveHit already gives them (unless stunned), and
+  // the boss is excluded outright so neither can be one-shot by it.
+  function shockwave(center, radius = 4) {
+    let n = 0;
+    let first = null;
+    for (const e of enemies) {
+      if (!e.alive || e.down || e.def.boss || !inShockwave(center, e.pos, radius)) continue;
+      const result = resolveHit('diveBomb', e);
+      const wasAttacking = e.applyHit(result, center, { power: 1.6, launch: 6 });
+      if (wasAttacking) director.release(e.id);
+      if (result.outcome === 'immune' || result.outcome === 'parried') continue;
+      if (!first) first = e;
+      n += 1;
+    }
+    events.emit('diveImpact', { pos: center.clone(), count: n });
+    if (first) critical(first);
+    return n;
+  }
+
   return {
     combo,
     director,
+    shockwave,
     get enemies() { return enemies; },
     setEnemies(list) {
       enemies = list;
@@ -594,7 +615,10 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
       if (bufferT <= 0) buffer = null;
       const ctl = hero.control;
       const free = !hero.dead && (!ctl || (ctl.combat && ctl.canChain()));
-      if (buffer && free && hero.state !== 'roll' && ctl?.name !== 'grapple') {
+      // A buffered kick while gliding (or mid dive-bomb) belongs to hero.js's own dive
+      // trigger, not the old target-seeking jump-kick/diveBomb here.
+      const glideKick = buffer === 'kick' && (hero.state === 'glide' || ctl?.name === 'dive');
+      if (buffer && free && hero.state !== 'roll' && ctl?.name !== 'grapple' && !glideKick) {
         if (tryStart(buffer, ctx)) buffer = null;
       }
       // Hold block to guard when nothing else is going on.

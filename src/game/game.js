@@ -167,6 +167,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const fx = createFx(scene);
     const rng = createRng(99);
     const combat = createCombat({ hero, follow, time, events, rng, getDifficulty: () => settings.difficulty });
+    hero.combat = combat;
     const key = (a) => `<kbd>${bindingLabel(settings.bindings, a)}</kbd>`;
     const screen = new THREE.Vector3();
     const toScreen = (v) => { screen.copy(v).project(camera); return { x: (screen.x * 0.5 + 0.5) * innerWidth, y: (-screen.y * 0.5 + 0.5) * innerHeight, behind: screen.z > 1 }; };

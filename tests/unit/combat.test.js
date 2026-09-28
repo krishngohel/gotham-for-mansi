@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveHit, damageToHero, ENEMY, DIFFICULTY } from '../../src/combat/rules.js';
+import { resolveHit, damageToHero, ENEMY, DIFFICULTY, inShockwave } from '../../src/combat/rules.js';
 import { selectTarget } from '../../src/combat/targeting.js';
 import { createCombo } from '../../src/combat/combo.js';
 import { createDirector } from '../../src/combat/director.js';
@@ -175,5 +175,35 @@ describe('new moves', () => {
   });
   it('the Joker cannot be thrown', () => {
     expect(resolveHit('throw', foe('joker', { health: 30 })).outcome).toBe('immune');
+  });
+});
+
+describe('inShockwave', () => {
+  it('shockwave reaches 4 m flat and 2.5 m vertically', () => {
+    expect(inShockwave({ x: 0, y: 0, z: 0 }, { x: 3.9, y: 0, z: 0 }, 4)).toBe(true);
+    expect(inShockwave({ x: 0, y: 0, z: 0 }, { x: 4.1, y: 0, z: 0 }, 4)).toBe(false);
+    expect(inShockwave({ x: 0, y: 0, z: 0 }, { x: 1, y: 3, z: 0 }, 4)).toBe(false);
+  });
+  it('defaults to a 4 m radius', () => {
+    expect(inShockwave({ x: 0, y: 0, z: 0 }, { x: 3.9, y: 0, z: 0 })).toBe(true);
+    expect(inShockwave({ x: 0, y: 0, z: 0 }, { x: 4.1, y: 0, z: 0 })).toBe(false);
+  });
+});
+
+describe('diveBomb move (used by the shockwave)', () => {
+  it('knocks down a healthy grunt without killing it', () => {
+    const g = foe('grunt');
+    const r = resolveHit('diveBomb', g);
+    expect(r.outcome).toBe('knockdown');
+    expect(g.health).toBe(ENEMY.grunt.health - 2);
+  });
+  it('does not one-shot an unstunned brute (armored immunity applies)', () => {
+    const b = foe('brute');
+    expect(resolveHit('diveBomb', b).outcome).toBe('immune');
+    expect(b.health).toBe(ENEMY.brute.health);
+  });
+  it('does hit a stunned brute', () => {
+    const b = foe('brute', { stunned: true });
+    expect(resolveHit('diveBomb', b).outcome).toBe('knockdown');
   });
 });

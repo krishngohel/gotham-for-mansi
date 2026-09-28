@@ -64,6 +64,11 @@ export function resolveHit(move, enemy) {
   return applyDamage(enemy, m.damage, m.knockdown);
 }
 
+// A dive-bomb shockwave reaches out to `radius` on the ground and 2.5 m up/down.
+export function inShockwave(c, p, radius = 4) {
+  return Math.hypot(p.x - c.x, p.z - c.z) <= radius && Math.abs(p.y - c.y) <= 2.5;
+}
+
 function applyDamage(enemy, damage, knockdown) {
   enemy.health = Math.max(0, enemy.health - damage);
   if (enemy.health <= 0) return { outcome: 'ko', damage, stun: 0 };
