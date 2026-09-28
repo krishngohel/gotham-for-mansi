@@ -27,32 +27,41 @@ export function buildChainClips(model, clips, fwd = 1) {
     { t: G.duration, ease: 'io' },
   ], 'ball_l');
 
-  // Rope-a-Dope: both hands out in front on the line, then a two-handed heave back to the hips
-  // with the torso leaning away and the weight sinking onto the front leg.
+  // Rope-a-Dope: both hands reach forward together to grip one line, then a two-handed heave
+  // rips them back past the hips with the torso leaning away, braced on a wide planted stance
+  // (left foot back, right foot forward) so nothing lifts off the ground. No single-foot plant:
+  // the stance is authored on both legs against a fixed pelvis so it can't clip through the floor.
   const Y = CHAIN_BEATS.Chain_Yank;
   const yank = make('Chain_Yank', [
     { t: 0.08, ease: 'out', spine_02: { f: 0.15 },
-      upperarm_l: { f: 1.3, s: -0.1 }, lowerarm_l: { f: 0.2 }, upperarm_r: { f: 1.3, s: -0.1 }, lowerarm_r: { f: 0.2 },
-      thigh_l: { f: 0.3 }, calf_l: { f: 0.5 } },
-    { t: Y.contact, ease: 'snap', pelvis: { f: -0.1 }, spine_01: { f: -0.2 }, spine_02: { f: -0.3 }, neck_01: { f: 0.15 },
-      upperarm_l: { f: -0.2, s: 0.1 }, lowerarm_l: { f: 1.5 }, upperarm_r: { f: -0.2, s: 0.1 }, lowerarm_r: { f: 1.5 },
-      thigh_l: { f: 0.5 }, calf_l: { f: 0.8 }, thigh_r: { f: 0.2 }, calf_r: { f: 0.5 } },
+      upperarm_l: { f: 1.25, s: -0.05 }, lowerarm_l: { f: 0.25 }, upperarm_r: { f: 1.25, s: -0.05 }, lowerarm_r: { f: 0.25 },
+      thigh_l: { f: 0.18 }, calf_l: { f: 0.32 }, thigh_r: { f: 0.38 }, calf_r: { f: 0.4 } },
+    { t: Y.contact, ease: 'snap', pelvis: { f: -0.08 }, spine_01: { f: -0.15 }, spine_02: { f: -0.28 }, neck_01: { f: 0.2 },
+      upperarm_l: { f: -0.35, s: 0.15 }, lowerarm_l: { f: 1.4 }, upperarm_r: { f: -0.35, s: 0.15 }, lowerarm_r: { f: 1.4 },
+      thigh_l: { f: 0.4 }, calf_l: { f: 0.62 }, thigh_r: { f: 0.22 }, calf_r: { f: 0.32 } },
     { t: Y.contact + 0.1, hold: true, ease: 'lin' },
     { t: Y.duration, ease: 'io' },
-  ], 'ball_l');
+  ]);
 
-  // Domino Drop: knees tucked to the chest in the air, then both legs drive straight down onto
-  // the head with the toes pointed, then fold again for the rebound. Airborne, so nothing planted.
+  // Domino Drop: knees tucked to the chest in the air (anticipation), then the left leg drives
+  // straight down heel-first onto the head below while the right knee stays cocked up high and
+  // the torso hunches over the strike, then a small bounce back up (the chain carries on to the
+  // next goon, not a return to standing). Airborne, so nothing planted.
   const S = CHAIN_BEATS.Chain_Stomp;
   const stomp = make('Chain_Stomp', [
     { t: 0.07, ease: 'out', spine_02: { f: 0.25 },
       thigh_l: { f: 1.7 }, calf_l: { f: 2.1 }, thigh_r: { f: 1.6 }, calf_r: { f: 2.0 },
       upperarm_l: { f: 0.4, s: 1.2 }, lowerarm_l: { f: 0.6 }, upperarm_r: { f: 0.4, s: 1.2 }, lowerarm_r: { f: 0.6 } },
-    { t: S.contact, ease: 'snap', spine_02: { f: 0.05 },
-      thigh_l: { f: 0.15 }, calf_l: { f: 0.1 }, foot_l: { f: 0.5 }, thigh_r: { f: 0.1 }, calf_r: { f: 0.1 }, foot_r: { f: 0.5 },
-      upperarm_l: { f: 0.2, s: 1.4 }, upperarm_r: { f: 0.2, s: 1.4 } },
+    { t: S.contact, ease: 'snap', spine_02: { f: 0.55 }, neck_01: { f: 0.2 },
+      thigh_l: { f: 0.02 }, calf_l: { f: -0.05 }, foot_l: { f: -0.45 },
+      thigh_r: { f: 0.8 }, calf_r: { f: 1.15 }, foot_r: { f: 0.15 },
+      upperarm_l: { f: 0.95, s: 0.15 }, lowerarm_l: { f: 1.45 }, upperarm_r: { f: 0.85, s: -0.2 }, lowerarm_r: { f: 1.5 } },
     { t: S.contact + 0.04, hold: true, ease: 'lin' },
-    { t: 0.32, ease: 'io', thigh_l: { f: 1.1 }, calf_l: { f: 1.5 }, thigh_r: { f: 1.0 }, calf_r: { f: 1.4 }, foot_l: { f: 0.1 }, foot_r: { f: 0.1 } },
+    { t: 0.26, ease: 'out', spine_02: { f: 0.35 },
+      thigh_l: { f: 0.75 }, calf_l: { f: 1.0 }, foot_l: { f: 0.1 },
+      thigh_r: { f: 1.15 }, calf_r: { f: 1.55 },
+      upperarm_l: { f: 0.6, s: 0.5 }, lowerarm_l: { f: 0.9 }, upperarm_r: { f: 0.55, s: -0.1 }, lowerarm_r: { f: 0.9 } },
+    { t: 0.36, ease: 'io', thigh_l: { f: 0.4 }, calf_l: { f: 0.6 }, thigh_r: { f: 0.6 }, calf_r: { f: 0.8 } },
     { t: S.duration, ease: 'io' },
   ]);
 
