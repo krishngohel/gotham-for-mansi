@@ -86,10 +86,10 @@ export function createHud(root) {
 
   return {
     setHealth(f) { bar.setAttribute('stroke-dasharray', arcDash(f)); },
-    setCombo(n) {
+    setCombo(n, readyAt = 8) {
       comboN.textContent = n;
       combo.classList.toggle('hidden', n === 0);
-      combo.classList.toggle('ready', n >= 8);
+      combo.classList.toggle('ready', n >= readyAt);
       combo.classList.remove('pop');
       void combo.offsetWidth;
       if (n > 0) combo.classList.add('pop');

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { padActions } from '../../src/core/input.js';
+import { padActions, createHoldTap, PAD_TAP, PAD_WHEEL } from '../../src/core/input.js';
 
 const pad = (...down) => (i) => down.includes(i);
 const acts = (...down) => [...padActions(pad(...down))].sort();
@@ -45,5 +45,33 @@ describe('padActions', () => {
     expect(actsWith(latch, 15)).toEqual([]);
     expect(actsWith(latch)).toEqual([]); // fully released: latch clears
     expect(actsWith(latch, 15)).toEqual(['throw']); // pressed again without block: fires normally
+  });
+});
+
+describe('right bumper: tap for the cape, hold for the gadget wheel', () => {
+  it('RB alone is no longer a plain pad action', () => {
+    expect(acts(PAD_WHEEL)).toEqual([]);
+  });
+  it('a tap reports on release', () => {
+    const h = createHoldTap(PAD_TAP);
+    expect(h.update(true, 0.016)).toBe(null);
+    expect(h.update(true, 0.1)).toBe(null);
+    expect(h.update(false, 0.016)).toBe('tap');
+    expect(h.holding).toBe(false);
+  });
+  it('holding past 0.22 s opens, letting go closes, and no tap fires', () => {
+    const h = createHoldTap(0.22);
+    h.update(true, 0.016);
+    expect(h.update(true, 0.15)).toBe(null);
+    expect(h.update(true, 0.1)).toBe('hold');
+    expect(h.holding).toBe(true);
+    expect(h.update(true, 0.5)).toBe(null);
+    expect(h.update(false, 0.016)).toBe('release');
+    expect(h.holding).toBe(false);
+    expect(h.update(false, 0.016)).toBe(null);
+  });
+  it('Y plus LB is the Bat Swarm, LB alone still grapples', () => {
+    expect(acts(3, 4)).toEqual(['block', 'chain4']);
+    expect(acts(4)).toEqual(['grapple']);
   });
 });

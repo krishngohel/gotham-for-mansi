@@ -37,3 +37,16 @@ describe('time holds', () => {
     expect(t.held).toBeCloseTo(0.01);
   });
 });
+
+describe('time holds: release all', () => {
+  it('releaseAll drops every hold at once (pause, death, a cutscene, a new run)', () => {
+    const t = createTimeControl();
+    t.hold('wheel', 0.2);
+    t.hold('remote', 0.3);
+    t.releaseAll();
+    expect(t.held).toBe(1);
+    expect(t.scale(0.1)).toBeCloseTo(0.1);
+    t.releaseAll();
+    expect(t.held).toBe(1);
+  });
+});

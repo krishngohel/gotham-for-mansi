@@ -1,5 +1,11 @@
 // Game shell: boot, title screen, the frame loop and the wiring between systems.
 import '../gadgets/gadgetSave.js';
+import '../progress/wayneSave.js';
+import { upgradeEffects } from '../progress/upgrades.js';
+import { gadgetById } from '../gadgets/gadgetDefs.js';
+import { createGadgetSystem } from '../gadgets/gadgetSystem.js';
+import { createGadgetWheel } from '../ui/gadgetWheel.js';
+import { createGadgetHud } from '../ui/gadgetHud.js';
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { loadSettings } from '../core/settings.js';
@@ -145,6 +151,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
 
   function applySettings() {
     input.setBindings(settings.bindings);
+    game?.gadgets.refresh();
     audio.setVolumes(settings.volume);
     ink.uniforms.uHalftoneAmount.value = settings.halftone;
     ink.setComic({ ...quality.comic, wobble: settings.lineWobble ? quality.comic.wobble : 0 });
@@ -195,6 +202,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     audio.unlock();
     // Don't let the integrated-GPU hint sit over the boss bar once a run is under way.
     if (gpuHintBox) { gpuHintBox.remove(); gpuHintBox = null; }
+    // A new run never inherits a time hold (the gadget wheel's 20%, remote steering).
+    time.releaseAll();
     if (fresh) { progress = newGameProgress(progress); progress.stepId = null; }
     progress.suit = suit;
     saveProgress(storage, progress);
@@ -230,10 +239,21 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const breakables = createBreakables({
       scene, collision: world.collision, climbables: world.climbables, progress, events, gfx,
       save: () => saveProgress(storage, progress),
+      // ?gadgets=all is a dev run (gadgetSystem's devAll, read the same way at its own call site):
+      // breaks and cache finds still happen for the session but never reach the real save.
+      dev: params.get('gadgets') === 'all',
     });
     const chainFx = createChainFx(scene);
     const rng = createRng(99);
-    const combat = createCombat({ hero, follow, time, events, rng, reach, getDifficulty: () => settings.difficulty, getChainDiscount: () => 0 });
+    // The live WayneTech effects (src/progress/upgrades.js): combat, the hero and the gadgets all
+    // read this one object; buying an upgrade refills it (Task 22).
+    const effects = upgradeEffects(progress.wayne.owned);
+    hero.tuning = effects;
+    let gadgets = null;
+    const combat = createCombat({
+      hero, follow, time, events, rng, reach, getDifficulty: () => settings.difficulty,
+      effects, getChainDiscount: () => effects.chainDiscount, useGadget: (ctx, o) => gadgets.fire(ctx, o),
+    });
     hero.combat = combat;
     const key = (a) => `<kbd>${bindingLabel(settings.bindings, a)}</kbd>`;
     const screen = new THREE.Vector3();
@@ -315,9 +335,20 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       onCredits: () => {
         document.exitPointerLock?.();
         input.setEnabled(false);
-        menus.credits({ final: true, onClose: () => { menus.hide(); input.setEnabled(true); flow.freeRoam(); } });
+        menus.credits({ final: true, onClose: () => { menus.hide(); input.setEnabled(true); flow.freeRoam(); gadgets.unlockCheck(); } });
       },
     });
+    const gadgetHud = createGadgetHud(hudRoot.querySelector('.hud') ?? hudRoot);
+    const wheelUi = createGadgetWheel(document.body);
+    wheelUi.warm();
+    gadgets = createGadgetSystem({
+      hero, combat, follow, time, events, input, fx, gfx, breakables, progress, camera, effects, wheelUi, gadgetHud,
+      collision: world.collision, save: () => saveProgress(storage, progress), getBindings: () => settings.bindings,
+      // Live play only: never in a cutscene, a comic, a menu or photo mode.
+      isPlaying: () => flow.mode === 'play' && !state.paused && !comic.playing && !photo.active,
+      devAll: params.get('gadgets') === 'all',
+    });
+    const NO_LOOK = { dx: 0, dy: 0 };
     const side = createSideContent({
       scene, assets, hero, follow, combat, encounters, events, flow, prompts, progress, storage, rng,
       hudRoot: hudRoot.querySelector('.hud') ?? hudRoot, collision: world.collision, buildings: world.data.buildings,
@@ -366,21 +397,45 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       parried: () => `Knife goons parry punches. ${key('kick')} kick or ${key('cape')} cape-stun them first.`,
       immune: () => `Brutes shrug off hits. ${key('cape')} cape-stun first, then punch away.`,
       'brute-counter': () => `A red bolt can't be countered. ${key('dodge')} dodge out of the way!`,
-      'special-locked': () => 'Special takedowns unlock at an 8 hit combo.',
-      joker: () => `The Joker slips every punch. Hit him with a batarang ${key('batarang')} while he winds up a throw!`,
-      'joker-throw': () => `A yellow bolt means he is throwing. ${key('batarang')} batarang him now!`,
+      // "an 8", "a 6" (Fast Finish).
+      'special-locked': () => `Special takedowns unlock at ${combat.combo.readyAt === 8 ? 'an' : 'a'} ${combat.combo.readyAt} hit combo.`,
+      joker: () => (gadgets.state.equipped === 'batarang'
+        ? `The Joker slips every punch. Hit him with a batarang ${key('batarang')} while he winds up a throw!`
+        : `The Joker slips every punch. Pick the batarang on the gadget wheel (hold ${key('gadgetWheel')}) and hit him while he winds up a throw!`),
+      'joker-throw': () => (gadgets.state.equipped === 'batarang'
+        ? `A yellow bolt means he is throwing. ${key('batarang')} batarang him now!`
+        : `A yellow bolt means he is throwing. Hold ${key('gadgetWheel')}, pick the batarang, and hit him!`),
+      'gadget-cooldown': (name) => `${name} is recharging.`,
+      'gadget-empty': (name) => `${name} is out of charges. They come back on their own.`,
+      'gadget-boss': () => 'The Joker is too slippery for that. Use the batarang while he winds up a throw.',
+      'remote-ground': () => 'Stand still on solid ground to steer the remote batarang.',
+      'gel-aim': () => 'Aim at a floor or a wall within 14 m to spray gel.',
+      'gel-none': () => `No gel down yet. Tap ${key('batarang')} to spray some first.`,
+      'gel-full': () => `Three blobs is the limit. Hold ${key('batarang')} to set them off.`,
+      'launcher-none': () => 'No wall within 40 m ahead for the line launcher.',
+      'launcher-short': () => 'Too close. The line launcher needs a wall at least 6 m away.',
+      'claw-none': () => 'Aim the batclaw at a goon, a vent cover or a weak railing.',
+      'claw-ground': () => 'Plant your feet to fire the batclaw.',
+      'freeze-none': () => 'No goon in sight to freeze.',
+      'popper-ground': () => 'Plant your feet to throw the party popper.',
       gas: () => 'Laughing gas! Get out of the green cloud.',
       finish: () => `He is reeling! ${key('special')} Finish him!`,
     };
     events.on('blocked', ({ outcome, target }) => hud.hint((target?.type === 'joker' ? HINTS.joker : HINTS[outcome])(), 3500));
-    events.on('hint', ({ id }) => HINTS[id] && hud.hint(HINTS[id](), 3000));
+    events.on('hint', ({ id, arg }) => HINTS[id] && hud.hint(HINTS[id](arg), 3000));
     events.on('bossStaggered', () => hud.hint(HINTS.finish(), 3500));
     const PROMPT_DONE = {
       throwRelease: 'throw', slam: 'slam', glideStart: 'glide', grapple: 'grapple', grappleBoost: 'grappleBoost', counter: 'counter', cape: 'cape',
       batarangThrow: 'batarang', dodge: 'dodge', special: 'special', jumpKick: 'kick',
       ladderOn: 'ladder', ledgeGrab: 'ledge', zipOn: 'zip', wallRun: 'wallrun', diveStart: 'divebomb', takedown: 'takedown',
+      wheelSeen: 'gadgetWheel',
     };
     for (const [ev, id] of Object.entries(PROMPT_DONE)) events.on(ev, () => prompts.done(id));
+    events.on('gadgetUnlocked', ({ id }) => {
+      const g = gadgetById(id);
+      hud.card(`NEW GADGET: ${g.name.toUpperCase()}`, g.cardText, 7000);
+      prompts.show(['gadgetWheel', g.promptId]);
+    });
     events.on('swing', ({ kind, finisher }) => { prompts.done(kind === 'kick' ? 'kick' : 'punch'); if (finisher) prompts.done('finisher'); });
     events.on('step', ({ step }) => {
       if (step.id === 'toDocks') {
@@ -468,6 +523,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
           }
           chainLabels = ['chain1', 'chain2', 'chain3'].map((a) => bindingLabel(settings.bindings, a));
         }
+        gadgets.update(real, dt, ctx);
         combat.update(dt, ctx);
         hero.update(dt, ctx);
         side.update(dt, real, { toScreen });
@@ -476,14 +532,14 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         chainFx.update(dt);
         breakables.update(state.t, hero.pos);
         if (hero.pos.y < -0.8) { hero.teleport(hero.lastSafe); events.emit('splash'); }
-        follow.update(real, hero.pos, input.look, combat.cameraMode ?? hero.cameraMode(), hero.speed);
+        follow.update(real, gadgets.cameraFocus ?? hero.pos, gadgets.wheelOpen ? NO_LOOK : input.look, gadgets.cameraMode ?? combat.cameraMode ?? hero.cameraMode(), hero.speed);
         comicFx.update(real, { speed: hero.control?.speed ?? Math.hypot(hero.vel.x, hero.vel.y, hero.vel.z), actionActive: follow.actionActive });
         palT -= real;
         if (palT <= 0) { palT = 0.25; ink.setPalette(paletteAt(camera.position.x, camera.position.z, palBuf)); }
         hero.updateCape(dt);
         boss.update(dt);
         if (boss.speech) { const p = toScreen(boss.headWorld(new THREE.Vector3())); hud.speechPos(p.x, p.y - 20, !p.behind); }
-        if (combat.combo.value !== lastCombo) { lastCombo = combat.combo.value; hud.setCombo(lastCombo); }
+        if (combat.combo.value !== lastCombo) { lastCombo = combat.combo.value; hud.setCombo(lastCombo, combat.combo.readyAt); }
         hud.setChains(combat.chains, chainLabels);
         if (!chainPromptShown && combat.chains.affordable.some(Boolean)) { chainPromptShown = true; prompts.show(['chain']); }
         marker.visible = !!ctx.grappleTarget && !hero.control;
@@ -503,6 +559,11 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         // Play stopped (paused, a cutscene, the finale) mid-effect: without this, speed lines or
         // the action panel border can freeze on screen instead of easing out.
         comicFx?.update(real, { speed: 0, actionActive: false });
+        // Play stopped: the wheel shuts and no slow time outlives it. A pause, the help screen and
+        // photo mode (state.paused) only halt; a cutscene, the finale or the credits also drop
+        // anything a gadget has in flight.
+        if (!playing) gadgets.interrupt();
+        else gadgets.halt();
       }
       detective += ((state.detectiveOn && playing ? 1 : 0) - detective) * Math.min(1, real * 6);
       ink.uniforms.uDetective.value = detective;
@@ -514,6 +575,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
 
     const api = {
       hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, side, stage, gfx, breakables, chainFx, photo,
+      gadgets, wheelUi,
       winFight: () => { for (const e of combat.enemies) if (e.alive && e.type !== 'joker') { e.health = 0; e.applyHit({ outcome: 'ko' }, hero.pos); } },
     };
     if (params.get('god') === '1') events.on('heroHurt', () => { hero.health = hero.maxHealth; hud.setHealth(1); });
@@ -541,6 +603,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   // ---------------- pause ----------------
   function pause() {
     if (state.phase !== 'play' || state.paused || !game || game.flow.mode !== 'play') return;
+    game.gadgets.halt();
     state.paused = true;
     state.pauseMenu = true;
     input.setEnabled(false);
@@ -605,6 +668,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     if (!game) return;
     if (input.padButton(9)) pause();
     else if (input.padButton(13) && game.flow.mode === 'play') {
+      game.gadgets.halt();
       state.paused = true;
       state.pauseMenu = true;
       input.setEnabled(false);
@@ -625,6 +689,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const pauseKeys = settings.bindings.pause, helpKeys = settings.bindings.help;
     if (pauseKeys.includes(e.code) && !input.capturing && !game.comic.playing) { e.preventDefault(); state.paused ? (menus.open ? resume() : null) : pause(); }
     else if (helpKeys.includes(e.code) && !state.paused && game.flow.mode === 'play') {
+      game.gadgets.halt();
       state.paused = true;
       state.pauseMenu = true;
       input.setEnabled(false);

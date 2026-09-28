@@ -249,7 +249,7 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0 6px; margin: 0 2px; bo
 .gh-pips i { width: 11px; height: 11px; border: 2px solid var(--ink); background: #3a3a44; transform: rotate(45deg); }
 .gh-pips i.on { background: #9fe3ff; }
 .gh-key { position: absolute; right: -12px; top: -14px; font: 24px 'Bangers', cursive; color: var(--signal); -webkit-text-stroke: 1.5px var(--ink); paint-order: stroke fill; }
-.gh-name { margin-top: 18px; font: 700 16px 'Barlow Condensed', sans-serif; letter-spacing: 1px; text-transform: uppercase; text-shadow: 2px 2px 0 var(--ink); }
+.gh-name { margin-top: 18px; font: 700 16px 'Barlow Condensed', sans-serif; letter-spacing: 1px; text-transform: uppercase; color: var(--paper); text-shadow: 2px 2px 0 var(--ink); }
 
 /* The gadget wheel: comic panels in a ring over a halftone wash. */
 .gwheel { position: fixed; inset: 0; z-index: 6; display: none; pointer-events: none;
@@ -268,9 +268,9 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0 6px; margin: 0 2px; bo
 .gw-panel.locked .gw-icon { display: none; }
 .gw-panel.locked .gw-lock { display: block; }
 .gw-panel.locked.on { background: #5a5a66; }
-.gw-center { position: absolute; left: 0; top: 0; width: 230px; transform: translate(-50%, -50%) rotate(-1.5deg); padding: 10px 14px 12px; background: #fffdf5; border: 4px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); text-align: center; color: var(--ink); }
-.gw-name { font: 30px/1 'Bangers', cursive; letter-spacing: 1px; color: var(--balloon); -webkit-text-stroke: 1px var(--ink); }
-.gw-text { margin-top: 4px; font: 18px/1.2 'Patrick Hand SC', cursive; }
+.gw-center { position: absolute; left: 0; top: 0; width: 190px; transform: translate(-50%, -50%) rotate(-1.5deg); padding: 8px 12px 10px; background: #fffdf5; border: 4px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); text-align: center; color: var(--ink); }
+.gw-name { font: 26px/1 'Bangers', cursive; letter-spacing: 1px; color: var(--balloon); -webkit-text-stroke: 1px var(--ink); }
+.gw-text { margin-top: 4px; font: 16px/1.2 'Patrick Hand SC', cursive; }
 
 .photo-overlay { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 21; }
 .photo-flash { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 23; }
