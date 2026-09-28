@@ -5,7 +5,8 @@
 import * as THREE from 'three';
 import { PALETTE } from '../config/palette.js';
 import { LAYER_FX } from '../render/layers.js';
-import { ENEMY, damageToHero, DIFFICULTY } from '../combat/rules.js';
+import { ENEMY, DIFFICULTY } from '../combat/rules.js';
+import { BASE_EFFECTS, hurtDamage } from '../progress/upgrades.js';
 import { createJoker, footGround, enemyPlantsFeet } from '../actors/characters.js';
 import { createCape } from '../actors/cape.js';
 import { SITES } from '../world/mapData.js';
@@ -27,7 +28,9 @@ const LINES = {
   hurt: ['Is that all?', 'Again! Again!'],
 };
 
-export function createBoss({ assets, scene, rng, combat, events, hud, spawn, despawn, hero, time, getDifficulty, collision = null }) {
+// `effects` is the live WayneTech effects object: Kevlar Weave and Impact Dampers soften the
+// joy-buzzer tiles and the laughing gas as they do any goon's hit.
+export function createBoss({ assets, scene, rng, combat, events, hud, spawn, despawn, hero, time, getDifficulty, collision = null, effects = BASE_EFFECTS }) {
   const ch = createJoker(assets);
   const groundUnderFoot = collision ? footGround(collision) : null;
   scene.add(ch.root);
@@ -264,7 +267,7 @@ export function createBoss({ assets, scene, rng, combat, events, hud, spawn, des
           t.state = 'shock'; t.t = 0;
           events.emit('buzzer');
           if (onTile(hero.pos, t) && hero.invulnerable <= 0 && !hero.dead) {
-            const dmg = damageToHero('buzzer', { difficulty: getDifficulty() });
+            const dmg = hurtDamage('buzzer', { difficulty: getDifficulty() }, effects);
             hero.health = Math.max(0, hero.health - dmg);
             events.emit('heroHurt', { kind: 'buzzer', damage: dmg });
             if (hero.health <= 0) combat.killHero();
@@ -298,7 +301,7 @@ export function createBoss({ assets, scene, rng, combat, events, hud, spawn, des
         c.tick -= dt;
         if (c.tick <= 0) {
           c.tick = 0.5;
-          const dmg = damageToHero('gas', { difficulty: getDifficulty(), invulnerable: hero.invulnerable > 0 });
+          const dmg = hurtDamage('gas', { difficulty: getDifficulty(), invulnerable: hero.invulnerable > 0 }, effects);
           if (dmg > 0) {
             hero.health = Math.max(0, hero.health - dmg);
             events.emit('heroHurt', { kind: 'gas', damage: dmg });

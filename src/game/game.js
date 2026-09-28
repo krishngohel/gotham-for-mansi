@@ -2,8 +2,9 @@
 import '../gadgets/gadgetSave.js';
 import '../progress/wayneSave.js';
 import { upgradeEffects } from '../progress/upgrades.js';
-import { gadgetById } from '../gadgets/gadgetDefs.js';
-import { createGadgetSystem } from '../gadgets/gadgetSystem.js';
+import { createWayneTech } from '../progress/wayneTech.js';
+import { gadgetById, gadgetNewsCard } from '../gadgets/gadgetDefs.js';
+import { createGadgetSystem, NEWS_CARD_S } from '../gadgets/gadgetSystem.js';
 import { createGadgetWheel } from '../ui/gadgetWheel.js';
 import { createGadgetHud } from '../ui/gadgetHud.js';
 import * as THREE from 'three';
@@ -40,7 +41,7 @@ import { glyphCode } from '../stealth/brain.js';
 import { createComicFx } from '../ui/comicFx.js';
 import { createComic } from '../ui/comic.js';
 import { createMenus } from '../ui/menus.js';
-import { createPromptQueue } from '../ui/prompts.js';
+import { createPromptQueue, chainLockedText, chainCostText } from '../ui/prompts.js';
 import { createWaypoint, createBeacon } from '../ui/waypoint.js';
 import { createAudio } from '../audio/audio.js';
 import { createVoice } from '../audio/voice.js';
@@ -51,6 +52,7 @@ import { createStealthFx } from '../stealth/stealthFx.js';
 import { createGadgetFx } from '../gadgets/gadgetFx.js';
 import { createBreakables } from '../world/breakables.js';
 import { createChainFx } from './chainFx.js';
+import { createSwarmFx } from './swarmFx.js';
 import { createEncounters } from './encounters.js';
 import { createBalloons } from './balloons.js';
 import { createFlow } from './flow.js';
@@ -168,7 +170,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     game?.follow.configure(settings);
     if (game) {
       game.combat.setDifficulty(settings.difficulty);
-      const max = settings.difficulty === 'story' ? 150 : 100;
+      const max = (settings.difficulty === 'story' ? 150 : 100) + (game.wayne?.effects.maxHealthBonus ?? 0);
       if (game.hero.maxHealth !== max) {
         game.hero.health = Math.round((game.hero.health / game.hero.maxHealth) * max);
         game.hero.maxHealth = max;
@@ -250,7 +252,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       // breaks and cache finds still happen for the session but never reach the real save.
       dev: params.get('gadgets') === 'all',
     });
-    const chainFx = createChainFx(scene);
+    const chainFx = createChainFx(scene, camera);
+    const swarmFx = createSwarmFx(scene);
     const rng = createRng(99);
     // The live WayneTech effects (src/progress/upgrades.js): combat, the hero and the gadgets all
     // read this one object; buying an upgrade refills it (Task 22).
@@ -316,7 +319,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const prompts = createPromptQueue(hud, () => settings.bindings, () => settings.hints, () => follow.actionActive || QUIET_CONTROLS.has(hero.control?.name), () => gadgets?.state.equipped ?? null);
     const waypoint = createWaypoint(hudRoot.querySelector('.hud') ?? hudRoot);
     const beacon = createBeacon(scene);
-    const boss = createBoss({ assets, scene, rng, combat, events, hud, spawn, despawn, hero, time, getDifficulty: () => settings.difficulty, collision: world.collision });
+    const boss = createBoss({ assets, scene, rng, combat, events, hud, spawn, despawn, hero, time, getDifficulty: () => settings.difficulty, collision: world.collision, effects });
     boss.joker.health = 999;
     const finale = createFinale({ scene, world, hero, boss, camera, events, rng });
 
@@ -378,6 +381,21 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       isPlaying: () => flow.mode === 'play' && !state.paused && !comic.playing && !photo.active,
       devAll: params.get('gadgets') === 'all',
     });
+    menus.setGadgetHelp(() => gadgets.helpList(settings.bindings));
+    const wayne = createWayneTech({
+      events, progress, hero, combat, hud, effects, save: () => saveProgress(storage, progress),
+      baseHealth: () => (settings.difficulty === 'story' ? 150 : 100),
+      // ?gadgets=all is a dev run (read the same way gadgets/breakables do): XP, levels and
+      // purchases still happen for the session, but never reach the real save.
+      dev: params.get('gadgets') === 'all',
+    });
+    wayne.apply();
+    hud.setHealth(1);
+    events.on('levelUp', ({ level, points }) => {
+      hud.card(`LEVEL ${level}!`, `WayneTech sent an upgrade. ${points === 1 ? 'One point' : `${points} points`} to spend in the pause menu.`, 6500);
+      events.emit('word', { text: 'LEVEL UP!', pos: hero.pos.clone().setY(hero.pos.y + 2.4), big: true });
+      prompts.show(['wayneTech']);
+    });
     const NO_LOOK = { dx: 0, dy: 0 };
     const side = createSideContent({
       scene, assets, hero, follow, combat, encounters, events, flow, prompts, progress, storage, rng,
@@ -411,6 +429,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     }
     events.on('word', ({ text, pos, big }) => { const p = toScreen(pos); if (!p.behind) hud.sfx(text, p.x, p.y, big); });
     events.on('zipOn', () => events.emit('word', { text: 'ZZZIP!', pos: hero.pos.clone().setY(hero.pos.y + 2), big: false }));
+    events.on('launcherOn', () => events.emit('word', { text: 'ZZZIP!', pos: hero.pos.clone().setY(hero.pos.y + 2), big: false }));
     events.on('diveStart', () => events.emit('word', { text: 'FWOOSH!', pos: hero.pos.clone(), big: false }));
     events.on('diveImpact', ({ pos, word }) => { if (word !== null) events.emit('word', { text: word ?? 'KA-THOOM!', pos, big: true }); });
     // hard THUD is the hero's own landing only; the boss emits 'land' too (boss.js) but has no `who`.
@@ -439,6 +458,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       'gadget-empty': (name) => `${name} is out of charges. They come back on their own.`,
       'gadget-boss': () => 'The Joker is too slippery for that. Use the batarang while he winds up a throw.',
       'remote-ground': () => 'Stand still on solid ground to steer the remote batarang.',
+      'remote-busy': () => 'Finish your move first. The remote batarang needs Batman standing still.',
       'gel-aim': () => 'Aim at a floor or a wall within 14 m to spray gel.',
       'gel-none': () => `No gel down yet. Tap ${key('batarang')} to spray some first.`,
       'gel-full': () => `Three blobs is the limit. Hold ${key('batarang')} to set them off.`,
@@ -453,27 +473,54 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       'perch-none': () => `Get right above a goon first. ${key('kick')} drops on him from the gargoyle.`,
       'silent-miss': () => `No silent takedown from here. Sneak right up behind him, or ${key('kick')} kick to start a fight.`,
       rifle: () => `Rifle goons parry punches. ${key('kick')} kick them, ${key('cape')} cape-stun them, or take them from behind.`,
+      'swarm-locked': () => 'The Bat Swarm is the last Combat upgrade in WayneTech, in the pause menu.',
+      'swarm-cost': (cost) => `Not enough combo. The Bat Swarm needs ${cost}.`,
+      'swarm-targets': () => 'The Bat Swarm needs two goons close by and in sight.',
+      // Both cost-aware: built from the costs startChain actually charged against
+      // (combatSystem.js), so Efficient Chains reads 4 / 7 / 10 here (src/ui/prompts.js). The
+      // locked hint also carries the stealth clause: two unaware goons close by make it free.
+      'chain-locked': (costs) => chainLockedText(costs),
+      'chain-cost': (costs) => chainCostText(costs),
+      'chain-targets': () => 'A chain takedown needs two goons close by and in sight.',
     };
     events.on('blocked', ({ outcome, target }) => hud.hint((target?.type === 'joker' ? HINTS.joker : target?.type === 'rifle' ? HINTS.rifle : HINTS[outcome])(), 3500));
-    events.on('hint', ({ id, arg }) => HINTS[id] && hud.hint(HINTS[id](arg), 3000));
+    // The chain-locked hint carries the stealth clause too, a second sentence: longer to read.
+    const HINT_MS = { 'chain-locked': 5500 };
+    events.on('hint', ({ id, arg }) => HINTS[id] && hud.hint(HINTS[id](arg), HINT_MS[id] ?? 3000));
     events.on('bossStaggered', () => hud.hint(HINTS.finish(), 3500));
+    events.on('chainTied', () => prompts.show(['chainTied']));
+    // A dropped chain (teleport, respawn, restart) leaves the tether stretched to stale goon
+    // spots until it times out on its own; clear it the moment the chain actually breaks.
+    events.on('chainBroken', () => chainFx.clear());
     const PROMPT_DONE = {
       throwRelease: 'throw', slam: 'slam', glideStart: 'glide', grapple: 'grapple', grappleBoost: 'grappleBoost', counter: 'counter', cape: 'cape',
       batarangThrow: 'batarang', dodge: 'dodge', special: 'special', jumpKick: 'kick',
       ladderOn: 'ladder', ledgeGrab: 'ledge', zipOn: 'zip', wallRun: 'wallrun', diveStart: 'divebomb', takedown: 'takedown',
+      chainStart: 'chain', tiedBreak: 'chainTied',
       wheelSeen: 'gadgetWheel',
       crouchOn: 'crouch', silentTakedown: 'silent', perched: 'perch', perchDrop: 'perchDrop', batarangWall: 'distract', ventHide: 'vent', stealthLost: 'spotted',
+      upgradeBought: 'wayneTech',
+      swarmStart: 'swarm',
     };
     for (const [ev, id] of Object.entries(PROMPT_DONE)) events.on(ev, () => prompts.done(id));
     events.on('perchDropStart', ({ target }) => follow.dropShot(hero.pos, target.pos));
     events.on('stealthAlarm', () => prompts.show(['spotted']));
     events.on('rifleAim', () => prompts.show(['rifle']));
     events.on('takedown', ({ kind }) => { if (kind === 'ledge') prompts.done('ledgeStealth'); });
+    events.on('upgradeBought', ({ id }) => { if (id === 'swarm') prompts.show(['swarm']); });
     events.on('gadgetUnlocked', ({ id }) => {
       const g = gadgetById(id);
       hud.card(`NEW GADGET: ${g.name.toUpperCase()}`, g.cardText, 7000);
       prompts.show(['gadgetWheel', g.promptId]);
     });
+    // A returning save: one card for every gadget it already earned (the popper follows on its own).
+    events.on('gadgetNews', ({ ids }) => {
+      const c = gadgetNewsCard(ids, bindingLabel(settings.bindings, 'gadgetWheel'));
+      // Down a moment before the popper's card takes its place.
+      hud.card(c.title, c.text, NEWS_CARD_S * 1000 - 700);
+      prompts.show(['gadgetWheel']);
+    });
+    events.on('gadgetWheelTip', () => prompts.show(['gadgetWheel']));
     events.on('swing', ({ kind, finisher }) => { prompts.done(kind === 'kick' ? 'kick' : 'punch'); if (finisher) prompts.done('finisher'); });
     events.on('step', ({ step }) => {
       if (step.id === 'toDocks') {
@@ -518,9 +565,10 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     marker.layers.set(1);
     scene.add(marker);
 
-    const ctx = { input, cam: follow, grappleTarget: null, fx, chainFx };
+    const ctx = { input, cam: follow, grappleTarget: null, fx, chainFx, swarmFx };
     let lastCombo = -1;
     let chainLabels = ['1', '2', '3'];
+    let swarmLabel = '4';
     let chainPromptShown = false;
     let detective = 0;
     let palT = 0;
@@ -572,6 +620,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
             if (glideHighT > 3) { prompts.show(['divebomb']); hintShown.divebomb = true; }
           }
           chainLabels = ['chain1', 'chain2', 'chain3'].map((a) => bindingLabel(settings.bindings, a));
+          swarmLabel = bindingLabel(settings.bindings, 'chain4');
         }
         gadgets.update(real, dt, ctx);
         stealth.update(dt);
@@ -582,10 +631,14 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         fxView.detective = !!state.detectiveOn;
         stealthFx.update(dt, stealth.goons, fxView);
         gfx.update(dt);
-        chainFx.update(dt);
+        swarmFx.update(dt, camera.position);
+        wayne.update(dt);
         breakables.update(state.t, hero.pos);
         if (hero.pos.y < -0.8) { hero.teleport(hero.lastSafe); events.emit('splash'); }
         follow.update(real, gadgets.cameraFocus ?? hero.pos, gadgets.wheelOpen ? NO_LOOK : input.look, gadgets.cameraMode ?? combat.cameraMode ?? hero.cameraMode(), hero.speed);
+        // After follow.update, so the rope ribbon billboards toward this frame's camera, not
+        // last frame's. It reads only goon and hand positions, which are already final.
+        chainFx.update(dt);
         comicFx.update(real, { speed: hero.control?.speed ?? Math.hypot(hero.vel.x, hero.vel.y, hero.vel.z), actionActive: follow.actionActive });
         palT -= real;
         if (palT <= 0) { palT = 0.25; ink.setPalette(paletteAt(camera.position.x, camera.position.z, palBuf)); }
@@ -594,6 +647,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         if (boss.speech) { const p = toScreen(boss.headWorld(new THREE.Vector3())); hud.speechPos(p.x, p.y - 20, !p.behind); }
         if (combat.combo.value !== lastCombo) { lastCombo = combat.combo.value; hud.setCombo(lastCombo, combat.combo.readyAt); }
         hud.setChains(combat.chains, chainLabels);
+        gadgetHud.setSwarm(combat.swarm, swarmLabel);
         if (!chainPromptShown && combat.chains.affordable.some(Boolean)) { chainPromptShown = true; prompts.show(['chain']); }
         marker.visible = !!ctx.grappleTarget && !hero.control;
         if (marker.visible) { marker.position.set(ctx.grappleTarget.x, ctx.grappleTarget.y + 1, ctx.grappleTarget.z); marker.rotation.y += real * 3; }
@@ -645,8 +699,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     }
 
     const api = {
-      hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, side, stage, gfx, breakables, chainFx, photo,
-      gadgets, wheelUi, stealth, stealthFx, stealthHud,
+      hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, despawn, side, stage, gfx, breakables, chainFx, swarmFx, photo,
+      gadgets, wheelUi, wayne, stealth, stealthFx, stealthHud,
       winFight: () => { for (const e of combat.enemies) if (e.alive && e.type !== 'joker') { e.health = 0; e.applyHit({ outcome: 'ko' }, hero.pos); } },
     };
     if (params.get('god') === '1') events.on('heroHurt', () => { hero.health = hero.maxHealth; hud.setHealth(1); });
@@ -688,13 +742,22 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       onResume: resume,
       onRestart: () => { resume(); game.flow.respawn({ manual: true }); },
       onTitle: () => { side.save(); location.search = ''; },
-      info: side.pauseInfo(),
+      info: { ...side.pauseInfo(), wayneFree: game.wayne.free },
       onQuitChallenge: () => { side.challenges.quit(); resume(); },
       onChallenges: () => menus.challengesPage(side.challengesPage(), { onBack: () => menus.pause(opts), onRead: () => readPage('goldStandard', () => menus.pause(opts)) }),
       onProgress: () => menus.progressPage(side.progressPage(), { onBack: () => menus.pause(opts), onRead: () => readPage('fromKrishn', () => menus.pause(opts)) }),
+      onWayneTech: openWayneTech,
       onPhoto: () => { menus.hide(); game.photo.open(); },
     };
     return opts;
+  }
+  // The WayneTech page stays open while buying; Back returns to a pause menu with fresh numbers.
+  function openWayneTech() {
+    const cbs = {
+      onBuy: (id) => { game.wayne.buy(id); menus.wayneTechPage(game.wayne.page(), { ...cbs, focus: id }); },
+      onBack: () => menus.pause(pauseOptions()),
+    };
+    menus.wayneTechPage(game.wayne.page(), cbs);
   }
   // Reward comics open from the pause menu. stage.shot moves the camera for its panels, so the
   // paused view is put back before the comic shows.

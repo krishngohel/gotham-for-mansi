@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { createTimeControl } from '../../src/core/time.js';
 
 describe('time holds', () => {
@@ -48,5 +48,23 @@ describe('time holds: release all', () => {
     expect(t.scale(0.1)).toBeCloseTo(0.1);
     t.releaseAll();
     expect(t.held).toBe(1);
+  });
+});
+
+describe('time holds: re-asserting', () => {
+  it('holding the same id at the same scale again is a no-op (no refresh, no iterator)', () => {
+    const t = createTimeControl();
+    t.hold('remote', 0.3);
+    const spy = vi.spyOn(Map.prototype, 'values');
+    try {
+      for (let i = 0; i < 10; i++) t.hold('remote', 0.3);
+      expect(spy).not.toHaveBeenCalled();
+    } finally { spy.mockRestore(); }
+    expect(t.held).toBeCloseTo(0.3);
+    t.hold('remote', 0.5);
+    expect(t.held).toBeCloseTo(0.5);
+    t.releaseAll();
+    t.hold('remote', 0.3);
+    expect(t.held).toBeCloseTo(0.3);
   });
 });

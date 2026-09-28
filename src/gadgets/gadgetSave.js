@@ -1,5 +1,5 @@
 // The saved gadget state (progress.gadgets): what's equipped, every gadget ever unlocked (a new
-// game keeps them), broken breakables and found caches. Registers itself at load, so game.js
+// game keeps them), broken breakables, found caches and whether the wheel was ever opened. Registers itself at load, so game.js
 // must import this module before loadProgress runs. Pure.
 import { registerProgressField } from '../core/save.js';
 import { tracker } from '../game/progressTracker.js';
@@ -15,6 +15,8 @@ export function sanitizeGadgetSave(raw) {
     unlocked: ids(r.unlocked, GADGET_IDS),
     broken: ids(r.broken, BREAKABLE_IDS),
     caches: ids(r.caches, CACHE_IDS),
+    // Older saves have no flag: the wheel tutorial still shows for them.
+    wheelUsed: r.wheelUsed === true,
   };
 }
 

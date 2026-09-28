@@ -3,10 +3,18 @@ import { createBatarangHandler } from './batarang.js';
 import { createRemoteHandler } from './remote.js';
 import { createGelHandler } from './gel.js';
 import { createSmokeHandler } from './smoke.js';
+import { createLauncherHandler } from './launcher.js';
+import { createClawHandler } from './claw.js';
+import { createFreezeHandler } from './freeze.js';
+import { createPopperHandler } from './popper.js';
 
 export const HANDLER_FACTORIES = {
   batarang: createBatarangHandler,
   remote: createRemoteHandler,
   gel: createGelHandler,
   smoke: createSmokeHandler,
+  launcher: createLauncherHandler,
+  claw: createClawHandler,
+  freeze: createFreezeHandler,
+  popper: createPopperHandler,
 };

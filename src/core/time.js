@@ -14,7 +14,13 @@ export function createTimeControl() {
   return {
     hitStop(sec) { stop = Math.max(stop, sec); },
     slowMo(sec, scale) { slow = Math.max(slow, sec); slowScale = scale; },
-    hold(id, scale) { holds.set(id, Math.min(1, Math.max(0.01, scale))); refresh(); },
+    // Re-asserting an unchanged hold (the remote does every steering frame) is a no-op: no refresh.
+    hold(id, scale) {
+      const s = Math.min(1, Math.max(0.01, scale));
+      if (holds.get(id) === s) return;
+      holds.set(id, s);
+      refresh();
+    },
     release(id) { if (holds.delete(id)) refresh(); },
     // Drops every hold at once: a pause, a death, a cutscene or a new run never inherits one.
     releaseAll() { if (holds.size) { holds.clear(); refresh(); } },

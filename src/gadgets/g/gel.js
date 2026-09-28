@@ -4,6 +4,7 @@
 // every 5 s. The key is read here directly, so a tap and a hold can differ.
 import * as THREE from 'three';
 import { gelSpot } from '../aim.js';
+import { gadgetsLocked } from '../gadgetDefs.js';
 
 const HOLD = 0.35, RANGE = 14, WALL_REACH = 1.6;
 
@@ -57,10 +58,14 @@ export function createGelHandler() {
     // The buffered press only needs using up; update() reads the key.
     fire() { return true; },
     update(sys, real, dt, ctx) {
-      const armed = sys.state.equipped === 'gel' && !sys.wheelOpen && !sys.hero.dead && sys.hero.control?.name !== 'remoteSteer';
-      if (armed && ctx.input.pressed('batarang') && holdT < 0) holdT = 0;
+      // Inert under the wheel, a death, remote steering and the controls the wheel can't open
+      // over (a chain takedown, the Bat Swarm, a challenge countdown). A press or hold that one of
+      // those cuts into is dropped, not sprayed.
+      const armed = sys.state.equipped === 'gel' && !sys.wheelOpen && !sys.hero.dead && sys.hero.control?.name !== 'remoteSteer' && !gadgetsLocked(sys.hero);
+      if (!armed) { holdT = -1; return; }
+      if (ctx.input.pressed('batarang') && holdT < 0) holdT = 0;
       if (holdT < 0) return;
-      if (armed && ctx.input.down('batarang')) {
+      if (ctx.input.down('batarang')) {
         const before = holdT;
         holdT += real;
         if (before < HOLD && holdT >= HOLD) detonate(sys);

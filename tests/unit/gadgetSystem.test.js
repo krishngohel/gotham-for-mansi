@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createGadgetSystem } from '../../src/gadgets/gadgetSystem.js';
+import { createGadgetSystem, NEWS_CARD_S } from '../../src/gadgets/gadgetSystem.js';
+import { GADGET_IDS, gadgetNewsCard } from '../../src/gadgets/gadgetDefs.js';
 import { createTimeControl } from '../../src/core/time.js';
 import { createEvents } from '../../src/core/events.js';
 import { upgradeEffects } from '../../src/progress/upgrades.js';
@@ -16,14 +17,14 @@ function fakeInput() {
     endFrame() { pressed.clear(); released.clear(); codes.clear(); this.look.dx = 0; this.look.dy = 0; },
   };
 }
-function setup({ unlocked = [], step = 0, devAll = false } = {}) {
+function setup({ unlocked = [], step = 0, devAll = false, finished = false, progress: given = null, extra = {} } = {}) {
   const events = createEvents(), time = createTimeControl(), input = fakeInput();
   const wheelUi = { show: vi.fn(), setPick: vi.fn(), setInfo: vi.fn(), hide: vi.fn(), warm() {} };
   const gadgetHud = { set: vi.fn() };
   const fired = [];
   const stub = (id) => () => ({ id, fire: () => { fired.push(id); return true; } });
-  const factories = { batarang: stub('batarang'), gel: stub('gel'), smoke: stub('smoke') };
-  const progress = { step, finished: false, gadgets: { equipped: 'batarang', unlocked, broken: [], caches: [] } };
+  const factories = { batarang: stub('batarang'), gel: stub('gel'), smoke: stub('smoke'), ...extra };
+  const progress = given ?? { step, finished, gadgets: { equipped: 'batarang', unlocked, broken: [], caches: [], wheelUsed: false } };
   const save = vi.fn();
   const flags = { playing: true };
   const hero = { dead: false, state: 'ground', grounded: true, control: null, pos: { x: 0, y: 0, z: 0 }, bat: { animator: { play() {} } } };
@@ -166,11 +167,12 @@ describe('the wheel and its slow time never linger', () => {
       expect(t.time.held).toBe(1);
     }
   });
-  it('never opens while dead, while play is stopped, mid chain takedown or in a challenge countdown', () => {
+  it('never opens while dead, while play is stopped, mid chain takedown or Bat Swarm, or in a challenge countdown', () => {
     const cases = [
       (t) => { t.hero.dead = true; },
       (t) => { t.flags.playing = false; },
       (t) => { t.hero.control = { name: 'chain' }; },
+      (t) => { t.hero.control = { name: 'swarm' }; },
       (t) => { t.hero.control = { name: 'countdown' }; },
     ];
     for (const block of cases) {
@@ -253,5 +255,143 @@ describe('fix round 1', () => {
     expect(events).toEqual(['seen']);
     t.input.letGo('gadgetWheel'); t.frame();
     expect(events).toEqual(['seen']);
+  });
+});
+
+// Final review I1: a save from before gadgets existed (the live game) is past every unlock step,
+// or finished. It must hear about them once, with the party popper getting its own moment.
+describe('returning players', () => {
+  const listen = (t) => {
+    const log = [];
+    t.events.on('gadgetNews', ({ ids }) => log.push(['news', ids]));
+    t.events.on('gadgetUnlocked', ({ id }) => log.push(['unlocked', id]));
+    t.events.on('gadgetWheelTip', () => log.push(['tip']));
+    return log;
+  };
+  const others = GADGET_IDS.filter((id) => id !== 'batarang' && id !== 'popper');
+
+  it('an old finished save gets exactly one summary, then the popper card, and neither repeats', () => {
+    const t = setup({ finished: true });
+    const log = listen(t);
+    // Nothing is announced or written until live play (a comic, the title, a pause).
+    expect(t.save).not.toHaveBeenCalled();
+    t.flags.playing = false;
+    t.frame(); t.frame();
+    expect(log).toEqual([]);
+    t.flags.playing = true;
+    t.frame();
+    expect(log).toEqual([['tip'], ['news', others]]);
+    expect(t.progress.gadgets.unlocked).toEqual(others);
+    expect(t.save).toHaveBeenCalled();
+    // The popper waits for the summary card to go.
+    for (let i = 0; i < NEWS_CARD_S - 1; i++) t.frame(1);
+    expect(log.length).toBe(2);
+    t.frame(1.5);
+    expect(log).toEqual([['tip'], ['news', others], ['unlocked', 'popper']]);
+    expect(t.progress.gadgets.unlocked).toContain('popper');
+    for (let i = 0; i < 30; i++) t.frame(1);
+    expect(log.length).toBe(3);
+    // The next load of the same save: nothing new to tell.
+    const again = setup({ progress: t.progress });
+    const log2 = listen(again);
+    for (let i = 0; i < 30; i++) again.frame(1);
+    expect(log2.filter(([k]) => k !== 'tip')).toEqual([]);
+  });
+  it('a save that earned a single gadget gets its normal unlock card instead of a summary', () => {
+    const t = setup({ step: STEPS.findIndex((s) => s.id === 'toYard') });
+    const log = listen(t);
+    t.frame();
+    expect(log).toEqual([['tip'], ['unlocked', 'claw']]);
+    expect(t.progress.gadgets.unlocked).toEqual(['claw']);
+  });
+  it('a finished save that already knew the other gadgets gets the popper card alone', () => {
+    const t = setup({ finished: true, unlocked: [...others] });
+    const log = listen(t);
+    t.frame();
+    expect(log.filter(([k]) => k !== 'tip')).toEqual([['unlocked', 'popper']]);
+  });
+  it('a step change before the first live frame never writes the untold gadgets', () => {
+    const t = setup({ finished: true });
+    t.events.emit('step', {});
+    expect(t.progress.gadgets.unlocked).toEqual([]);
+  });
+  it('?gadgets=all never announces and never writes, even on a finished save', () => {
+    const t = setup({ finished: true, devAll: true });
+    const log = listen(t);
+    t.input.hold('gadgetWheel'); t.frame(); t.frame();
+    t.input.letGo('gadgetWheel');
+    for (let i = 0; i < 20; i++) t.frame(1);
+    expect(log).toEqual([]);
+    expect(t.save).not.toHaveBeenCalled();
+    expect(t.progress.gadgets).toEqual({ equipped: 'batarang', unlocked: [], broken: [], caches: [], wheelUsed: false });
+  });
+  it('the summary card names the gadgets with the live wheel key and no dashes', () => {
+    const c = gadgetNewsCard(others, 'Tab');
+    expect(c.title).toBe('WAYNETECH DELIVERY!');
+    expect(c.text).toContain('Remote Batarang, Explosive Gel, Smoke Pellet, Line Launcher, Batclaw and Freeze Blast.');
+    expect(c.text).toContain('Hold Tab');
+    const dash = new RegExp(`[${String.fromCharCode(0x2013)}${String.fromCharCode(0x2014)}]`);
+    expect(c.title + c.text).not.toMatch(dash);
+    expect(gadgetNewsCard(['gel'], 'Tab').text).toContain(': Explosive Gel.');
+  });
+});
+
+describe('the wheel tutorial', () => {
+  it('shows once per run while more than one gadget is unlocked and the wheel was never opened', () => {
+    const t = setup();
+    const tips = [];
+    t.events.on('gadgetWheelTip', () => tips.push(1));
+    t.frame(); t.frame();
+    expect(tips).toEqual([]);
+    t.sys.state.unlock(['gel']);
+    t.frame(); t.frame();
+    expect(tips).toEqual([1]);
+  });
+  it('opening the wheel saves wheelUsed, and after that the tip never shows', () => {
+    const t = setup({ unlocked: ['gel'] });
+    t.flags.playing = false;
+    t.frame();
+    t.flags.playing = true;
+    t.input.hold('gadgetWheel'); t.frame(); t.frame();
+    expect(t.progress.gadgets.wheelUsed).toBe(true);
+    expect(t.save).toHaveBeenCalled();
+    const again = setup({ progress: t.progress });
+    const tips = [];
+    again.events.on('gadgetWheelTip', () => tips.push(1));
+    again.frame(); again.frame();
+    expect(tips).toEqual([]);
+  });
+});
+
+describe('fix round: the boss fight and mid-combo gadgets', () => {
+  it('the Joker step equips the batarang for the fight without saving it', () => {
+    const t = setup({ unlocked: ['gel'] });
+    t.sys.equip('gel');
+    t.save.mockClear();
+    const boss = STEPS.find((s) => s.type === 'boss');
+    t.progress.step = STEPS.indexOf(boss);
+    t.events.emit('step', { step: boss, index: t.progress.step });
+    expect(t.sys.state.equipped).toBe('batarang');
+    expect(t.progress.gadgets.equipped).toBe('gel');
+    t.frame();
+    expect(t.gadgetHud.set.mock.lastCall[0].id).toBe('batarang');
+    expect(t.progress.gadgets.equipped).toBe('gel');
+  });
+  it('a gadget pose replaces a strike in its chain window, but never a chain takedown', () => {
+    const poser = () => ({ id: 'smoke', fire: (sys) => { sys.pose('Sword_Regular_B', 0.35, 1.7); return true; } });
+    const t = setup({ unlocked: ['smoke'], extra: { smoke: poser } });
+    const plays = [];
+    t.hero.bat.animator.play = (clip) => plays.push(clip);
+    t.sys.equip('smoke');
+    t.hero.control = { name: 'strike', combat: true, canChain: () => true };
+    t.sys.fire({}, {});
+    expect(t.hero.control.name).toBe('gadgetPose');
+    expect(plays).toEqual(['Sword_Regular_B']);
+    const chain = { name: 'chain', combat: true, canChain: () => false };
+    t.hero.control = chain;
+    t.frame(20);
+    t.sys.fire({}, {});
+    expect(t.hero.control).toBe(chain);
+    expect(plays).toEqual(['Sword_Regular_B']);
   });
 });

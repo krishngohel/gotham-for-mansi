@@ -10,7 +10,8 @@ import { createCape } from '../actors/cape.js';
 import { createPillar, createRingMesh, createVan, createLootBags } from '../world/sideProps.js';
 import { createGadgetWarm } from '../gadgets/gadgetFx.js';
 import { createStealthWarm } from '../stealth/stealthFx.js';
-import { PALETTE } from '../config/palette.js';
+import { createSwarmWarm } from './swarmFx.js';
+import { createRopeMaterial } from './chainFx.js';
 import { LAYER_FX } from '../render/layers.js';
 
 export function createWarmCast(assets) {
@@ -41,12 +42,15 @@ export function createWarmCast(assets) {
   // Predator stealth visuals (src/stealth/stealthFx.js): vision cones, laser sights, tracers and
   // muzzle flashes, compiled here so the first stealth room doesn't build a program.
   group.add(createStealthWarm());
-  // The chain takedown's ink tether (src/game/chainFx.js): an FX-layer LineSegments in ink,
+  // The Bat Swarm's flapping ink bats (src/game/swarmFx.js): their own shader, compiled here.
+  group.add(createSwarmWarm());
+  // The chain takedown's rope (src/game/chainFx.js): an FX-layer ribbon with vertex colours,
   // compiled here with everything else so the first Rope-a-Dope doesn't build a program.
-  const tether = new THREE.LineSegments(
-    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(1, 0.5, 0)]),
-    new THREE.LineBasicMaterial({ color: PALETTE.ink }),
-  );
+  const ropeGeo = new THREE.BufferGeometry();
+  ropeGeo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 1, 0.5, 0, 0, 0.05, 0], 3));
+  ropeGeo.setAttribute('color', new THREE.Float32BufferAttribute([0, 0, 0, 1, 1, 1, 1, 1, 1], 3));
+  ropeGeo.setIndex([0, 1, 2]);
+  const tether = new THREE.Mesh(ropeGeo, createRopeMaterial());
   tether.position.set((x += 2), -50, 0);
   tether.layers.set(LAYER_FX);
   group.add(tether);

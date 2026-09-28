@@ -90,9 +90,11 @@ export function selectChainTargets(origin, facing, enemies, {
   return path.length >= min ? path : null;
 }
 
-// Unaware goons close enough to hear a silent chain (the ones in the chain don't count).
+// Unaware, upright goons close enough to hear a silent chain (the ones in the chain don't count).
+// Skips a tied or downed goon: waking one mid-tie/getup would fight enemy.js's own state machine
+// (see enemy.wake), and it can't act on being woken until it's back on its feet anyway.
 export function chainHearers(origin, enemies, chained, radius = CHAIN_RULES.hearRadius) {
-  return enemies.filter((e) => e.alive && !e.aware && !chained.includes(e) && planar(origin, e.pos) <= radius && Math.abs(e.pos.y - origin.y) <= 4);
+  return enemies.filter((e) => e.alive && !e.aware && !e.down && !chained.includes(e) && planar(origin, e.pos) <= radius && Math.abs(e.pos.y - origin.y) <= 4);
 }
 
 // Everyone tied up with `e` who is still tied, e included: one hit knocks them all out.

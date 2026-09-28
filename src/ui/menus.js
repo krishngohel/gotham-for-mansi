@@ -7,12 +7,25 @@ import MANSI from '../mansi.config.js';
 
 const MOVING_AROUND = ['ladder', 'ledge', 'zip', 'wallrun', 'divebomb', 'takedown'];
 const PREDATOR = ['crouch', 'silent', 'perch', 'perchDrop', 'distract', 'vent', 'ledgeStealth', 'spotted', 'rifle'];
+const CHAIN_TIPS = ['chain', 'chainTied'];
 
 const PAD_LAYOUT = [
   ['Move / camera', 'Left stick / right stick'], ['Jump, glide', 'A'], ['Punch', 'X'], ['Kick', 'B'], ['Block, counter', 'Y'],
-  ['Grab and throw', 'D-pad right'], ['Grapple', 'LB'], ['Cape stun', 'RB'], ['Dodge', 'LT'], ['Batarang', 'RT'], ['Sprint', 'Hold L3'], ['Crouch', 'Tap L3'], ['Special takedown', 'R3'],
+  ['Grab and throw', 'D-pad right'], ['Grapple', 'LB'], ['Cape stun', 'RB (tap)'], ['Dodge', 'LT'], ['Use gadget', 'RT'], ['Sprint', 'Hold L3'], ['Crouch', 'Tap L3'], ['Special takedown', 'R3'],
+  ['Chain takedowns', 'Hold Y, then D-pad left, up or right'], ['Chain takedown 4 (Bat Swarm)', 'Hold Y, then LB'],
+  ['Gadget wheel', 'Hold RB, pick with the right stick'],
   ['Detective vision', 'View'], ['Photo mode', 'D-pad up'], ['Pause', 'Menu'],
 ];
+
+// Some gadget prompts already open with "Name: ..." (see src/ui/prompts.js); the help list
+// prepends its own bold name, so drop a matching leading "Name:" here rather than show it twice.
+// Never touches the prompt text itself, only this one rendering.
+function dropLeadingName(name, text) {
+  const prefix = `${name}:`;
+  return text.slice(0, prefix.length).toLowerCase() === prefix.toLowerCase()
+    ? text.slice(prefix.length).trimStart()
+    : text;
+}
 
 function el(tag, cls, html) {
   const e = document.createElement(tag);
@@ -25,6 +38,7 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
   const layer = el('div', 'menu-layer');
   root.appendChild(layer);
   let current = null;
+  let gadgetHelp = () => [];
 
   function show(node) {
     layer.innerHTML = '';
@@ -85,7 +99,7 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
   // opts: { onResume, onRestart, onTitle, info?: { challenge, crimesStopped, percent },
   //         onQuitChallenge?, onChallenges?, onProgress?, onPhoto? }
   function pause(opts) {
-    const { onResume, onRestart, onTitle, info = {}, onQuitChallenge, onChallenges, onProgress, onPhoto } = opts;
+    const { onResume, onRestart, onTitle, info = {}, onQuitChallenge, onChallenges, onProgress, onPhoto, onWayneTech } = opts;
     const again = () => pause(opts);
     const node = el('div', 'menu pause-menu');
     node.appendChild(el('h2', '', 'Paused'));
@@ -94,6 +108,7 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
     if (info.challenge && onQuitChallenge) list.appendChild(button('Quit challenge', onQuitChallenge));
     if (onChallenges) list.appendChild(button('Challenges', onChallenges));
     if (onProgress) list.appendChild(button(info.percent != null ? `Progress, ${info.percent}%` : 'Progress', onProgress));
+    if (onWayneTech) list.appendChild(button(info.wayneFree ? `WayneTech, ${info.wayneFree} to spend` : 'WayneTech', onWayneTech, info.wayneFree ? 'glow' : ''));
     if (onPhoto) list.appendChild(button('Photo mode', onPhoto));
     list.appendChild(button('Controls', () => help(again)));
     list.appendChild(button('Settings', () => openSettings(again)));
@@ -162,6 +177,46 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
     drawProgressMap(map, data.map);
   }
 
+  // ---------- WayneTech ----------
+  // data: wayne.page(). Every card is a button so a gamepad can browse them; only buyable ones buy.
+  // Text goes in with textContent.
+  const WT_STATE = { owned: 'Built', buyable: 'Build it: 1 point', poor: 'Needs 1 point', locked: 'Needs the one above' };
+  function wayneTechPage(data, { onBuy, onBack, focus = null }) {
+    const node = el('div', 'menu wt-menu');
+    node.appendChild(el('div', 'wt-head', '<span class="wt-logo">WAYNETECH</span><span class="wt-sub">Applied Sciences Division</span>'));
+    const bar = el('div', 'wt-xp', '<div class="wt-level"></div><div class="wt-bar"><i></i></div><div class="wt-points"></div><div class="wt-next"></div>');
+    bar.querySelector('.wt-level').textContent = `Level ${data.level}`;
+    bar.querySelector('.wt-bar i').style.width = `${Math.round(data.fraction * 100)}%`;
+    bar.querySelector('.wt-points').textContent = data.allOwned ? 'Every upgrade built' : data.free === 1 ? '1 point to spend' : `${data.free} points to spend`;
+    bar.querySelector('.wt-next').textContent = `${data.xp.toLocaleString('en-US')} XP. ${data.need.toLocaleString('en-US')} more to level ${data.level + 1}.`;
+    node.appendChild(bar);
+    const trees = el('div', 'wt-trees');
+    for (const t of data.trees) {
+      const col = el('div', `wt-tree wt-${t.id}`);
+      col.appendChild(el('h3', '', t.name));
+      for (const u of t.upgrades) {
+        const card = el('button', `mbtn wt-card ${u.state}`, '<span class="wt-tier"></span><span class="wt-name"></span><span class="wt-text"></span><span class="wt-state"></span>');
+        card.dataset.id = u.id;
+        card.querySelector('.wt-tier').textContent = String(u.tier);
+        card.querySelector('.wt-name').textContent = u.name;
+        card.querySelector('.wt-text').textContent = u.text;
+        card.querySelector('.wt-state').textContent = WT_STATE[u.state];
+        card.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (u.state === 'buyable') onBuy(u.id);
+          else sound('uiBack');
+        });
+        card.addEventListener('mouseenter', () => sound('uiMove'));
+        col.appendChild(card);
+      }
+      trees.appendChild(col);
+    }
+    node.appendChild(trees);
+    node.appendChild(button('Back', onBack, 'small'));
+    show(node);
+    if (focus) node.querySelector(`[data-id="${focus}"]`)?.focus({ preventScroll: true });
+  }
+
   // ---------- controls help ----------
   function help(onBack) {
     const node = el('div', 'menu help-menu');
@@ -185,6 +240,22 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
     node.appendChild(el('h3', '', 'Predator'));
     for (const id of PREDATOR) node.appendChild(el('p', 'tip', promptText(id, settings.bindings)));
     node.appendChild(el('p', 'tip', 'The ring over a goon fills white while he notices you, turns yellow while he searches and red once he has found you. Detective vision shows every goon in his state colour through walls, his vision cone on the floor, and how many rifles are left.'));
+    node.appendChild(el('h3', '', 'Chain takedowns'));
+    // The 'chain' tip carries the stealth clause (free and silent near two unaware goons).
+    for (const id of CHAIN_TIPS) node.appendChild(el('p', 'tip', promptText(id, settings.bindings)));
+    // No costs here: WayneTech's Efficient Chains lowers them, and the chain icons and the cost
+    // hint show the live ones.
+    node.appendChild(el('p', 'tip', 'Rope-a-Dope ties up to three goons together. Headbanger smashes two heads together. Domino Drop bounces off every head into a dive-bomb.'));
+    const gadgets = gadgetHelp();
+    if (gadgets.length) {
+      node.appendChild(el('h3', '', 'Gadgets'));
+      node.appendChild(el('p', 'tip', promptText('gadgetWheel', settings.bindings)));
+      for (const g of gadgets) {
+        const p = el('p', 'tip', dropLeadingName(g.name, g.html));
+        p.prepend(el('b', '', `${g.name}: `));
+        node.appendChild(p);
+      }
+    }
     node.appendChild(el('h3', '', 'Extras'));
     for (const id of ['challenges', 'photo']) node.appendChild(el('p', 'tip', promptText(id, settings.bindings)));
     node.appendChild(el('p', 'tip', 'Tips: counter every blue bolt, dodge the red ones. Kick or cape-stun knife goons. Batarang the Joker mid-throw.'));
@@ -308,5 +379,9 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
     show(node);
   }
 
-  return { title, suitSelect, pause, challengesPage, progressPage, help, openSettings, credits, hide, get open() { return !!current; } };
+  return {
+    title, suitSelect, pause, challengesPage, progressPage, wayneTechPage, help, openSettings, credits, hide,
+    setGadgetHelp(fn) { gadgetHelp = fn; },
+    get open() { return !!current; },
+  };
 }

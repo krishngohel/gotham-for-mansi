@@ -30,7 +30,9 @@ export const STOCK_BEATS = {
 export const CHAIN_BEATS = {
   Chain_GrabHeads: { duration: 0.8, grab: 0.16, contact: 0.4 },
   Chain_Yank: { duration: 0.7, contact: 0.2 },
-  Chain_Stomp: { duration: 0.45, contact: 0.16 },
+  // heel: the left ankle on the contact frame, from the root (+x his left, +z forward): chainControl
+  // lands it on a goon's head.
+  Chain_Stomp: { duration: 0.45, contact: 0.16, heel: { x: 0.24, y: 0.05, z: 0.14 } },
 };
 
 const DEFAULTS = {

@@ -39,3 +39,25 @@ export function isUnlocked(def, progress, steps) {
 export function unlockedIds(progress, steps, sticky = []) {
   return GADGETS.filter((g) => sticky.includes(g.id) || isUnlocked(g, progress, steps)).map((g) => g.id);
 }
+
+// Hero controls no gadget acts under: a chain takedown's timeline (the Bat Swarm's too) and a
+// challenge's 3-2-1 countdown. The wheel never opens over them and gel ignores the fire key.
+export const NO_GADGET_CONTROLS = new Set(['chain', 'swarm', 'countdown']);
+export const gadgetsLocked = (hero) => NO_GADGET_CONTROLS.has(hero.control?.name);
+
+// Batman is free to start a gadget: no move in progress, or a combat move in its chain window
+// (the gadget replaces it, the way the next punch would). Mirrors combat's own `free` test.
+export function freeForGadget(hero) {
+  const c = hero.control;
+  return !c || (!!c.combat && !!c.canChain?.());
+}
+
+// The one card a returning save gets for gadgets it earned before they existed.
+export function gadgetNewsCard(ids, wheelKey) {
+  const names = ids.map((id) => gadgetById(id).name);
+  const list = names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0];
+  return {
+    title: 'WAYNETECH DELIVERY!',
+    text: `Lucius sent new toys: ${list}. Hold ${wheelKey} for the gadget wheel.`,
+  };
+}

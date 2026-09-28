@@ -82,7 +82,7 @@ test('the progress page shows the percentage, every part and the map', async ({ 
   await page.keyboard.press('Escape');
   await pauseButton(page, 'Progress').click();
   await expect(page.locator('.progress-menu h2')).toContainText('%');
-  expect(await page.locator('.progress-menu .pg-row').count()).toBe(6);
+  expect(await page.locator('.progress-menu .pg-row').count()).toBe(8); // 6 from 3C plus 5FG's WayneTech caches and WayneTech upgrades rows
   await expect(page.locator('.progress-menu canvas.pg-map')).toBeVisible();
   await page.locator('.progress-menu .mbtn', { hasText: 'Back' }).click();
   await pauseButton(page, 'Challenges').click();

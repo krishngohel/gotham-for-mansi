@@ -1,5 +1,6 @@
 // WayneTech: four trees of five upgrades, one point each, each needing the one above it. Every
 // effect is a number in one shared effects object that combat, the hero and the gadgets read. Pure.
+import { damageToHero } from '../combat/rules.js';
 export const TREES = [
   { id: 'armor', name: 'Armor', upgrades: [
     { id: 'plating1', name: 'Reinforced Plating', text: 'Max health +25.' },
@@ -13,7 +14,7 @@ export const TREES = [
     { id: 'flow', name: 'Steady Flow', text: 'The first hit you take in a combo does not break it.' },
     { id: 'efficient', name: 'Efficient Chains', text: 'Chain takedowns cost 2 less combo.' },
     { id: 'fastFinish', name: 'Fast Finish', text: 'Special takedowns unlock at combo 6 instead of 8.' },
-    { id: 'swarm', name: 'Bat Swarm', text: 'A fourth chain takedown at combo 15: a swarm of bats takes down up to six goons.' },
+    { id: 'swarm', name: 'Bat Swarm', text: 'A fourth chain takedown for a big combo: a swarm of bats takes down up to six goons.' },
   ] },
   { id: 'gadgets', name: 'Gadgets', upgrades: [
     { id: 'triple', name: 'Triple Batarang', text: 'The batarang throws up to three at once, one per goon.' },
@@ -93,11 +94,19 @@ export function upgradeStatus(owned, id, free) {
   return r.reason === 'owned' ? 'owned' : r.reason === 'points' ? 'poor' : 'locked';
 }
 
-// How much of an attack's damage lands. `buzzer` is the Joker's thrown gag; `rifle` the rifle
-// goon's shot.
+// How much of an attack's damage lands. The Joker's gags are `gas` (the laughing-gas grenades he
+// throws) and `buzzer` (the joy-buzzer floor tiles), and `rifle` is the rifle goon's shot: Kevlar
+// Weave covers all three, as it does knives.
+const RANGED = new Set(['gas', 'buzzer', 'rifle']);
 export function damageFactor(kind, e) {
-  const k = kind === 'knife' ? e.knifeMult : kind === 'buzzer' || kind === 'rifle' ? e.rangedMult : 1;
+  const k = kind === 'knife' ? e.knifeMult : RANGED.has(kind) ? e.rangedMult : 1;
   return k * e.damageMult;
+}
+
+// Damage that reaches Batman after armor, rounded to hundredths: goon attacks (combat) and the
+// Joker fight's hazards (boss.js) both go through here, so every upgrade applies to both.
+export function hurtDamage(kind, opts, e) {
+  return Math.round(damageToHero(kind, opts) * damageFactor(kind, e) * 100) / 100;
 }
 
 // Health recovery out of combat: after `regenDelay` seconds calm and unhurt, `regenRate` per second.

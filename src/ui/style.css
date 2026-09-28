@@ -338,3 +338,41 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0 6px; margin: 0 2px; bo
 .st-crouch { position: absolute; left: 28px; bottom: 150px; width: 44px; height: 44px; background: var(--paper); border: 3px solid var(--ink); border-radius: 50%; box-shadow: 2px 2px 0 var(--ink); }
 .st-crouch svg { width: 100%; height: 100%; }
 .st-crouch circle, .st-crouch path { fill: none; stroke: var(--ink); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+
+/* WayneTech: a comic-book tech catalogue. */
+.wt-menu { width: min(1080px, 96vw); }
+.wt-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 6px; transform: rotate(-1deg); }
+.wt-logo { font: 58px/1 'Bangers', cursive; letter-spacing: 3px; color: var(--signal); -webkit-text-stroke: 2px var(--ink); paint-order: stroke fill; text-shadow: 5px 5px 0 var(--ink); }
+.wt-sub { font: 700 18px 'Barlow Condensed', sans-serif; letter-spacing: 2px; text-transform: uppercase; }
+.wt-xp { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 14px; align-items: center; margin: 6px 0 12px; }
+.wt-level { font: 30px 'Bangers', cursive; }
+.wt-bar { height: 16px; border: 3px solid var(--ink); background: #fff8e6; box-shadow: 3px 3px 0 var(--ink); }
+.wt-bar i { display: block; height: 100%; background: var(--detective); }
+.wt-points { font: 26px 'Bangers', cursive; color: var(--balloon); -webkit-text-stroke: 1px var(--ink); }
+.wt-next { grid-column: 1 / -1; font: 18px 'Patrick Hand SC', cursive; }
+.wt-trees { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.wt-tree h3 { margin: 0 0 6px; font: 28px 'Bangers', cursive; letter-spacing: 1px; }
+.wt-card { position: relative; display: grid; width: 100%; gap: 2px; margin: 0 0 12px; padding: 8px 10px 8px 34px; text-align: left; color: var(--ink); background: #fffdf5; border: 3px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); }
+.wt-card + .wt-card::before { content: ''; position: absolute; left: 50%; top: -15px; width: 3px; height: 12px; background: var(--ink); }
+.wt-tier { position: absolute; left: 7px; top: 6px; font: 24px 'Bangers', cursive; }
+.wt-name { font: 700 18px 'Barlow Condensed', sans-serif; text-transform: uppercase; }
+.wt-text { font: 15px/1.2 'Patrick Hand SC', cursive; }
+.wt-state { font: 700 13px 'Barlow Condensed', sans-serif; letter-spacing: 1px; text-transform: uppercase; }
+.wt-card.owned { background: var(--signal); }
+.wt-card.buyable { animation: wtPulse 1.1s ease-in-out infinite alternate; }
+.wt-card.poor { opacity: 0.85; }
+.wt-card.locked { background: #d9d3c2; opacity: 0.6; }
+@keyframes wtPulse { from { box-shadow: 3px 3px 0 var(--ink); } to { box-shadow: 3px 3px 0 var(--ink), 0 0 0 4px var(--detective); } }
+@media (max-width: 760px) { .wt-trees { grid-template-columns: repeat(2, 1fr); } }
+.pause-menu .mbtn.glow { background: var(--signal); }
+/* Bat Swarm (chain 4, WayneTech): its own icon right after the three chain icons. */
+.gh-swarm { position: absolute; left: 204px; top: 112px; width: 44px; height: 44px; background: var(--paper); border: 3px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); transform: skewX(-12deg); opacity: 0.35; transition: opacity 0.3s; }
+.gh-swarm.hidden { opacity: 0; }
+.gh-swarm.lit { opacity: 1; background: var(--signal); animation: pop 0.18s ease-out; }
+.gh-swarm svg { width: 100%; height: 100%; }
+.gh-swarm .fill { fill: var(--ink); }
+.gh-swarm b { position: absolute; right: -8px; bottom: -10px; font: 22px 'Bangers', cursive; color: var(--paper); -webkit-text-stroke: 1.5px var(--ink); paint-order: stroke fill; }
+/* Bat Swarm finisher: dense speed lines held longer, pale ink in a dark outline so they read over
+   the night scene. */
+.hud-speed.swarm { background: repeating-conic-gradient(from 0deg at 50% 50%, rgba(11, 11, 18, 0) 0deg 1.5deg, rgba(11, 11, 18, 0.9) 1.5deg 2deg, rgba(239, 230, 207, 0.8) 2deg 3.1deg, rgba(11, 11, 18, 0.9) 3.1deg 3.6deg, rgba(11, 11, 18, 0) 3.6deg 6deg); }
+.hud-speed.swarm.on { animation-duration: 1.3s; }

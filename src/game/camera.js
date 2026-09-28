@@ -60,7 +60,9 @@ export function createFollowCamera(camera, collision) {
     dropShot(from, to) { dropFrom.copy(from); dropTo.copy(to); dropSet = true; },
     // Action shot for critical hits: the camera swings low and to the side of the blow,
     // tilts like a comic panel, then eases back. Player control of the orbit is untouched.
-    actionShot(focus, attacker, duration = 0.9, { dist = 3.2, lift = -0.55, back = 1.2 } = {}) {
+    // `rise` lifts the point it looks at above the blow (a shot that must also fit a standing
+    // Batman over a goon lying on the floor).
+    actionShot(focus, attacker, duration = 0.9, { dist = 3.2, lift = -0.55, back = 1.2, rise = 0 } = {}) {
       if (!s.actionEnabled) return;
       const dx = focus.x - attacker.x, dz = focus.z - attacker.z;
       const len = Math.hypot(dx, dz) || 1;
@@ -70,7 +72,7 @@ export function createFollowCamera(camera, collision) {
       action.t = 0;
       action.dur = duration;
       action.focus.copy(focus).lerp(attacker, 0.35);
-      action.focus.y = focus.y - 0.2;
+      action.focus.y = focus.y - 0.2 + rise;
       action.pos.set(action.focus.x + px * side * dist - (dx / len) * back, focus.y + lift, action.focus.z + pz * side * dist - (dz / len) * back);
       action.roll = side * 0.16;
       action.active = true;
@@ -128,8 +130,11 @@ export function createFollowCamera(camera, collision) {
         camera.position.y += (Math.random() - 0.5) * a;
         camera.position.z += (Math.random() - 0.5) * a;
       }
-      // Looking up tilts the view toward the rooftops instead of only lowering the camera.
-      lookAt.y += Math.max(0, -s.pitch - 0.1) * 9;
+      // Looking up tilts the view toward the rooftops instead of only lowering the camera. Skipped
+      // in remote mode: its tight 2.4 m distance turns this fixed offset into a much steeper look
+      // angle than the pitch alone (the batarang, steered by this same look direction, overshoots
+      // anything it's aimed at from more than a few metres away).
+      if (mode !== 'remote') lookAt.y += Math.max(0, -s.pitch - 0.1) * 9;
       if (mode === 'drop') {
         if (!holding) {
           // Once, when the drop starts; pulled in if a wall or roof is in the way.
