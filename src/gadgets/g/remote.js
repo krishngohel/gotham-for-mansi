@@ -9,7 +9,7 @@ const SPEED = 24, LIFE = 3, HIT_R = 1.3, WHIRR = 1.1;
 export function createRemoteHandler() {
   const pos = new THREE.Vector3(), dir = new THREE.Vector3(), want = new THREE.Vector3();
   const hit = new Set();
-  let active = false, t = 0, whirr = 0, S = null;
+  let active = false, t = 0, whirr = 0, S = null, firstMove = false;
   const smashGlass = (b) => S.breakables.smash(b, pos);
 
   function end(sys, why) {
@@ -35,6 +35,11 @@ export function createRemoteHandler() {
       t = 0;
       whirr = 0;
       hit.clear();
+      // fire() runs before this frame's own camera update (which is the first one actually in
+      // remote mode), so the direction read here is still last frame's pre-remote camera. update()
+      // snaps straight to the fresh, correctly-framed direction on its first tick instead of
+      // slewing toward it, so the throw doesn't bank off in the old camera's steeper line first.
+      firstMove = true;
       hero.bat.bone('hand_r').getWorldPosition(pos);
       sys.follow.lookDir(dir);
       dir.normalize();
@@ -61,7 +66,7 @@ export function createRemoteHandler() {
       if (sys.hero.dead || sys.hero.control?.name !== 'remoteSteer') { end(sys, 'interrupted'); return; }
       if (t > 0.15 && ctx.input.pressed('batarang')) { sys.combat.consumeInput('batarang'); end(sys, 'drop'); return; }
       sys.follow.lookDir(want);
-      steerDir(dir, want, real, 5, dir);
+      if (firstMove) { dir.copy(want); firstMove = false; } else steerDir(dir, want, real, 5, dir);
       const step = SPEED * real;
       const wall = sys.collision.raycast(pos, dir, step + 0.2);
       if (wall) {

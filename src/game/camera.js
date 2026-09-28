@@ -114,8 +114,11 @@ export function createFollowCamera(camera, collision) {
         camera.position.y += (Math.random() - 0.5) * a;
         camera.position.z += (Math.random() - 0.5) * a;
       }
-      // Looking up tilts the view toward the rooftops instead of only lowering the camera.
-      lookAt.y += Math.max(0, -s.pitch - 0.1) * 9;
+      // Looking up tilts the view toward the rooftops instead of only lowering the camera. Skipped
+      // in remote mode: its tight 2.4 m distance turns this fixed offset into a much steeper look
+      // angle than the pitch alone (the batarang, steered by this same look direction, overshoots
+      // anything it's aimed at from more than a few metres away).
+      if (mode !== 'remote') lookAt.y += Math.max(0, -s.pitch - 0.1) * 9;
       camera.up.set(0, 1, 0);
       if (action.active) {
         action.t += dt;
