@@ -2,7 +2,7 @@
 // Riding a zipline: speed builds downhill; jump lets go with full momentum; the end launches you.
 import { zipPoint, zipSag, zipSpeed } from '../../world/climbables.js';
 
-export function createZipControl(h, { events }, { line, s = 0 }) {
+export function createZipControl(h, { events }, { line, s = 0, minSpeed = 0, onEvent = 'zipOn', offEvent = 'zipOff' }) {
   let pos = s, speed = Math.max(8, Math.hypot(h.vel.x, h.vel.z) * 0.6);
   const p = { x: 0, y: 0, z: 0 };
   h.cape.setWings(false);
@@ -11,18 +11,19 @@ export function createZipControl(h, { events }, { line, s = 0 }) {
   h.grounded = false;
   h.bat.animator.play('Zip_Hang', { fade: 0.1 });
   h.bat.face(Math.atan2(line.dir.x, line.dir.z));
-  events.emit('zipOn');
+  events.emit(onEvent);
   function release(extraUp) {
     h.vel.set(line.dir.x * speed, line.dir.y * speed + extraUp, line.dir.z * speed);
     h.setState('air'); h.airT = 0.3; h.lastClimbT = 0;
-    events.emit('zipOff');
+    events.emit(offEvent);
   }
   return {
     name: 'zip',
     camera: 'zip',
+    line,
     get speed() { return speed; },
     update(dt, ctx) {
-      speed = zipSpeed(line, speed, dt);
+      speed = Math.max(minSpeed, zipSpeed(line, speed, dt));
       pos += speed * dt;
       zipPoint(line, pos, p);
       p.y -= zipSag(line, pos); // hang from the sagging point, not the straight chord

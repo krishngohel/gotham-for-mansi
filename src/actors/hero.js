@@ -62,6 +62,8 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
     frozen: false,
     airRuns: 0,      // wall runs used since last touching the ground
     lastClimbT: 99,  // seconds since leaving a ladder, ledge or zipline
+    // Traversal numbers WayneTech upgrades (game.js points this at the live effects object).
+    tuning: { boostUp: 15, boostOut: 9, diveGain: 1, glideMax: 48, wallRunTime: 1.2, ladderSlide: 9, diveRadius: 4 },
   };
 
   function setState(s) { h.state = s; h.stateT = 0; }
@@ -201,7 +203,7 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
         // Dive: gravity turns height into speed.
         // Arcade physics: a dive buys more speed per meter than real gravity would.
         const angle = ctrl * 0.75;
-        g.speed = Math.min(GLIDE_MAX, g.speed + (GLIDE_G * 1.35 * Math.sin(angle) - g.speed * 0.02) * dt);
+        g.speed = Math.min(h.tuning.glideMax, g.speed + (GLIDE_G * 1.35 * h.tuning.diveGain * Math.sin(angle) - g.speed * 0.02) * dt);
         vyTarget = -g.speed * Math.sin(angle) * 0.55;
       } else if (ctrl < 0 && g.speed > GLIDE_CRUISE - 2) {
         // Swoop: spend speed to climb. v^2 = 2gh, with some loss.
@@ -340,7 +342,7 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
             if (boost) {
               // Grapple boost: fling up over the ledge and straight into a glide if jump is held.
               pos.copy(hang);
-              vel.set(-n.x * 9, 15, -n.z * 9);
+              vel.set(-n.x * h.tuning.boostOut, h.tuning.boostUp, -n.z * h.tuning.boostOut);
               h.grounded = false;
               setState('air');
               h.airT = 0.3;

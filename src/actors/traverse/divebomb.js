@@ -34,7 +34,7 @@ export function createDiveControl(h, { events, combat }) {
       const r = h.integrate(dt);
       if (r.grounded || t > 4) {
         h.bat.tilt.rotation.set(0, 0, 0);
-        combat.shockwave(h.pos, 4);
+        combat.shockwave(h.pos, h.tuning?.diveRadius ?? 4);
         h.land(-20);
         return true;
       }

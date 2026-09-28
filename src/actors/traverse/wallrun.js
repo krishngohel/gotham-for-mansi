@@ -1,9 +1,17 @@
 // src/actors/traverse/wallrun.js
-// Running along a wall for up to 1.2 s on a gentle arc; jump kicks off with a boost.
+// Running along a wall for up to 1.2 s (1.8 s with Wall Grip Boots) on a gentle arc; jump kicks
+// off with a boost.
 const DUR = 1.2;
+
+// Vertical speed along a wall run of `dur` seconds: up then down, peaking about 1.4 m above the
+// start and ending level, whatever the length (Wall Grip Boots makes it 1.8 s).
+export function wallRunVy(t, dur = DUR) {
+  return ((4.6 * 1.2) / dur) * (1 - (2 * t) / dur);
+}
 
 export function createWallRunControl(h, { collision, events }, { wall, speed }) {
   let t = 0;
+  const dur = h.tuning?.wallRunTime ?? DUR;
   const sp = Math.max(9, Math.min(14, speed));
   const ax = wall.alongX, az = wall.alongZ;
   h.airRuns += 1;
@@ -17,7 +25,7 @@ export function createWallRunControl(h, { collision, events }, { wall, speed }) 
     update(dt, ctx) {
       t += dt;
       // Up then down: a 1.2 s arc that peaks 1.4 m above the start.
-      const vy = 4.6 - 7.7 * t;
+      const vy = wallRunVy(t, dur);
       h.vel.set(ax * sp - wall.nx * 1.5, vy, az * sp - wall.nz * 1.5);
       const r = h.integrate(dt);
       h.bat.tilt.rotation.z = wall.side * 0.45;
@@ -37,7 +45,7 @@ export function createWallRunControl(h, { collision, events }, { wall, speed }) 
       const dx = Math.max(wall.box.minX - h.pos.x, 0, h.pos.x - wall.box.maxX);
       const dz = Math.max(wall.box.minZ - h.pos.z, 0, h.pos.z - wall.box.maxZ);
       const still = Math.hypot(dx, dz) < 1.2;
-      if (t > DUR || r.grounded || !still) {
+      if (t > dur || r.grounded || !still) {
         h.bat.tilt.rotation.set(0, 0, 0);
         h.setState(r.grounded ? 'ground' : 'air');
         h.lastClimbT = 0;

@@ -51,7 +51,7 @@ export function createLadderControl(h, { collision, events }, { ladder, y, fromT
         return true;
       }
       const slide = input.down('sprint');
-      const v = slide ? -SLIDE : input.move.y * CLIMB;
+      const v = slide ? -(h.tuning?.ladderSlide ?? SLIDE) : input.move.y * CLIMB;
       cy += v * dt;
       if (cy >= l.top - 1) { cy = l.top - 1; if (v > 0) { phase = 'top'; t = 0; h.bat.animator.play('ClimbUp_1m', { once: true, timeScale: 1.5, fade: 0.08 }); return false; } }
       if (cy <= l.bottom) {
