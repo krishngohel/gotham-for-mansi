@@ -28,4 +28,21 @@ describe('play stats', () => {
     expect(formatStatsLine({ playTime: 0, kos: 2, longestCombo: 0, topGlideSpeed: 0, distanceGlided: 0, photos: 0 }, { crimes: 1 })).toContain('1 crime stopped');
     expect(line).not.toMatch(/[–—]/);
   });
+  it('ignores non-finite or negative per-frame inputs', () => {
+    const { stats } = sanitizeProgress({});
+    const s = createPlayStats(stats);
+    s.tick(NaN); s.tick(-1); s.tick(Infinity); s.tick(-Infinity);
+    s.glide(NaN, 0); s.glide(-10, 0); s.glide(Infinity, 0);
+    s.glide(0, NaN); s.glide(0, -3); s.glide(0, Infinity);
+    s.ko(NaN); s.ko(-1); s.ko(Infinity);
+    expect(stats).toEqual({ playTime: 0, kos: 0, longestCombo: 0, topGlideSpeed: 0, distanceGlided: 0, photos: 0 });
+  });
+  it('clamps non-finite or negative values to 0 when formatting', () => {
+    expect(formatPlayTime(NaN)).toBe('0 s');
+    expect(formatPlayTime(-5)).toBe('0 s');
+    expect(formatPlayTime(Infinity)).toBe('0 s');
+    expect(formatDistance(NaN)).toBe('0 m');
+    expect(formatDistance(-100)).toBe('0 m');
+    expect(formatDistance(Infinity)).toBe('0 m');
+  });
 });

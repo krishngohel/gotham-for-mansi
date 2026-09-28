@@ -1,26 +1,29 @@
 // Counters for the Progress page stats line. Pure: the game feeds it, save.js keeps it.
 export function createPlayStats(stats) {
   return {
-    tick(dt) { stats.playTime += dt; },
+    tick(dt) { if (Number.isFinite(dt) && dt > 0) stats.playTime += dt; },
     glide(speed, dist) {
-      if (speed > stats.topGlideSpeed) stats.topGlideSpeed = speed;
-      stats.distanceGlided += dist;
+      if (Number.isFinite(speed) && speed > 0 && speed > stats.topGlideSpeed) stats.topGlideSpeed = speed;
+      if (Number.isFinite(dist) && dist > 0) stats.distanceGlided += dist;
     },
-    ko(n = 1) { stats.kos += n; },
+    ko(n = 1) { if (Number.isFinite(n) && n > 0) stats.kos += n; },
     combo(n) { if (n > stats.longestCombo) stats.longestCombo = n; },
     photo() { stats.photos += 1; },
   };
 }
 
 export function formatPlayTime(sec) {
-  const s = Math.max(0, Math.floor(sec));
+  const s = Number.isFinite(sec) && sec > 0 ? Math.floor(sec) : 0;
   if (s < 60) return `${s} s`;
   const m = Math.floor(s / 60);
   if (m < 60) return `${m} min`;
   return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')} min`;
 }
 
-export const formatDistance = (m) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`);
+export const formatDistance = (m) => {
+  const v = Number.isFinite(m) && m > 0 ? m : 0;
+  return v < 1000 ? `${Math.round(v)} m` : `${(v / 1000).toFixed(1)} km`;
+};
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
