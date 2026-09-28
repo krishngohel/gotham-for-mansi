@@ -14,6 +14,16 @@ const PAD_LAYOUT = [
   ['Detective vision', 'View'], ['Photo mode', 'D-pad up'], ['Pause', 'Menu'],
 ];
 
+// Some gadget prompts already open with "Name: ..." (see src/ui/prompts.js); the help list
+// prepends its own bold name, so drop a matching leading "Name:" here rather than show it twice.
+// Never touches the prompt text itself, only this one rendering.
+function dropLeadingName(name, text) {
+  const prefix = `${name}:`;
+  return text.slice(0, prefix.length).toLowerCase() === prefix.toLowerCase()
+    ? text.slice(prefix.length).trimStart()
+    : text;
+}
+
 function el(tag, cls, html) {
   const e = document.createElement(tag);
   if (cls) e.className = cls;
@@ -188,7 +198,7 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
       node.appendChild(el('h3', '', 'Gadgets'));
       node.appendChild(el('p', 'tip', promptText('gadgetWheel', settings.bindings)));
       for (const g of gadgets) {
-        const p = el('p', 'tip', g.html);
+        const p = el('p', 'tip', dropLeadingName(g.name, g.html));
         p.prepend(el('b', '', `${g.name}: `));
         node.appendChild(p);
       }

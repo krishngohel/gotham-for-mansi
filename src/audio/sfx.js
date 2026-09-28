@@ -474,10 +474,12 @@ export const SFX = {
     return t + 0.24;
   } },
 
-  // Gel blast: a deep boom with a crackle of debris.
+  // Gel blast: a deep boom with a crackle of debris. Gains trimmed from the original 1 / 0.9 (fix
+  // round 1): unlike heavy, this has no drive/post-attenuation stage, so it rendered ~3 dB hotter
+  // than heavy's peak. Still the loudest of the gadget set, now within ~1 dB of heavy.
   gelBoom: { wet: 0.3, max: 2, fn(ctx, out, t, p) {
-    thump(ctx, out, t, p, { from: 120, to: 32, d: 0.55, gain: 1 });
-    noise(ctx, out, t, { type: 'lowpass', freq: 700 * p, d: 0.6, gain: 0.9 });
+    thump(ctx, out, t, p, { from: 120, to: 32, d: 0.55, gain: 0.65 });
+    noise(ctx, out, t, { type: 'lowpass', freq: 700 * p, d: 0.6, gain: 0.58 });
     crackle(ctx, out, t + 0.05, { dur: 0.5, count: 26, freq: 2500, gain: 0.3 });
     return t + 0.7;
   } },
@@ -527,20 +529,24 @@ export const SFX = {
     return t + 0.5;
   } },
 
-  // A cracked wall giving way: a heavy crunch and tumbling bricks.
+  // A cracked wall giving way: a heavy crunch and tumbling bricks. Gains trimmed from the
+  // original 0.9 / 0.7 (fix round 1): no drive/post-attenuation stage like heavy has, so it
+  // rendered louder than heavy's peak. Now within ~1 dB of heavy.
   wallBreak: { wet: 0.3, max: 1, fn(ctx, out, t, p) {
-    thump(ctx, out, t, p, { from: 90, to: 30, d: 0.45, gain: 0.9 });
-    noise(ctx, out, t, { type: 'lowpass', freq: 500 * p, d: 0.5, gain: 0.7 });
+    thump(ctx, out, t, p, { from: 90, to: 30, d: 0.45, gain: 0.77 });
+    noise(ctx, out, t, { type: 'lowpass', freq: 500 * p, d: 0.5, gain: 0.6 });
     crackle(ctx, out, t + 0.1, { dur: 0.7, count: 22, freq: 900, gain: 0.35, type: 'lowpass' });
     return t + 0.85;
   } },
 
-  // Party popper: three pops, a crackle of confetti and a little fanfare.
+  // Party popper: three pops, a crackle of confetti and a little fanfare. Pop gains trimmed
+  // (fix round 1): each of the three pops rendered near heavy's peak on its own, and the loudest
+  // still cleared it by more than 1 dB.
   popper: { wet: 0.3, max: 1, fn(ctx, out, t, p) {
     const semi = 12 * Math.log2(p);
     for (const at of [0, 0.09, 0.2]) {
-      noise(ctx, out, t + at, { type: 'highpass', freq: 1500, d: 0.05, gain: 0.6 });
-      thump(ctx, out, t + at, p, { from: 320, to: 120, d: 0.06, gain: 0.4 });
+      noise(ctx, out, t + at, { type: 'highpass', freq: 1500, d: 0.05, gain: 0.5 });
+      thump(ctx, out, t + at, p, { from: 320, to: 120, d: 0.06, gain: 0.34 });
     }
     crackle(ctx, out, t + 0.2, { dur: 0.8, count: 30, freq: 6500, gain: 0.2 });
     [72, 76, 79, 84].forEach((m, i) => bell(ctx, out, t + 0.28 + i * 0.07, m + semi, { gain: 0.14, d: 0.5, ratio: 2, index: 1 }));
