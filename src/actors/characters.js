@@ -275,6 +275,7 @@ const GOON_LOOKS = {
   hoodie: { parts: ['Male_Ranger_Body', 'Male_Peasant_Legs', 'Male_Ranger_Feet_Boots', 'Male_Peasant_Arms', 'Male_Ranger_Head_Hood'], hat: null },
   knife: { parts: ['Male_Ranger_Body', 'Male_Ranger_Legs', 'Male_Ranger_Feet_Boots', 'Male_Ranger_Arms'], hat: 'bandana' },
   brute: { parts: ['Male_Ranger_Body', 'Male_Ranger_Legs', 'Male_Ranger_Feet_Boots', 'Male_Peasant_Arms', 'Male_Ranger_Acc_Pauldron'], hat: null },
+  civilian: { parts: ['Male_Peasant_Body', 'Male_Peasant_Legs', 'Male_Peasant_Feet', 'Male_Peasant_Arms'], hat: null },
 };
 const GOON_SCHEMES = [
   // [dark cloth, light cloth] per region: green-painted texels (a) and the rest (b).
@@ -283,18 +284,20 @@ const GOON_SCHEMES = [
   { a: [0xa8323c, 0x2a2a34], b: [0x3a1a40, 0xe0d6c0] },
   { a: [0x2a3a58, 0x8fb0d8], b: [0x2c2c36, 0xa8323c] },
 ];
+const CIVILIAN_SCHEME = { a: [0x5a4a3a, 0x8a7a64], b: [0x33303a, 0xcfc6b0] };
 const BEANIES = [PALETTE.pants, 0x3a2a24, 0x2f3f5a, 0x4a3a52];
 
 let goonBody = null;
 
-// type: 'grunt' | 'knife' | 'brute'
+// type: 'grunt' | 'knife' | 'brute' | 'civilian' (a bystander for street crimes, never an enemy)
 export function createGoon(assets, { type = 'grunt', rng = null } = {}) {
   const pick = (arr) => arr[Math.floor((rng ? rng.next() : Math.random()) * arr.length)];
   const ch = makeCharacter(assets, 'm');
   const { body, eyes, brows, lm } = ch;
   const brute = type === 'brute';
-  const look = GOON_LOOKS[brute ? 'brute' : type === 'knife' ? 'knife' : pick(['striped', 'striped', 'hoodie'])];
-  const scheme = type === 'knife' ? GOON_SCHEMES[1] : brute ? GOON_SCHEMES[3] : pick(GOON_SCHEMES);
+  const civilian = type === 'civilian';
+  const look = GOON_LOOKS[civilian ? 'civilian' : brute ? 'brute' : type === 'knife' ? 'knife' : pick(['striped', 'striped', 'hoodie'])];
+  const scheme = civilian ? CIVILIAN_SCHEME : type === 'knife' ? GOON_SCHEMES[1] : brute ? GOON_SCHEMES[3] : pick(GOON_SCHEMES);
   // Every goon's painted, trimmed body is identical, so they all share one geometry: a new copy
   // per goon meant megabytes of vertex upload (a 30 ms hitch) each time a wave spawned.
   if (goonBody) body.geometry = goonBody;
@@ -306,8 +309,8 @@ export function createGoon(assets, { type = 'grunt', rng = null } = {}) {
   }
   body.material = addRim(toonMaterial({ vertexColors: true, normalMap: body.material.normalMap, normalScale: 0.5, palette: Object.values(GOON_COLORS) }), 0x9fc3ff, 0.55);
   body.castShadow = true;
-  eyes.visible = false;
-  brows.visible = false;
+  eyes.visible = civilian;
+  brows.visible = civilian;
   addHullOutline(body, brute ? 0.013 : 0.011);
   ch.xray = addXray(body);
   const skin = addRim(toonMaterial({ color: PALETTE.skinGoon }), 0x9fc3ff, 0.5);
@@ -319,15 +322,17 @@ export function createGoon(assets, { type = 'grunt', rng = null } = {}) {
   if (brute) ch.root.scale.setScalar(1.25);
 
   const r = lm.headRadius * 1.12;
-  const maskGeo = new THREE.SphereGeometry(r, 24, 16, Math.PI * 0.025, Math.PI * 0.95, Math.PI * 0.2, Math.PI * 0.55);
-  const kind = brute ? 'hockey' : pick(['smile', 'smile', 'sad', 'zigzag']);
-  const mask = rigidMesh(
-    maskGeo, addRim(toonMaterial({ map: maskTex(kind) }), 0xffffff, 0.35),
-    lm.headCenter.clone().add(new THREE.Vector3(0, -0.01, 0.012 * lm.fwd)),
-    new THREE.Euler(0, lm.fwd < 0 ? Math.PI : 0, 0),
-  );
-  attachRigid(body, 'Head', mask);
-  addHullOutline(mask, 0.005);
+  if (!civilian) {
+    const maskGeo = new THREE.SphereGeometry(r, 24, 16, Math.PI * 0.025, Math.PI * 0.95, Math.PI * 0.2, Math.PI * 0.55);
+    const kind = brute ? 'hockey' : pick(['smile', 'smile', 'sad', 'zigzag']);
+    const mask = rigidMesh(
+      maskGeo, addRim(toonMaterial({ map: maskTex(kind) }), 0xffffff, 0.35),
+      lm.headCenter.clone().add(new THREE.Vector3(0, -0.01, 0.012 * lm.fwd)),
+      new THREE.Euler(0, lm.fwd < 0 ? Math.PI : 0, 0),
+    );
+    attachRigid(body, 'Head', mask);
+    addHullOutline(mask, 0.005);
+  }
 
   if (look.hat === 'bandana') {
     const band = rigidMesh(new THREE.CylinderGeometry(r * 1.03, r * 1.05, 0.06, 20, 1, true), toonMaterial({ color: PALETTE.balloon, side: THREE.DoubleSide }), lm.headCenter.clone().add(new THREE.Vector3(0, 0.045, 0)));
