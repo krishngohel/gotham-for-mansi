@@ -28,9 +28,22 @@ describe('courses', () => {
     const needs = CHALLENGES.find((c) => c.kind === 'parkour').checkpoints.map((c) => c.needs).filter(Boolean);
     expect(needs.sort()).toEqual(['ladder', 'ledge', 'wallrun', 'zipline']);
   });
-  it('puts the pillar 2 m behind the start pose', () => {
+  it('puts the pillar beside (right) and behind the start pose, not on the camera line', () => {
     const p = pillarPos({ start: { x: 10, y: 5, z: 10, yaw: 0 } });
-    expect(p).toEqual({ x: 10, y: 5, z: 8 });
+    expect(p).toEqual({ x: 7.8, y: 5, z: 9.4 });
+  });
+  it('lets a challenge override the side or behind distance', () => {
+    const p = pillarPos({ start: { x: 10, y: 5, z: 10, yaw: 0 }, pillarSide: 1.5, pillarBehind: 0 });
+    expect(p).toEqual({ x: 8.5, y: 5, z: 10 });
+  });
+  it('keeps every real challenge pillar off the camera-to-hero line (a real sideways offset)', () => {
+    for (const c of CHALLENGES) {
+      const p = pillarPos(c);
+      const { yaw } = c.start;
+      const rx = -Math.cos(yaw), rz = Math.sin(yaw);
+      const side = (p.x - c.start.x) * rx + (p.z - c.start.z) * rz;
+      expect(Math.abs(side)).toBeGreaterThanOrEqual(1);
+    }
   });
   it('fights the arena in three waves', () => {
     expect(ARENA_FIGHT.waves).toHaveLength(3);

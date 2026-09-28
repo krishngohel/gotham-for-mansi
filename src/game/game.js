@@ -44,8 +44,11 @@ import { createFlow } from './flow.js';
 import { STEPS } from './story.js';
 import { wireAudio } from './sound.js';
 import { createBoss } from './boss.js';
+import { tracker } from './progressTracker.js';
+import { goldStandardPages, fromKrishnPages } from './rewardPages.js';
 import { createFinale } from './finale.js';
 import { createSideContent } from './sideContent.js';
+import { createPhotoMode } from '../ui/photoMode.js';
 import { createWarmCast } from './warmCast.js';
 import { drawEverything, uploadTextures, readyObjects } from '../render/prewarm.js';
 import { createDynamicRes, sanitizeResScale } from '../render/dynamicRes.js';
@@ -175,6 +178,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     audio.music('title');
     menus.title({
       canContinue: progress.step > 0,
+      percent: tracker.score(progress).percent,
       onContinue: () => begin(progress.suit ?? 'm', false),
       onNew: () => menus.suitSelect({ gold: progress.goldUnlocked, onPick: (s) => begin(s, true), onBack: showTitle }),
     });
@@ -310,6 +314,22 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       hudRoot: hudRoot.querySelector('.hud') ?? hudRoot, collision: world.collision, buildings: world.data.buildings,
     });
     Object.assign(sideHooks, side.flowHooks);
+    const photo = createPhotoMode({
+      root: document.body, camera, renderer, ink, scene, hero, input,
+      sound: (n) => audio.play(n),
+      getTime: () => state.t,
+      getIssue: () => `No. ${progress.stats.photos + 1}`,
+      onOpen: () => {
+        state.paused = true;
+        state.pauseMenu = false;
+        input.setEnabled(false);
+        document.exitPointerLock?.();
+        document.body.classList.add('photo-on');
+        events.emit('photoOpen');
+      },
+      onClose: () => { document.body.classList.remove('photo-on'); events.emit('photoClose'); resume(); },
+      onSaved: () => { side.photoTaken(); events.emit('photoSaved'); },
+    });
 
     // ---- HUD reactions ----
     events.on('impact', ({ pos, outcome }) => fx.impact(pos, outcome === 'hit' ? 0.7 : 1.1));
@@ -353,7 +373,12 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     };
     for (const [ev, id] of Object.entries(PROMPT_DONE)) events.on(ev, () => prompts.done(id));
     events.on('swing', ({ kind, finisher }) => { prompts.done(kind === 'kick' ? 'kick' : 'punch'); if (finisher) prompts.done('finisher'); });
-    events.on('step', ({ step }) => { if (step.id === 'toDocks') setTimeout(() => prompts.show(['detective', 'balloons']), 30000); });
+    events.on('step', ({ step }) => {
+      if (step.id === 'toDocks') {
+        setTimeout(() => prompts.show(['detective', 'balloons']), 30000);
+        setTimeout(() => prompts.show(['photo']), 120000);
+      }
+    });
 
     // Progress tracking (Plan 3C): one moveLearned event the first time each traversal move happens.
     const MOVE_IDS = { ladderOn: 'ladder', ledgeGrab: 'ledge', zipOn: 'zipline', wallRun: 'wallrun', diveImpact: 'divebomb', throwRelease: 'throw', slam: 'slam', counter: 'counter' };
@@ -410,6 +435,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       const playing = flow.mode === 'play' || flow.mode === 'dead';
       const dt = playing && !state.paused ? time.scale(real) : 0;
       if (playing && !state.paused) {
+        if (input.pressed('photo') && flow.mode === 'play' && !hero.dead) { photo.open(); return; }
         if (input.pressed('detective')) state.detectiveOn = !state.detectiveOn;
         pickGrapple(real);
         // Grapple is only locked while a fight is actually around you.
@@ -478,7 +504,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     }
 
     const api = {
-      hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, side, stage, gfx, breakables, chainFx,
+      hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, side, stage, gfx, breakables, chainFx, photo,
       winFight: () => { for (const e of combat.enemies) if (e.alive && e.type !== 'joker') { e.health = 0; e.applyHit({ outcome: 'ko' }, hero.pos); } },
     };
     if (params.get('god') === '1') events.on('heroHurt', () => { hero.health = hero.maxHealth; hud.setHealth(1); });
@@ -521,8 +547,21 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       onTitle: () => { location.search = ''; },
       info: side.pauseInfo(),
       onQuitChallenge: () => { side.challenges.quit(); resume(); },
+      onChallenges: () => menus.challengesPage(side.challengesPage(), { onBack: () => menus.pause(opts), onRead: () => readPage('goldStandard', () => menus.pause(opts)) }),
+      onProgress: () => menus.progressPage(side.progressPage(), { onBack: () => menus.pause(opts), onRead: () => readPage('fromKrishn', () => menus.pause(opts)) }),
+      onPhoto: () => { menus.hide(); game.photo.open(); },
     };
     return opts;
+  }
+  // Reward comics open from the pause menu. stage.shot moves the camera for its panels, so the
+  // paused view is put back before the comic shows.
+  function readPage(kind, back) {
+    menus.hide();
+    const p = camera.position.clone(), q = camera.quaternion.clone();
+    const pages = kind === 'goldStandard' ? goldStandardPages(game.stage) : fromKrishnPages(game.stage);
+    camera.position.copy(p);
+    camera.quaternion.copy(q);
+    game.comic.play(pages).then(back);
   }
   function resume({ lock = true } = {}) {
     menus.hide();
@@ -534,6 +573,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
 
   // Gamepad: pause and help, comic pages, and menu navigation (D-pad to move, A to press, B to go back).
   function padControls() {
+    if (game?.photo.active) return;
     if (game?.comic.playing) {
       if (input.padButton(0)) game.comic.advance();
       if (input.padButton(1)) game.comic.skip();
@@ -569,6 +609,10 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   window.addEventListener('keydown', (e) => {
     if (state.phase !== 'play' || !game) return;
     if (e.target?.closest?.('input[type="text"], textarea')) return;
+    if (game.photo.active) {
+      if (settings.bindings.pause.includes(e.code) || settings.bindings.photo.includes(e.code)) { e.preventDefault(); game.photo.close(); }
+      return;
+    }
     const pauseKeys = settings.bindings.pause, helpKeys = settings.bindings.help;
     if (pauseKeys.includes(e.code) && !input.capturing && !game.comic.playing) { e.preventDefault(); state.paused ? (menus.open ? resume() : null) : pause(); }
     else if (helpKeys.includes(e.code) && !state.paused && game.flow.mode === 'play') {
@@ -614,7 +658,9 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   function step(now) {
     const real = Math.min(0.05, (now - last) / 1000);
     last = now;
-    state.t += real;
+    const photoOn = !!game?.photo.active;
+    // Photo mode freezes time: rain, lightning, traffic and the ink's boiling line all hold still.
+    if (!photoOn) state.t += real;
     input.update(real);
     let focus = camera.position;
     if (state.phase === 'title') {
@@ -626,11 +672,12 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       // A cutscene, the finale or the credits never run under a pause menu.
       if (state.pauseMenu && !['play', 'dead'].includes(game.flow.mode)) resume({ lock: false });
       game.update(real);
+      if (photoOn) game.photo.update(real);
       focus = game.hero.pos;
     }
     padControls();
-    lightning(real);
-    world.update(state.t, real, focus, camera, game?.hero ?? null);
+    if (!photoOn) lightning(real);
+    world.update(state.t, photoOn ? 0 : real, focus, camera, game?.hero ?? null);
     ink.render(scene, camera, state.t);
     input.endFrame();
     audio.update(real);

@@ -185,9 +185,11 @@ export function createChallengeRunner({ scene, hero, follow, events, ui, progres
     // Dev hook and scripted runs: starts without walking into the pillar or checking canStart.
     start(id) { const ch = CHALLENGES.find((c) => c.id === id); if (ch && !run) start(ch); return !!ch; },
     quit() { fail('quit'); },
-    // flow.respawn asks this after a knockout or a "Restart from checkpoint".
+    // flow.respawn asks this after a knockout or a "Restart from checkpoint". A checkpoint
+    // restart mid-run counts as quitting the challenge, so it gets the same toast/event as the
+    // pause menu's "Quit challenge" button instead of silently vanishing.
     takeRespawn() {
-      if (run) { const ch = run.ch; end(); return { ...ch.start }; }
+      if (run) { const ch = run.ch; fail('quit'); return { ...ch.start }; }
       const r = respawnAt;
       respawnAt = null;
       return r;

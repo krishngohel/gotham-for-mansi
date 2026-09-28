@@ -71,6 +71,9 @@ const RAW = [
     id: 'birthdayBash', name: "Joker's Birthday Bash", kind: 'arena',
     blurb: 'Three waves on the Monarch roof. Mix your moves, keep the combo, do not get hit.',
     start: { x: 190, y: SITES.monarchRoof.y, z: -48, yaw: Math.atan2(-10, -12) }, medals: { gold: 6000, silver: 4000, bronze: 2000 },
+    // The Monarch roof has a duct unit close on the standard heading; a shorter side offset
+    // clears it. See pillarPos below.
+    pillarSide: 1.5,
   },
 ];
 
@@ -80,10 +83,22 @@ export const CHALLENGES = RAW.map((c) => ({
   ...(c.checkpoints ? { checkpoints: withNormals(c.checkpoints, c.start, true) } : {}),
 }));
 
-// The glowing bat pillar stands 2 m behind the start pose; walking into it starts the challenge.
+// The glowing bat pillar stands 2.2 m to the hero's right and 0.6 m behind the start pose, so it
+// frames the hero from the side in the countdown shot instead of sitting on the camera-to-hero
+// line (the ground camera sits 3.4 m behind, directly on the "2 m straight behind" spot this used
+// to use). Walking up to it starts the challenge. A challenge can override the side distance
+// (`pillarSide`) or behind distance (`pillarBehind`) when the standard offset would land the
+// pillar inside nearby roof scenery; birthdayBash does, to clear a duct unit on the Monarch roof.
+const PILLAR_SIDE = 2.2;
+const PILLAR_BEHIND = 0.6;
 export function pillarPos(ch) {
   const { x, y, z, yaw } = ch.start;
-  return { x: x - Math.round(Math.sin(yaw) * 2e6) / 1e6, y, z: z - Math.round(Math.cos(yaw) * 2e6) / 1e6 };
+  const side = ch.pillarSide ?? PILLAR_SIDE;
+  const behind = ch.pillarBehind ?? PILLAR_BEHIND;
+  const fx = Math.sin(yaw), fz = Math.cos(yaw); // forward
+  const rx = -fz, rz = fx; // right (matches camera.js's right(), and hero.js's strafe use of it)
+  const round = (v) => Math.round(v * 1e6) / 1e6;
+  return { x: round(x + rx * side - fx * behind), y, z: round(z + rz * side - fz * behind) };
 }
 
 // Did the segment a -> b pass through the ring's disc? Either direction counts. A segment that
