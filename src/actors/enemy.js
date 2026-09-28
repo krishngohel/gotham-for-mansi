@@ -57,6 +57,7 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
   // States the stealth runtime may steer a goon out of.
   const NAV = new Set(['idle', 'alert', 'patrol', 'search', 'hunt', 'suspicious', 'look', 'engage', 'recover']);
   const WALKING = new Set(['patrol', 'search', 'hunt']);
+  const MELEE_DY = 2.5; // metres up or down a punch, knife or charge can still reach
   const play = (name, opts) => ch.animator.play(name, opts);
   function setState(s) { e.state = s; e.t = 0; }
 
@@ -183,7 +184,8 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
   e.ready = (hero) => {
     if (e.state !== 'engage' || !e.alive || e.down || e.lostT > 0) return false;
     const d = tmp.set(hero.pos.x - pos.x, 0, hero.pos.z - pos.z).length();
-    return def.ranged ? e.seesHero !== false && d < 30 : d < 6.5;
+    // Fists and knives only reach Batman on the goon's own level (not up on a gargoyle).
+    return def.ranged ? e.seesHero !== false && d < 30 : d < 6.5 && Math.abs(hero.pos.y - pos.y) < MELEE_DY;
   };
 
   e.startWindup = (windup, hero) => {
@@ -295,6 +297,7 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
     if (e.stunT > 0) { e.stunT -= dt; if (e.stunT <= 0) e.stunned = false; }
     const dx = hero.pos.x - pos.x, dz = hero.pos.z - pos.z;
     const dist = Math.hypot(dx, dz);
+    const level = Math.abs(hero.pos.y - pos.y) < MELEE_DY;
     let speed = 0;
     let moveX = 0, moveZ = 0;
 
@@ -361,8 +364,10 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
           faceHero(hero, 10, dt);
           if (!e.hitDone) {
             e.hitDone = true;
-            ctx.onRifleFire?.(e);
-            if (e.seesHero !== false && dist < 32) ctx.onAttackLand(e, 'rifle');
+            // One gate for the tracer and the damage: a shot that "hits" always lands.
+            const lands = e.seesHero !== false && dist < 32;
+            ctx.onRifleFire?.(e, lands);
+            if (lands) ctx.onAttackLand(e, 'rifle');
           }
           if (e.t > 0.45) { setState('recover'); ctx.onAttackEnd(e); }
           break;
@@ -370,7 +375,7 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
         if (e.attackKind === 'charge') {
           speed = 12;
           moveX = e.chargeDir.x; moveZ = e.chargeDir.z;
-          if (!e.hitDone && dist < 1.5 * scale) { e.hitDone = true; ctx.onAttackLand(e, 'charge'); }
+          if (!e.hitDone && dist < 1.5 * scale && level) { e.hitDone = true; ctx.onAttackLand(e, 'charge'); }
           if (e.t > 0.75) { setState('recover'); ctx.onAttackEnd(e); }
         } else {
           const k = Math.min(1, e.t / 0.16);
@@ -378,7 +383,7 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
           pos.z = e.lungeFrom.z + (e.lungeTo.z - e.lungeFrom.z) * k;
           if (!e.hitDone && e.t >= 0.17) {
             e.hitDone = true;
-            if (dist < 2 * scale) ctx.onAttackLand(e, e.attackKind);
+            if (dist < 2 * scale && level) ctx.onAttackLand(e, e.attackKind);
           }
           if (e.t > 0.5) { setState('recover'); ctx.onAttackEnd(e); }
         }
@@ -395,7 +400,9 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
         if (e.downT <= 0) { setState('getup'); play('LayToIdle', { once: true, timeScale: 1.4, fade: 0.1 }); }
         break;
       case 'getup':
-        if (e.t > 1.0) { e.down = false; if (e.aware) setState('engage'); else e.wake(); }
+        // Unaware: stand, then wake. A predator room's wake() only sends it looking, so it must not
+        // be left in getup (unsteerable, and waking again every frame).
+        if (e.t > 1.0) { e.down = false; if (e.aware) setState('engage'); else { setState('idle'); e.wake(); } }
         break;
       case 'tied':
         e.tiedT -= dt;

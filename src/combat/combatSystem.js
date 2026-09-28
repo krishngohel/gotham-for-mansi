@@ -693,15 +693,16 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
   function onAttackEnd(e) { director.release(e.id); }
 
   // A rifle goon fires (enemy.js): muzzle and aim point for the tracer and the crack. The vectors
-  // are reused on every shot, so listeners copy them.
+  // are reused on every shot, so listeners copy them. `lands` is enemy.js's own gate (it sees
+  // Batman and he is within 32 m): hit is true exactly when onAttackLand will deal damage.
   const shotFrom = new THREE.Vector3(), shotTo = new THREE.Vector3();
   const shot = { from: shotFrom, to: shotTo, target: null, hit: false };
-  function onRifleFire(e) {
+  function onRifleFire(e, lands = true) {
     if (e.ch.muzzle) e.ch.muzzle.getWorldPosition(shotFrom);
     else e.ch.headWorld(shotFrom, -0.2);
     shotTo.set(hero.pos.x, hero.pos.y + (hero.crouched ? 0.7 : 1.1), hero.pos.z);
     shot.target = e;
-    shot.hit = e.seesHero !== false && hero.invulnerable <= 0;
+    shot.hit = lands && e.seesHero !== false && !hero.dead && hero.invulnerable <= 0;
     events.emit('rifleShot', shot);
   }
 

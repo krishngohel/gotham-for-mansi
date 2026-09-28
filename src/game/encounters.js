@@ -70,8 +70,9 @@ export function createEncounters({ spawn, despawn, combat, events, collision, st
       if (!triggered) {
         const d = Math.hypot(hero.pos.x - site.x, hero.pos.z - site.z);
         if (d < fight.radius && Math.abs(hero.pos.y - site.y) < 7) this.trigger();
-        // Getting hit (or hitting someone) also starts the fight.
-        if (live.some((e) => e.aware)) this.trigger();
+        // Getting hit (or hitting someone) also starts the fight. In a predator room a silent
+        // takedown or perch drop from the room's edge (or from a gargoyle above) counts too.
+        if (live.some((e) => e.aware || (fight.stealth && !e.alive))) this.trigger();
         return;
       }
       // Move KO'd goons out of the active list.

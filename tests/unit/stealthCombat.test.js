@@ -97,6 +97,16 @@ describe('takedowns and rifles', () => {
     expect(shots).toEqual([['r', true, 1.1]]);
     expect(hero.health).toBe(75);
   });
+  it('a shot that enemy.js says will not land (out of range) is a miss, and no damage', () => {
+    const { combat, events, hero } = setup();
+    const r = makeGoon('r', 'rifle', 0, 40, { update(dt, ctx) { if (this.fired) return; this.fired = true; ctx.onRifleFire?.(this, false); } });
+    combat.setEnemies([r]);
+    const shots = [];
+    events.on('rifleShot', (d) => shots.push(d.hit));
+    combat.update(0.016, ctxWith());
+    expect(shots).toEqual([false]);
+    expect(hero.health).toBe(100);
+  });
   it('the director announces a rifle wind-up', () => {
     const { combat, events } = setup();
     combat.setEnemies([makeGoon('r', 'rifle', 0, 8)]);

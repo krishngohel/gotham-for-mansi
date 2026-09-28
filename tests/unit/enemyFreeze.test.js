@@ -81,3 +81,37 @@ describe('e.freeze guards', () => {
     expect(boss.state).not.toBe('frozen');
   });
 });
+
+describe('melee reach is on one level', () => {
+  it('a melee goon does not wind up at Batman perched high above it; a rifle goon still can', () => {
+    const e = makeEnemy('grunt');
+    e.engageNow();
+    const below = { pos: new THREE.Vector3(0.5, 0, 1) }, above = { pos: new THREE.Vector3(0.5, 9.9, 1) };
+    expect(e.ready(below)).toBe(true);
+    expect(e.ready(above)).toBe(false);
+    const r = makeEnemy('rifle');
+    r.engageNow();
+    r.seesHero = true;
+    expect(r.ready(above)).toBe(true);
+  });
+});
+
+describe('getting up', () => {
+  it('an unaware goon that gets up wakes once and is steerable again (a predator room sends it looking)', () => {
+    const e = createEnemy({
+      id: 'g', type: 'grunt', assets: {}, scene: { add: () => {} }, rng: createRng(1),
+      collision: { resolveCylinder: () => ({ groundY: 0 }), groundBelow: () => 0 },
+    });
+    let woke = 0;
+    e.wake = () => { woke += 1; };
+    e.down = true;
+    e.state = 'getup';
+    e.t = 1.5;
+    const ctx = { hero: { pos: new THREE.Vector3(5, 0, 5) }, others: [e] };
+    e.update(0.016, ctx);
+    e.update(0.016, ctx);
+    expect(e.down).toBe(false);
+    expect(woke).toBe(1);
+    expect(e.canNav()).toBe(true);
+  });
+});

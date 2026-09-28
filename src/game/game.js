@@ -30,6 +30,7 @@ import { createEnemy } from '../actors/enemy.js';
 import { SITES } from '../world/mapData.js';
 import { checkRooms } from '../stealth/roomCheck.js';
 import { ROOMS } from '../stealth/stealthRooms.js';
+import { createStealth } from '../stealth/stealthSystem.js';
 import { pickGrapplePoint } from '../world/grapple.js';
 import { createPickups, createNeonParty } from '../world/storyProps.js';
 import { createCombat } from '../combat/combatSystem.js';
@@ -252,11 +253,15 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const effects = upgradeEffects(progress.wayne.owned);
     hero.tuning = effects;
     let gadgets = null;
+    let stealth = null;
     const combat = createCombat({
       hero, follow, time, events, rng, reach, getDifficulty: () => settings.difficulty,
       effects, getChainDiscount: () => effects.chainDiscount, useGadget: (ctx, o) => gadgets.fire(ctx, o),
+      stealthStart: (action, c) => stealth?.start(action, c) ?? false,
     });
     hero.combat = combat;
+    // Predator stealth: room goons, perches, silent takedowns and perch drops (Part D).
+    stealth = createStealth({ hero, combat, events, collision: world.collision, perches: world.grapplePoints.filter((p) => p.perch), rng });
     const key = (a) => `<kbd>${bindingLabel(settings.bindings, a)}</kbd>`;
     const screen = new THREE.Vector3();
     const toScreen = (v) => { screen.copy(v).project(camera); return { x: (screen.x * 0.5 + 0.5) * innerWidth, y: (-screen.y * 0.5 + 0.5) * innerHeight, behind: screen.z > 1 }; };
@@ -280,7 +285,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       if (i >= 0) toReveal.splice(i, 1);
       e.remove();
     };
-    const encounters = createEncounters({ spawn, despawn, combat, events, collision: world.collision });
+    const encounters = createEncounters({ spawn, despawn, combat, events, collision: world.collision, stealth });
     const balloons = createBalloons(scene, progress.balloons);
     const pickups = createPickups(scene, world.halos, SITES);
     const neonParty = createNeonParty(scene, world.halos);
@@ -526,6 +531,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
           chainLabels = ['chain1', 'chain2', 'chain3'].map((a) => bindingLabel(settings.bindings, a));
         }
         gadgets.update(real, dt, ctx);
+        stealth.update(dt);
         combat.update(dt, ctx);
         hero.update(dt, ctx);
         side.update(dt, real, { toScreen });
@@ -577,7 +583,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
 
     const api = {
       hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, side, stage, gfx, breakables, chainFx, photo,
-      gadgets, wheelUi,
+      gadgets, wheelUi, stealth,
       winFight: () => { for (const e of combat.enemies) if (e.alive && e.type !== 'joker') { e.health = 0; e.applyHit({ outcome: 'ko' }, hero.pos); } },
     };
     if (params.get('god') === '1') events.on('heroHurt', () => { hero.health = hero.maxHealth; hud.setHealth(1); });

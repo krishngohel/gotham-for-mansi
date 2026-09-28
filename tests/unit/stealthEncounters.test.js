@@ -54,6 +54,19 @@ describe('stealth encounters', () => {
     enc.end();
     expect(stealth.end).toHaveBeenCalled();
   });
+  it('a room goon taken down from outside the trigger radius still starts it, so the room can finish', () => {
+    const { enc, events, spawned } = setup();
+    enc.begin('monarchBalcony', stealthFight('monarchBalcony'));
+    const done = [];
+    events.on('fightDone', (d) => done.push(d.id));
+    const far = { x: SITES.monarchBalcony.x, y: SITES.monarchBalcony.y + 10, z: SITES.monarchBalcony.z };
+    spawned[0].alive = false;
+    enc.update(0.016, heroAt(far));
+    expect(enc.active).toBe(true);
+    for (const e of spawned) e.alive = false;
+    enc.update(0.016, heroAt(far));
+    expect(done).toEqual(['monarchBalcony']);
+  });
   it('story fights still wake everyone and never touch the stealth runtime', () => {
     const { enc, spawned, stealth } = setup();
     enc.begin('docksRoof');
