@@ -16,6 +16,8 @@ import { loadAssets } from '../actors/assets.js';
 import { createHero } from '../actors/hero.js';
 import { buildReachTable } from '../combat/reach.js';
 import { buildClimbClips } from '../actors/climbAnims.js';
+import { buildChainClips } from '../actors/chainAnims.js';
+import { chainClipNames } from '../combat/chainTimeline.js';
 import { createEnemy } from '../actors/enemy.js';
 import { SITES } from '../world/mapData.js';
 import { pickGrapplePoint } from '../world/grapple.js';
@@ -32,6 +34,7 @@ import { createVoice } from '../audio/voice.js';
 import { createWorld } from './world.js';
 import { createFollowCamera } from './camera.js';
 import { createFx } from './fx.js';
+import { createChainFx } from './chainFx.js';
 import { createEncounters } from './encounters.js';
 import { createBalloons } from './balloons.js';
 import { createFlow } from './flow.js';
@@ -87,6 +90,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   mark('world');
   const assets = await assetsPromise;
   for (const c of buildClimbClips(SkeletonUtils.clone(assets.bodies.m), assets.clips)) assets.clips.set(c.name, c);
+  for (const c of buildChainClips(SkeletonUtils.clone(assets.bodies.m), assets.clips)) assets.clips.set(c.name, c);
   // Where each strike's fist or foot is on its contact frame, so lunges connect.
   const reach = buildReachTable(SkeletonUtils.clone(assets.bodies.m), assets.clips);
   mark('clips');
@@ -200,6 +204,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   function buildRun(suit) {
     const hero = createHero({ assets, suit, scene, collision: world.collision, events, climbables: world.climbables, settings });
     hero.teleport(SITES.start, Math.PI * 1.2);
+    // Every clip a chain takedown plays gets its mixer action now, not on the first chain.
+    hero.bat.animator.prime(chainClipNames());
     if (settings.difficulty === 'story') { hero.maxHealth = 150; hero.health = 150; }
     const follow = createFollowCamera(camera, world.collision);
     follow.configure(settings);
@@ -210,8 +216,9 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     hud.setHealth(1);
     const comicFx = createComicFx(document.body);
     const fx = createFx(scene);
+    const chainFx = createChainFx(scene, camera);
     const rng = createRng(99);
-    const combat = createCombat({ hero, follow, time, events, rng, reach, getDifficulty: () => settings.difficulty });
+    const combat = createCombat({ hero, follow, time, events, rng, reach, getDifficulty: () => settings.difficulty, getChainDiscount: () => 0 });
     hero.combat = combat;
     const key = (a) => `<kbd>${bindingLabel(settings.bindings, a)}</kbd>`;
     const screen = new THREE.Vector3();
@@ -327,10 +334,10 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     events.on('word', ({ text, pos, big }) => { const p = toScreen(pos); if (!p.behind) hud.sfx(text, p.x, p.y, big); });
     events.on('zipOn', () => events.emit('word', { text: 'ZZZIP!', pos: hero.pos.clone().setY(hero.pos.y + 2), big: false }));
     events.on('diveStart', () => events.emit('word', { text: 'FWOOSH!', pos: hero.pos.clone(), big: false }));
-    events.on('diveImpact', ({ pos }) => events.emit('word', { text: 'KA-THOOM!', pos, big: true }));
+    events.on('diveImpact', ({ pos, word }) => { if (word !== null) events.emit('word', { text: word ?? 'KA-THOOM!', pos, big: true }); });
     // hard THUD is the hero's own landing only; the boss emits 'land' too (boss.js) but has no `who`.
     events.on('land', ({ hard, who }) => { if (hard && who === 'hero') events.emit('word', { text: 'THUD', pos: hero.pos.clone(), big: false }); });
-    events.on('critical', () => hud.critical());
+    events.on('critical', ({ variant } = {}) => hud.critical(variant));
     events.on('critical', ({ target } = {}) => {
       if (!settings.impactFrames) return;
       const p = target ? toScreen(target.pos.clone().setY(target.pos.y + 1)) : null;
@@ -347,14 +354,25 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       'joker-throw': () => `A yellow bolt means he is throwing. ${key('batarang')} batarang him now!`,
       gas: () => 'Laughing gas! Get out of the green cloud.',
       finish: () => `He is reeling! ${key('special')} Finish him!`,
+      // Plan 6D restores the stealth clause when predator rooms ship.
+      'chain-locked': () => 'Chain takedowns unlock at a 6 hit combo.',
+      // Cost-aware: built from the costs startChain actually charged against (combatSystem.js),
+      // not hardcoded, so a future discount stays correct here too.
+      'chain-cost': (costs = [6, 9, 12]) => `Not enough combo. Rope-a-Dope costs ${costs[0]}, Headbanger ${costs[1]}, Domino Drop ${costs[2]}.`,
+      'chain-targets': () => 'A chain takedown needs two goons close by and in sight.',
     };
     events.on('blocked', ({ outcome, target }) => hud.hint((target?.type === 'joker' ? HINTS.joker : HINTS[outcome])(), 3500));
-    events.on('hint', ({ id }) => HINTS[id] && hud.hint(HINTS[id](), 3000));
+    events.on('hint', ({ id, arg }) => HINTS[id] && hud.hint(HINTS[id](arg), 3000));
     events.on('bossStaggered', () => hud.hint(HINTS.finish(), 3500));
+    events.on('chainTied', () => prompts.show(['chainTied']));
+    // A dropped chain (teleport, respawn, restart) leaves the tether stretched to stale goon
+    // spots until it times out on its own; clear it the moment the chain actually breaks.
+    events.on('chainBroken', () => chainFx.clear());
     const PROMPT_DONE = {
       throwRelease: 'throw', slam: 'slam', glideStart: 'glide', grapple: 'grapple', grappleBoost: 'grappleBoost', counter: 'counter', cape: 'cape',
       batarangThrow: 'batarang', dodge: 'dodge', special: 'special', jumpKick: 'kick',
       ladderOn: 'ladder', ledgeGrab: 'ledge', zipOn: 'zip', wallRun: 'wallrun', diveStart: 'divebomb', takedown: 'takedown',
+      chainStart: 'chain', tiedBreak: 'chainTied',
     };
     for (const [ev, id] of Object.entries(PROMPT_DONE)) events.on(ev, () => prompts.done(id));
     events.on('swing', ({ kind, finisher }) => { prompts.done(kind === 'kick' ? 'kick' : 'punch'); if (finisher) prompts.done('finisher'); });
@@ -401,8 +419,10 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     marker.layers.set(1);
     scene.add(marker);
 
-    const ctx = { input, cam: follow, grappleTarget: null, fx };
+    const ctx = { input, cam: follow, grappleTarget: null, fx, chainFx };
     let lastCombo = -1;
+    let chainLabels = ['1', '2', '3'];
+    let chainPromptShown = false;
     let detective = 0;
     let palT = 0;
     const palBuf = new Array(18).fill(0);
@@ -440,6 +460,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
             if (hero.state === 'glide' && hero.heightAboveGround() > 10) glideHighT += 0.5; else glideHighT = 0;
             if (glideHighT > 3) { prompts.show(['divebomb']); hintShown.divebomb = true; }
           }
+          chainLabels = ['chain1', 'chain2', 'chain3'].map((a) => bindingLabel(settings.bindings, a));
         }
         combat.update(dt, ctx);
         hero.update(dt, ctx);
@@ -447,6 +468,9 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         fx.update(dt);
         if (hero.pos.y < -0.8) { hero.teleport(hero.lastSafe); events.emit('splash'); }
         follow.update(real, hero.pos, input.look, combat.cameraMode ?? hero.cameraMode(), hero.speed);
+        // After follow.update, so the rope ribbon billboards toward this frame's camera, not
+        // last frame's. It reads only goon and hand positions, which are already final.
+        chainFx.update(dt);
         comicFx.update(real, { speed: hero.control?.speed ?? Math.hypot(hero.vel.x, hero.vel.y, hero.vel.z), actionActive: follow.actionActive });
         palT -= real;
         if (palT <= 0) { palT = 0.25; ink.setPalette(paletteAt(camera.position.x, camera.position.z, palBuf)); }
@@ -454,6 +478,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         boss.update(dt);
         if (boss.speech) { const p = toScreen(boss.headWorld(new THREE.Vector3())); hud.speechPos(p.x, p.y - 20, !p.behind); }
         if (combat.combo.value !== lastCombo) { lastCombo = combat.combo.value; hud.setCombo(lastCombo); }
+        hud.setChains(combat.chains, chainLabels);
+        if (!chainPromptShown && combat.chains.affordable.some(Boolean)) { chainPromptShown = true; prompts.show(['chain']); }
         marker.visible = !!ctx.grappleTarget && !hero.control;
         if (marker.visible) { marker.position.set(ctx.grappleTarget.x, ctx.grappleTarget.y + 1, ctx.grappleTarget.z); marker.rotation.y += real * 3; }
         fill.position.copy(camera.position);
@@ -481,7 +507,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     }
 
     const api = {
-      hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, side, stage, photo,
+      hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, side, stage, photo, chainFx,
       winFight: () => { for (const e of combat.enemies) if (e.alive && e.type !== 'joker') { e.health = 0; e.applyHit({ outcome: 'ko' }, hero.pos); } },
     };
     if (params.get('god') === '1') events.on('heroHurt', () => { hero.health = hero.maxHealth; hud.setHealth(1); });

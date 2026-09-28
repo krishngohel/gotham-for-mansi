@@ -121,6 +121,25 @@ if (!only || only === 'fight') {
   await p.waitForTimeout(5000);
   await label(p, 'fight');
   for (let i = 0; i < 20; i++) { await p.keyboard.press(i % 3 ? 'KeyE' : 'KeyW'); await p.waitForTimeout(400); }
+  // Chain takedowns: each chain once on fresh goons (first use of every chain clip, the tether
+  // line, the tie wraps and each finisher's slow motion). Each row clears the goons before it
+  // (the sandbox squad first), so every chain plays against a realistic 3-goon scene.
+  await p.evaluate(() => { window.__chainGoons = [...window.__game.combat.enemies]; });
+  for (const key of ['Digit1', 'Digit2', 'Digit3']) {
+    await p.evaluate(() => {
+      const g = window.__game, h = g.hero.pos;
+      for (const e of window.__chainGoons) e.remove();
+      const list = ['grunt', 'grunt', 'knife'].map((t, i) => g.spawn(t, { x: h.x - 2 + i * 2, y: h.y, z: h.z + 4 }));
+      window.__chainGoons = list;
+      g.combat.setEnemies(list);
+      for (const e of list) e.wake();
+      for (let i = 0; i < 12; i++) g.combat.combo.hit();
+    });
+    await p.waitForTimeout(200);
+    await label(p, 'chain');
+    await p.keyboard.press(key);
+    await p.waitForTimeout(3500);
+  }
   if (shots) { await label(p, 'shot'); await p.screenshot({ path: `${shots}/fight.png` }); }
   all.push(...await collect(p, 'fight'));
   meta.errorsFight = errors;

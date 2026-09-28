@@ -6,10 +6,12 @@ import { drawProgressMap } from './progressMap.js';
 import MANSI from '../mansi.config.js';
 
 const MOVING_AROUND = ['ladder', 'ledge', 'zip', 'wallrun', 'divebomb', 'takedown'];
+const CHAIN_TIPS = ['chain', 'chainTied'];
 
 const PAD_LAYOUT = [
   ['Move / camera', 'Left stick / right stick'], ['Jump, glide', 'A'], ['Punch', 'X'], ['Kick', 'B'], ['Block, counter', 'Y'],
   ['Grab and throw', 'D-pad right'], ['Grapple', 'LB'], ['Cape stun', 'RB'], ['Dodge', 'LT'], ['Batarang', 'RT'], ['Sprint', 'L3'], ['Special takedown', 'R3'],
+  ['Chain takedowns', 'Hold Y, then D-pad left, up or right'],
   ['Detective vision', 'View'], ['Photo mode', 'D-pad up'], ['Pause', 'Menu'],
 ];
 
@@ -181,6 +183,10 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
     node.appendChild(cols);
     node.appendChild(el('h3', '', 'Moving around'));
     for (const id of MOVING_AROUND) node.appendChild(el('p', 'tip', promptText(id, settings.bindings)));
+    node.appendChild(el('h3', '', 'Chain takedowns'));
+    for (const id of CHAIN_TIPS) node.appendChild(el('p', 'tip', promptText(id, settings.bindings)));
+    // Plan 6D restores the stealth clause when predator rooms ship.
+    node.appendChild(el('p', 'tip', 'Rope-a-Dope (6) ties up to three goons together. Headbanger (9) smashes two heads together. Domino Drop (12) bounces off every head into a dive-bomb.'));
     node.appendChild(el('h3', '', 'Extras'));
     for (const id of ['challenges', 'photo']) node.appendChild(el('p', 'tip', promptText(id, settings.bindings)));
     node.appendChild(el('p', 'tip', 'Tips: counter every blue bolt, dodge the red ones. Kick or cape-stun knife goons. Batarang the Joker mid-throw.'));

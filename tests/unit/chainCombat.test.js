@@ -1,0 +1,446 @@
+// Chain takedowns started from combat (combatSystem.js): costs, hints, stealth, target holds,
+// the api the chain lands through, and cleanup when the chain control is dropped.
+import { describe, it, expect } from 'vitest';
+import * as THREE from 'three';
+import { createCombat } from '../../src/combat/combatSystem.js';
+import { ENEMY } from '../../src/combat/rules.js';
+import { createRng } from '../../src/core/rng.js';
+import { placeWord, wordHalf } from '../../src/ui/hud.js';
+
+function harness({ discount = 0, blocked = false } = {}) {
+  const bat = {
+    yaw: 0, face(y) { bat.yaw = y; }, tilt: { rotation: { set() {} } },
+    bone: () => ({ getWorldPosition: (o) => o.set(0, 11.4, 0) }),
+    animator: { play() {} },
+  };
+  const hero = {
+    pos: new THREE.Vector3(0, 10, 0), vel: new THREE.Vector3(), state: 'ground', grounded: true, dead: false,
+    invulnerable: 0, health: 100, maxHealth: 100, control: null, blocking: false,
+    bat, cape: { setWings() {} },
+    setState(s) { hero.state = s; },
+    heightAboveGround: () => 0,
+    collision: { raycast: () => (blocked ? { t: 0.5 } : null), resolveCylinder: (pos) => ({ groundY: pos.y }), groundBelow: () => 10 },
+  };
+  const follow = { forward: (o) => o.set(0, 0, 1), right: (o) => o.set(-1, 0, 0), addShake() {}, hitKick() {}, actionShot() {} };
+  // Each event keeps a snapshot of any vector it carried, to check nobody mutates it later.
+  const events = {
+    log: [],
+    emit(type, data) { this.log.push({ type, data, snap: data?.pos?.clone?.() }); },
+    on() {},
+  };
+  const time = { hitStop() {}, slowMo() {} };
+  const combat = createCombat({ hero, follow, time, events, rng: createRng(1), getDifficulty: () => 'normal', getChainDiscount: () => discount });
+  return { hero, combat, events };
+}
+
+function goon(id, x, z, o = {}) {
+  const e = {
+    id, type: 'grunt', def: ENEMY.grunt, scale: 1, radius: 0.42, pos: new THREE.Vector3(x, 10, z),
+    alive: true, aware: true, state: 'engage', down: false, air: false, stunned: false, health: 40, glyph: null,
+    tiedWith: null,
+    applyHit(result) { if (result.outcome === 'ko') { e.alive = false; e.state = 'ko'; } return false; },
+    chainHold() { e.state = 'chained'; return false; },
+    chainRelease() { if (e.state === 'chained') e.state = e.aware ? 'engage' : 'idle'; },
+    tie(partners) { e.state = 'tied'; e.down = true; e.tiedWith = partners.filter((p) => p !== e); return false; },
+    ch: { headWorld(out, lift = 0) { return out.set(e.pos.x, e.pos.y + 1.7 + lift, e.pos.z); }, face() {}, animator: { play() {} } },
+    update() {}, ready: () => false, wake() { e.aware = true; }, startWindup() {},
+    get x() { return e.pos.x; }, get z() { return e.pos.z; },
+    ...o,
+  };
+  return e;
+}
+
+const ctxFor = (pressed) => ({ input: { pressed: (a) => a === pressed, down: () => false, move: { x: 0, y: 0 } }, fx: {}, chainFx: null });
+const dt = 1 / 60;
+const of = (events, type) => events.log.filter((ev) => ev.type === type);
+function hits(combat, n) { for (let i = 0; i < n; i++) combat.combo.hit(); }
+// Plays hero.control the way hero.js does (combat first, then the control), until it hands back.
+function play(hero, combat, frames = 600) {
+  const ctl = hero.control;
+  for (let i = 0; i < frames && hero.control === ctl; i++) {
+    combat.update(dt, ctxFor(null));
+    if (ctl.update(dt) && hero.control === ctl) hero.control = null;
+  }
+}
+
+describe('starting a chain from combat', () => {
+  it('says the chains are locked below the cheapest cost, and uses up the press', () => {
+    const { hero, combat, events } = harness();
+    combat.setEnemies([goon('a', 0, 3), goon('b', 1, 4)]);
+    combat.update(dt, ctxFor('chain1'));
+    expect(hero.control).toBeNull();
+    expect(of(events, 'hint').map((ev) => ev.data.id)).toEqual(['chain-locked']);
+    // Used up: it is not retried on the next frames.
+    combat.update(dt, ctxFor(null));
+    expect(of(events, 'hint')).toHaveLength(1);
+  });
+
+  it('says a chain costs more when the combo covers a cheaper one', () => {
+    const { hero, combat, events } = harness();
+    combat.setEnemies([goon('a', 0, 3), goon('b', 1, 4)]);
+    hits(combat, 6);
+    combat.update(dt, ctxFor('chain2'));
+    expect(hero.control).toBeNull();
+    expect(of(events, 'hint').map((ev) => ev.data.id)).toEqual(['chain-cost']);
+  });
+
+  it('says there are not enough targets when only one goon is near', () => {
+    const { hero, combat, events } = harness();
+    combat.setEnemies([goon('a', 0, 3)]);
+    hits(combat, 6);
+    combat.update(dt, ctxFor('chain1'));
+    expect(hero.control).toBeNull();
+    expect(of(events, 'hint').map((ev) => ev.data.id)).toEqual(['chain-targets']);
+    expect(combat.combo.value).toBe(6);
+  });
+
+  it('spends nothing when fewer than 2 goons are eligible (one is down)', () => {
+    const { hero, combat, events } = harness();
+    combat.setEnemies([goon('a', 0, 3), goon('b', 1, 4, { down: true, state: 'down' })]);
+    hits(combat, 9);
+    combat.update(dt, ctxFor('chain1'));
+    expect(hero.control).toBeNull();
+    expect(of(events, 'hint').map((ev) => ev.data.id)).toEqual(['chain-targets']);
+    expect(combat.combo.value).toBe(9);
+  });
+
+  it('spends nothing when the chain is affordable but a wall blocks the line of sight', () => {
+    const { hero, combat, events } = harness({ blocked: true });
+    combat.setEnemies([goon('a', 0, 3), goon('b', 1, 4)]);
+    hits(combat, 6);
+    combat.update(dt, ctxFor(null));
+    expect(combat.chains.affordable[0]).toBe(true);
+    combat.update(dt, ctxFor('chain1'));
+    expect(hero.control).toBeNull();
+    expect(of(events, 'hint').map((ev) => ev.data.id)).toEqual(['chain-targets']);
+    expect(of(events, 'chainStart')).toHaveLength(0);
+    expect(combat.combo.value).toBe(6);
+  });
+
+  it('spends the cost, holds the targets and hands hero.control to the chain', () => {
+    const { hero, combat, events } = harness();
+    const a = goon('a', 0, 3), b = goon('b', 1, 4);
+    combat.setEnemies([a, b]);
+    combat.director.active.add('a');
+    hits(combat, 6);
+    combat.update(dt, ctxFor('chain1'));
+    expect(hero.control?.name).toBe('chain');
+    expect(combat.combo.value).toBe(0);
+    expect(a.state).toBe('chained');
+    expect(b.state).toBe('chained');
+    expect(combat.director.active.has('a')).toBe(false);
+    const start = of(events, 'chainStart');
+    expect(start).toHaveLength(1);
+    expect(start[0].data).toMatchObject({ chain: 'rope', count: 2, stealth: false, ids: ['a', 'b'] });
+  });
+
+  it('applies the chain discount to the cost', () => {
+    const { hero, combat } = harness({ discount: 2 });
+    combat.setEnemies([goon('a', 0, 3), goon('b', 1, 4)]);
+    hits(combat, 7);
+    combat.update(dt, ctxFor('chain2'));
+    expect(hero.control?.name).toBe('chain');
+    expect(combat.combo.value).toBe(0);
+  });
+
+  it('runs free from stealth when two unaware goons are close', () => {
+    const { hero, combat, events } = harness();
+    combat.setEnemies([goon('a', 0, 3, { aware: false, state: 'idle' }), goon('b', 1, 4, { aware: false, state: 'idle' })]);
+    hits(combat, 2);
+    combat.update(dt, ctxFor('chain3'));
+    expect(hero.control?.name).toBe('chain');
+    expect(combat.combo.value).toBe(2);
+    expect(of(events, 'chainStart')[0].data).toMatchObject({ chain: 'domino', stealth: true });
+  });
+
+  it('calls off wind-ups of goons left out of the chain', () => {
+    const { hero, combat } = harness();
+    const a = goon('a', 0, 3), b = goon('b', 1, 4), c = goon('c', 0, 20, { state: 'windup', glyph: 'x' });
+    combat.setEnemies([a, b, c]);
+    combat.director.active.add('c');
+    hits(combat, 6);
+    combat.update(dt, ctxFor('chain1'));
+    expect(hero.control?.name).toBe('chain');
+    expect(c.state).toBe('engage');
+    expect(c.glyph).toBeNull();
+    expect(combat.director.active.has('c')).toBe(false);
+  });
+
+  it('waits for the ground: a press in the air is kept in the buffer', () => {
+    const { hero, combat, events } = harness();
+    combat.setEnemies([goon('a', 0, 3), goon('b', 1, 4)]);
+    hits(combat, 6);
+    hero.state = 'air'; hero.grounded = false;
+    combat.update(dt, ctxFor('chain1'));
+    expect(hero.control).toBeNull();
+    expect(of(events, 'hint')).toHaveLength(0);
+    hero.state = 'ground'; hero.grounded = true;
+    combat.update(dt, ctxFor(null));
+    expect(hero.control?.name).toBe('chain');
+  });
+});
+
+describe('combat.chains', () => {
+  it('refreshes what the chain icons show when the combo changes', () => {
+    const { combat } = harness();
+    combat.setEnemies([goon('a', 0, 3), goon('b', 1, 4)]);
+    combat.update(dt, ctxFor(null));
+    expect(combat.chains.show).toBe(false);
+    hits(combat, 6);
+    combat.update(dt, ctxFor(null));
+    expect(combat.chains.show).toBe(true);
+    expect(combat.chains.affordable).toEqual([true, false, false]);
+  });
+});
+
+describe('a chain played through combat', () => {
+  it('Rope-a-Dope ties the pair, releases their slots and hands control back', () => {
+    const { hero, combat, events } = harness();
+    const a = goon('a', 0, 3), b = goon('b', 1, 4);
+    combat.setEnemies([a, b]);
+    hits(combat, 6);
+    combat.update(dt, ctxFor('chain1'));
+    play(hero, combat);
+    expect(hero.control).toBeNull();
+    expect(a.state).toBe('tied');
+    expect(b.state).toBe('tied');
+    expect(of(events, 'chainTied')[0]?.data.count).toBe(2);
+    expect(of(events, 'chainDone')).toHaveLength(1);
+    // Spec Part E1: a chain spends that much combo and keeps the rest. The combo timeout is
+    // paused for the length of the chain control (combatSystem.js's update loop skips
+    // combo.tick while hero.control.name === 'chain'), so the tether-and-yank lead-in before the
+    // tie can't time the combo out from under it the way it used to. The tie itself still adds
+    // no hits (Minor 2): only the 2 staggers do. 6 - 6 + 2 = 2.
+    expect(combat.combo.value).toBe(2);
+  });
+
+  it('resumes the combo timeout once the chain ends: an idle player still decays to 0', () => {
+    const { hero, combat } = harness();
+    const a = goon('a', 0, 3), b = goon('b', 1, 4);
+    combat.setEnemies([a, b]);
+    hits(combat, 6);
+    combat.update(dt, ctxFor('chain1'));
+    play(hero, combat);
+    expect(hero.control).toBeNull();
+    expect(combat.combo.value).toBe(2);
+    // Well over the 1.5 s window, with no more hits: the pause only covers the chain itself.
+    for (let i = 0; i < 200; i++) combat.update(dt, ctxFor(null));
+    expect(combat.combo.value).toBe(0);
+  });
+
+  // Each of these starts at 12, well above every chain's cost, so "keeps the rest" is visible
+  // regardless of the chain's own cost, and each expected value is `start - cost + hits`, where
+  // `hits` is exactly the number of combo.hit() calls that chain's steps make (counted from
+  // chainTimeline.js's step effects and combatSystem.js's chainApi): stagger and finish
+  // (headSmash/heel/stomp) each count once per goon they land on; tie and shockwave/diveBomb
+  // count for none. None of this depends on how long any step's animation takes, since the combo
+  // timeout no longer runs during the chain at all.
+  it('a 3-goon Rope-a-Dope keeps the rest: 3 staggers, no hit from the tie', () => {
+    const { hero, combat, events } = harness();
+    const a = goon('a', 0, 3), b = goon('b', 1, 4), c = goon('c', -1, 5);
+    combat.setEnemies([a, b, c]);
+    hits(combat, 12);
+    combat.update(dt, ctxFor('chain1'));
+    play(hero, combat);
+    expect(a.state).toBe('tied');
+    expect(b.state).toBe('tied');
+    expect(c.state).toBe('tied');
+    expect(of(events, 'chainTied')[0]?.data.count).toBe(3);
+    // 12 - 6 (rope cost) + 3 (one stagger per goon) = 9.
+    expect(combat.combo.value).toBe(9);
+    expect(combat.combo.value).toBeGreaterThan(0);
+  });
+
+  it('a 3-goon Headbanger keeps the rest: 1 stagger, 2 from the smash, 1 heel', () => {
+    const { hero, combat } = harness();
+    const a = goon('a', 0, 3), b = goon('b', 1, 4), c = goon('c', -1, 5);
+    combat.setEnemies([a, b, c]);
+    hits(combat, 12);
+    combat.update(dt, ctxFor('chain2'));
+    play(hero, combat);
+    expect(a.alive).toBe(false);
+    expect(b.alive).toBe(false);
+    expect(c.alive).toBe(false);
+    // 12 - 9 (headbanger cost) + 4 (1 stagger on the first goon, 2 from the head-smash finish on
+    // the first two, 1 from the flying heel finish on the third) = 7.
+    expect(combat.combo.value).toBe(7);
+    expect(combat.combo.value).toBeGreaterThan(0);
+  });
+
+  it('a 3-goon Domino Drop keeps the rest: 3 stomps, nothing from the dive-bomb', () => {
+    const { hero, combat } = harness();
+    const a = goon('a', 0, 3), b = goon('b', 1, 4), c = goon('c', -1, 5);
+    combat.setEnemies([a, b, c]);
+    hits(combat, 12);
+    combat.update(dt, ctxFor('chain3'));
+    play(hero, combat);
+    expect(a.alive).toBe(false);
+    expect(b.alive).toBe(false);
+    expect(c.alive).toBe(false);
+    // 12 - 12 (domino cost) + 3 (one finish per stomp; the closing shockwave adds no combo hit) = 3.
+    expect(combat.combo.value).toBe(3);
+    expect(combat.combo.value).toBeGreaterThan(0);
+  });
+
+  it('Headbanger knocks both goons out', () => {
+    const { hero, combat, events } = harness();
+    const a = goon('a', 0, 3), b = goon('b', 1, 4);
+    combat.setEnemies([a, b]);
+    hits(combat, 9);
+    combat.update(dt, ctxFor('chain2'));
+    play(hero, combat);
+    expect(a.alive).toBe(false);
+    expect(b.alive).toBe(false);
+    expect(of(events, 'ko')).toHaveLength(2);
+    expect(of(events, 'critical').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('never mutates a vector it handed out in a word event', () => {
+    const { hero, combat, events } = harness();
+    combat.setEnemies([goon('a', 0, 3), goon('b', 1, 4), goon('c', -1, 5)]);
+    hits(combat, 12);
+    combat.update(dt, ctxFor('chain3'));
+    play(hero, combat);
+    const words = of(events, 'word');
+    expect(words.length).toBeGreaterThanOrEqual(3);
+    for (const w of words) expect(w.data.pos.equals(w.snap)).toBe(true);
+    // And no two word events share one vector.
+    expect(new Set(words.map((w) => w.data.pos)).size).toBe(words.length);
+  });
+
+  it('lets go of every still-chained goon when the chain control is dropped (a teleport)', () => {
+    const { hero, combat, events } = harness();
+    const a = goon('a', 0, 3), b = goon('b', 1, 4), c = goon('c', -1, 5);
+    combat.setEnemies([a, b, c]);
+    hits(combat, 12);
+    combat.update(dt, ctxFor('chain3'));
+    expect(hero.control?.name).toBe('chain');
+    // Two frames in: nobody stomped yet, all three held.
+    for (let i = 0; i < 2; i++) hero.control.update(dt);
+    expect([a.state, b.state, c.state]).toEqual(['chained', 'chained', 'chained']);
+    hero.control = null; // hero.teleport does this
+    combat.update(dt, ctxFor(null));
+    expect([a.state, b.state, c.state]).toEqual(['engage', 'engage', 'engage']);
+    expect(hero.invulnerable).toBeLessThanOrEqual(0.3);
+    expect(of(events, 'chainBroken')).toHaveLength(1);
+    // Not twice.
+    combat.update(dt, ctxFor(null));
+    expect(of(events, 'chainBroken')).toHaveLength(1);
+  });
+
+  it('leaves goons alone after a chain that finished normally', () => {
+    const { hero, combat, events } = harness();
+    const a = goon('a', 0, 3), b = goon('b', 1, 4);
+    combat.setEnemies([a, b]);
+    hits(combat, 6);
+    combat.update(dt, ctxFor('chain1'));
+    play(hero, combat);
+    combat.update(dt, ctxFor(null));
+    expect(a.state).toBe('tied');
+    expect(of(events, 'chainBroken')).toHaveLength(0);
+  });
+
+  it('lets go of chained goons when the control is replaced by another one, and leaves its invulnerability alone', () => {
+    const { hero, combat } = harness();
+    const a = goon('a', 0, 3), b = goon('b', 1, 4);
+    combat.setEnemies([a, b]);
+    hits(combat, 6);
+    combat.update(dt, ctxFor('chain1'));
+    hero.control = { name: 'stagger', combat: true, canChain: () => false, update: () => false };
+    hero.invulnerable = 1.6; // set by whatever took over
+    combat.update(dt, ctxFor(null));
+    expect(a.state).toBe('engage');
+    expect(b.state).toBe('engage');
+    expect(hero.invulnerable).toBe(1.6);
+  });
+
+  it('a dropped chain gives back the invulnerability Batman had before it, not more', () => {
+    const { hero, combat } = harness();
+    combat.setEnemies([goon('a', 0, 3), goon('b', 1, 4)]);
+    hits(combat, 6);
+    hero.invulnerable = 1.2;
+    combat.update(dt, ctxFor('chain1'));
+    expect(hero.invulnerable).toBeGreaterThan(2);
+    hero.control = null;
+    combat.update(dt, ctxFor(null));
+    expect(hero.invulnerable).toBeGreaterThan(1.1);
+    expect(hero.invulnerable).toBeLessThanOrEqual(1.2);
+  });
+});
+
+describe('sound word placement (hud.placeWord)', () => {
+  const view = { w: 1280, h: 720 };
+  it('leaves a word well inside the screen where it is', () => {
+    expect(placeWord(640, 360, 200, 100, 0, view)).toEqual({ x: 640, y: 360 });
+  });
+  it('pulls a big tilted word fully back on screen at every edge', () => {
+    for (const [x, y] of [[640, 715], [640, 2], [3, 360], [1279, 360], [-400, 900]]) {
+      const w = 420, h = 110, rot = 12;
+      const p = placeWord(x, y, w, h, rot, view);
+      const r = (rot * Math.PI) / 180;
+      const hw = (1.15 * (w * Math.cos(r) + h * Math.sin(r))) / 2, hh = (1.15 * (w * Math.sin(r) + h * Math.cos(r))) / 2;
+      expect(p.x - hw).toBeGreaterThanOrEqual(24 - 1e-9);
+      expect(p.x + hw).toBeLessThanOrEqual(view.w - 24 + 1e-9);
+      expect(p.y - hh).toBeGreaterThanOrEqual(24 - 1e-9);
+      expect(p.y + hh).toBeLessThanOrEqual(view.h - 24 + 1e-9);
+    }
+  });
+  it('moves a word off the objective card', () => {
+    const card = { left: 900, right: 1252, top: 24, bottom: 130, width: 352 };
+    const p = placeWord(1050, 90, 300, 80, 0, view, [card]);
+    const hw = (1.15 * 300) / 2, hh = (1.15 * 80) / 2;
+    const overlaps = p.x + hw > card.left && p.x - hw < card.right && p.y + hh > card.top && p.y - hh < card.bottom;
+    expect(overlaps).toBe(false);
+  });
+  it('lifts a word above a hint caption showing at the bottom', () => {
+    const hint = { left: 330, right: 950, top: 616, bottom: 676, width: 620 };
+    const p = placeWord(620, 640, 330, 110, 0, view, [null, hint]);
+    const hh = (1.15 * 110) / 2;
+    expect(p.y + hh).toBeLessThanOrEqual(hint.top - 24 + 1e-9);
+    expect(p.x).toBe(620);
+  });
+  it('ignores boxes that are hidden (zero width)', () => {
+    expect(placeWord(640, 360, 200, 100, 0, view, [{ left: 0, right: 0, top: 0, bottom: 0, width: 0 }])).toEqual({ x: 640, y: 360 });
+  });
+  const box = (p, hw, hh) => ({ left: p.x - hw, right: p.x + hw, top: p.y - hh, bottom: p.y + hh, width: 2 * hw });
+  const overlap = (a, b) => a.right > b.left && a.left < b.right && a.bottom > b.top && a.top < b.bottom;
+  it('keeps a new word off a word still on screen (BONK! then KLONK! on the same spot)', () => {
+    const first = placeWord(600, 520, 150, 70, 5, view);
+    const a = wordHalf(150, 70, 5);
+    const live = box(first, a.hw, a.hh);
+    const p = placeWord(610, 525, 160, 70, -8, view, [live]);
+    const b = wordHalf(160, 70, -8);
+    const next = box(p, b.hw, b.hh);
+    expect(overlap(next, live)).toBe(false);
+    expect(next.left).toBeGreaterThanOrEqual(24 - 1e-9);
+    expect(next.right).toBeLessThanOrEqual(1280 - 24 + 1e-9);
+    expect(next.top).toBeGreaterThanOrEqual(24 - 1e-9);
+    expect(next.bottom).toBeLessThanOrEqual(720 - 24 + 1e-9);
+  });
+  it('steps out again when stepping off one box lands on another (a word, then the card)', () => {
+    const card = { left: 880, right: 1256, top: 24, bottom: 132, width: 376 };
+    const { hw, hh } = wordHalf(200, 80, 0);
+    const live = [box({ x: 900, y: 230 }, 110, 50), box({ x: 900, y: 340 }, 110, 50)];
+    const p = placeWord(900, 235, 200, 80, 0, view, [card, ...live]);
+    const b = box(p, hw, hh);
+    for (const o of [card, ...live]) expect(overlap(b, o)).toBe(false);
+    expect(b.right).toBeLessThanOrEqual(1280 - 24 + 1e-9);
+  });
+  it('keeps three quick words in a row apart', () => {
+    const boxes = [];
+    for (const [w, rot] of [[150, 6], [170, -9], [150, 3]]) {
+      const p = placeWord(640, 560, w, 70, rot, view, boxes);
+      const { hw, hh } = wordHalf(w, 70, rot);
+      const b = box(p, hw, hh);
+      for (const o of boxes) expect(overlap(b, o)).toBe(false);
+      boxes.push(b);
+    }
+  });
+  it('flags a screen too crowded to miss every box, and stays on screen', () => {
+    const wall = { left: 0, right: 1280, top: 0, bottom: 720, width: 1280 };
+    expect(placeWord(640, 360, 200, 80, 0, view, [wall])).toEqual({ x: 640, y: 360, crowded: true });
+  });
+  it('centres a word wider than the screen', () => {
+    expect(placeWord(10, 360, 2000, 100, 0, view).x).toBe(640);
+  });
+});

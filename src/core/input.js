@@ -1,10 +1,56 @@
 // Action-based input over keyboard, mouse (pointer lock) and the Gamepad API.
 // Keyboard and mouse follow the rebindable settings; the gamepad uses a fixed Xbox layout.
 
-const PAD_BUTTONS = {
+export const PAD_BUTTONS = {
   jump: [0], kick: [1], punch: [2], block: [3], grapple: [4], cape: [5], dodge: [6], batarang: [7],
   detective: [8], pause: [9], sprint: [10], special: [11], photo: [12], help: [13], throw: [15],
 };
+
+// Chain takedowns: D-pad left, up and right while block (Y) is held. With block held, D-pad
+// right belongs to chain 3, not grab and throw.
+export const PAD_CHORD_HOLD = 3;
+export const PAD_CHORDS = { chain1: 14, chain2: 12, chain3: 15 };
+
+// Hoisted once at module load: padActions runs every frame and must not allocate.
+const PAD_BUTTON_ENTRIES = Object.entries(PAD_BUTTONS);
+const PAD_CHORD_ENTRIES = Object.entries(PAD_CHORDS);
+const CHORD_BUTTONS = PAD_CHORD_ENTRIES.map(([, i]) => i);
+
+// Buttons a chord has consumed this "hold": once block + a D-pad button fire a chain together,
+// that D-pad button stays suppressed for its plain action (e.g. throw) until it is physically
+// released, even if block lets go first (players release the two buttons in either order).
+// Module-scoped so it survives across pollPad's per-frame calls; pass a private Set (or call
+// resetPadChordLatch) to isolate tests.
+const defaultChordLatch = new Set();
+export function resetPadChordLatch(latch = defaultChordLatch) { latch.clear(); }
+
+// Actions held on the pad this frame, from a button-state lookup. Allocates nothing beyond the
+// returned Set (reuse `out` to avoid even that).
+export function padActions(isDown, out = new Set(), latch = defaultChordLatch) {
+  out.clear();
+  const chord = isDown(PAD_CHORD_HOLD);
+  for (let n = 0; n < CHORD_BUTTONS.length; n++) {
+    const i = CHORD_BUTTONS[n];
+    if (!isDown(i)) latch.delete(i);
+    else if (chord) latch.add(i);
+  }
+  for (let n = 0; n < PAD_BUTTON_ENTRIES.length; n++) {
+    const action = PAD_BUTTON_ENTRIES[n][0];
+    const idx = PAD_BUTTON_ENTRIES[n][1];
+    let down = false;
+    for (let j = 0; j < idx.length; j++) {
+      if (isDown(idx[j]) && !latch.has(idx[j])) { down = true; break; }
+    }
+    if (down) out.add(action);
+  }
+  for (let n = 0; n < PAD_CHORD_ENTRIES.length; n++) {
+    const action = PAD_CHORD_ENTRIES[n][0];
+    const i = PAD_CHORD_ENTRIES[n][1];
+    if (chord && isDown(i)) out.add(action);
+  }
+  return out;
+}
+
 const DEADZONE = 0.18;
 
 export function createInput({ target = window, bindings }) {
@@ -90,7 +136,7 @@ export function createInput({ target = window, bindings }) {
     const pad = [...pads].find((p) => p && p.connected);
     const now = new Set();
     if (pad) {
-      for (const [action, idx] of Object.entries(PAD_BUTTONS)) if (idx.some((i) => pad.buttons[i]?.pressed)) now.add(action);
+      padActions((i) => !!pad.buttons[i]?.pressed, now);
       pad.buttons.forEach((b, i) => { if (b?.pressed) { if (!rawHeld.has(i)) rawPressed.add(i); rawHeld.add(i); } else rawHeld.delete(i); });
       stick.mx = dz(pad.axes[0] ?? 0); stick.my = dz(pad.axes[1] ?? 0);
       stick.lx = dz(pad.axes[2] ?? 0); stick.ly = dz(pad.axes[3] ?? 0);

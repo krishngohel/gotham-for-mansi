@@ -28,6 +28,14 @@ canvas#game { display: block; width: 100vw; height: 100vh; }
 .hud-combo.pop .n { animation: pop 0.18s ease-out; }
 .hud-combo.ready .n { color: var(--signal); }
 @keyframes pop { from { transform: scale(1.45); } to { transform: scale(1); } }
+.hud-chains { position: absolute; left: 38px; top: 112px; display: flex; gap: 10px; transform: skewX(-12deg); transition: opacity 0.3s; }
+.hud-chains.hidden { opacity: 0; }
+.chain-ico { position: relative; width: 44px; height: 44px; background: var(--paper); border: 3px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); opacity: 0.35; }
+.chain-ico svg { width: 100%; height: 100%; }
+.chain-ico path, .chain-ico circle { fill: none; stroke: var(--ink); stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; }
+.chain-ico b { position: absolute; right: -8px; bottom: -10px; font: 22px 'Bangers', cursive; color: var(--paper); -webkit-text-stroke: 1.5px var(--ink); paint-order: stroke fill; }
+.chain-ico.lit { opacity: 1; background: var(--signal); animation: pop 0.18s ease-out; }
+.hud-chains.stealth .chain-ico.lit { background: var(--detective); }
 .hud-caption { position: absolute; right: 28px; top: 24px; max-width: 320px; padding: 10px 14px; background: var(--signal); color: var(--ink); border: 3px solid var(--ink); box-shadow: 5px 5px 0 var(--ink); font: 22px/1.1 'Patrick Hand SC', cursive; transform: rotate(-1deg); }
 .hud-caption .balloons { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 18px; }
 .glyph { position: absolute; width: 48px; height: 68px; margin: -74px 0 0 -24px; filter: drop-shadow(0 0 8px var(--detective)) drop-shadow(2px 2px 0 var(--ink)); animation: glyph 0.6s linear; }
@@ -173,6 +181,10 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0 6px; margin: 0 2px; bo
   -webkit-mask: radial-gradient(circle at 50% 50%, transparent 32%, black 70%); mask: radial-gradient(circle at 50% 50%, transparent 32%, black 70%); }
 .hud-speed.on { animation: speed 0.6s ease-out; }
 @keyframes speed { 0% { opacity: 0; transform: scale(1.15) rotate(0deg); } 15% { opacity: 1; } 100% { opacity: 0; transform: scale(1) rotate(6deg); } }
+/* Chain finisher speed lines: ink for Rope-a-Dope, yellow for Headbanger, a longer burst for Domino Drop. */
+.hud-speed.rope { background: repeating-conic-gradient(from 0deg at 50% 50%, rgba(11,11,18,0) 0deg 3deg, rgba(11,11,18,0.6) 3deg 4.5deg, rgba(11,11,18,0) 4.5deg 9deg); }
+.hud-speed.head { background: repeating-conic-gradient(from 0deg at 50% 50%, rgba(242,210,75,0) 0deg 2deg, rgba(242,210,75,0.7) 2deg 4deg, rgba(242,210,75,0) 4deg 7deg); }
+.hud-speed.domino.on { animation-duration: 1.1s; }
 
 .speed-lines { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
 .action-panel { position: fixed; inset: 0; pointer-events: none; z-index: 6; opacity: 0; transition: opacity 0.12s; }
