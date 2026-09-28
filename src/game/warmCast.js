@@ -9,6 +9,8 @@ import { createBat, createGoon, createJoker } from '../actors/characters.js';
 import { createCape } from '../actors/cape.js';
 import { createPillar, createRingMesh, createVan, createLootBags } from '../world/sideProps.js';
 import { createGadgetWarm } from '../gadgets/gadgetFx.js';
+import { PALETTE } from '../config/palette.js';
+import { LAYER_FX } from '../render/layers.js';
 
 export function createWarmCast(assets) {
   const group = new THREE.Group();
@@ -35,5 +37,14 @@ export function createWarmCast(assets) {
   // Every gadget material and geometry (gel, ice, smoke, confetti, lines, debris, textured
   // breakables): drawn once here so no gadget compiles a shader on first use.
   group.add(createGadgetWarm());
+  // The chain takedown's ink tether (src/game/chainFx.js): an FX-layer LineSegments in ink,
+  // compiled here with everything else so the first Rope-a-Dope doesn't build a program.
+  const tether = new THREE.LineSegments(
+    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(1, 0.5, 0)]),
+    new THREE.LineBasicMaterial({ color: PALETTE.ink }),
+  );
+  tether.position.set((x += 2), -50, 0);
+  tether.layers.set(LAYER_FX);
+  group.add(tether);
   return group;
 }

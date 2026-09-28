@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { sanitizeClip } from '../../src/actors/animator.js';
+import { sanitizeClip, createAnimator } from '../../src/actors/animator.js';
 import { classifySuitVertex, classifyGoonVertex } from '../../src/actors/outfits.js';
 import { heroPlantsFeet, enemyPlantsFeet } from '../../src/actors/characters.js';
 
@@ -63,5 +63,19 @@ describe('foot planting gate', () => {
     expect(enemyPlantsFeet({ air: true, down: false, alive: true })).toBe(false);
     expect(enemyPlantsFeet({ air: false, down: true, alive: true })).toBe(false);
     expect(enemyPlantsFeet({ air: false, down: false, alive: false })).toBe(false);
+  });
+});
+
+describe('animator.prime', () => {
+  it('builds actions up front and rejects unknown clips', () => {
+    const root = new THREE.Object3D();
+    const bone = new THREE.Bone();
+    bone.name = 'pelvis';
+    root.add(bone);
+    const clip = new THREE.AnimationClip('A', 1, [new THREE.QuaternionKeyframeTrack('pelvis.quaternion', [0, 1], [0, 0, 0, 1, 0, 0, 0, 1])]);
+    const anim = createAnimator(root, new Map([['A', clip]]));
+    anim.prime(['A']);
+    expect(anim.mixer.existingAction(clip)).toBeTruthy();
+    expect(() => anim.prime(['nope'])).toThrow();
   });
 });

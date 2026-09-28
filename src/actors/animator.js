@@ -43,6 +43,8 @@ export function createAnimator(root, clips) {
       current = next;
       return next;
     },
+    // Creates the actions up front, so a clip's first play mid-fight doesn't build its bindings.
+    prime(names) { for (const n of names) action(n); },
     get currentName() { return current?.getClip().name ?? null; },
     update(dt) { mixer.update(dt); },
   };

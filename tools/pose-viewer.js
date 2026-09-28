@@ -7,6 +7,8 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { loadAssets } from '../src/actors/assets.js';
 import { createBat } from '../src/actors/characters.js';
 import { buildClimbClips } from '../src/actors/climbAnims.js';
+import { buildChainClips } from '../src/actors/chainAnims.js';
+import { CHAIN_BEATS } from '../src/combat/chainTimeline.js';
 import { MOCAP_BEATS } from '../src/config/mocap.js';
 
 const params = new URLSearchParams(location.search);
@@ -15,7 +17,7 @@ const params = new URLSearchParams(location.search);
 const kicksModule = params.get('kicks') || '../src/actors/kicks.js';
 const { buildKickClips, KICK_BEATS: KEYED_BEATS = {} } = await import(/* @vite-ignore */ kicksModule);
 // Contact frames: mocap clips override the code-authored ones; <name>_keyed keeps its own.
-const KICK_BEATS = { ...KEYED_BEATS, ...MOCAP_BEATS, ...Object.fromEntries(Object.entries(KEYED_BEATS).map(([k, v]) => [k + '_keyed', v])) };
+const KICK_BEATS = { ...KEYED_BEATS, ...MOCAP_BEATS, ...CHAIN_BEATS, ...Object.fromEntries(Object.entries(KEYED_BEATS).map(([k, v]) => [k + '_keyed', v])) };
 
 const CELL = { w: 190, h: 300 };
 const gl = document.getElementById('gl');
@@ -47,6 +49,7 @@ for (const c of buildKickClips(SkeletonUtils.clone(assets.bodies.m), assets.clip
   if (!assets.clips.has(c.name)) assets.clips.set(c.name, c);
 }
 for (const c of buildClimbClips(SkeletonUtils.clone(assets.bodies.m), assets.clips)) assets.clips.set(c.name, c);
+for (const c of buildChainClips(SkeletonUtils.clone(assets.bodies.m), assets.clips)) assets.clips.set(c.name, c);
 
 const bats = {};
 function bat(suit) {
