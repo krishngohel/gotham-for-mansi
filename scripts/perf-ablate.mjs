@@ -28,7 +28,7 @@ const only = process.env.TOGGLES ? process.env.TOGGLES.split(',') : Object.keys(
 
 const b = await chromium.launch({ channel: 'msedge', headless: false, args: ['--start-maximized', '--disable-gpu-vsync', '--disable-frame-rate-limit'] });
 const p = await (await b.newContext({ viewport: null })).newPage();
-await p.goto(`${base}?at=start&god=1&dynres=0&q=${q}`);
+await p.goto(`${base}?at=start&god=1&dynres=0&gputime=1&q=${q}`);
 await p.waitForFunction(() => window.__game?.comic, null, { timeout: 120000 });
 await p.waitForTimeout(1500);
 await p.evaluate(() => window.__game.comic.skip());

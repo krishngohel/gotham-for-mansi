@@ -40,5 +40,10 @@ export function createDiveControl(h, { events, combat }) {
       }
       return false;
     },
+    // A hit mid-dive interrupts it: no shockwave, just stop diving.
+    knockOff() {
+      h.bat.tilt.rotation.set(0, 0, 0);
+      h.setState('air');
+    },
   };
 }

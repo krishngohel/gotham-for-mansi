@@ -14,7 +14,7 @@ import { createInkPipeline } from '../render/inkPipeline.js';
 import { paletteAt } from '../render/comicPalette.js';
 import { loadAssets } from '../actors/assets.js';
 import { createHero } from '../actors/hero.js';
-import { buildKickClips } from '../actors/kicks.js';
+import { buildReachTable } from '../combat/reach.js';
 import { buildClimbClips } from '../actors/climbAnims.js';
 import { createEnemy } from '../actors/enemy.js';
 import { SITES } from '../world/mapData.js';
@@ -41,7 +41,7 @@ import { createBoss } from './boss.js';
 import { createFinale } from './finale.js';
 import { createWarmCast } from './warmCast.js';
 import { drawEverything, uploadTextures, readyObjects } from '../render/prewarm.js';
-import { createDynamicRes } from '../render/dynamicRes.js';
+import { createDynamicRes, sanitizeResScale } from '../render/dynamicRes.js';
 import { gpuRenderer, gpuShortName, maybeShowGpuHint } from '../ui/gpuInfo.js';
 
 async function loadFonts() {
@@ -57,7 +57,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   const settings = loadSettings(storage);
   const quality = getQuality(params.get('q') ?? settings.quality);
   const renderer = createRenderer(canvas, quality);
-  const ink = createInkPipeline(renderer, quality);
+  const ink = createInkPipeline(renderer, quality, { gpuTime: params.get('gputime') === '1' });
   ink.setComic(quality.comic);
   ink.setPalette(paletteAt(0, 0));
   const scene = new THREE.Scene();
@@ -75,14 +75,16 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   const mark = (n) => performance.mark?.(`boot:${n}`);
   // Models download while the fonts load (the city's painted signs need the fonts first).
   const assetsPromise = loadAssets('./assets/', (f) => onProgress(0.1 + f * 0.6)).then((a) => { mark('assets'); return a; });
+  const DEV_TOOLS = import.meta.env.DEV || params.get('god') === '1';
   await loadFonts();
   mark('fonts');
   onProgress(0.1);
   const world = createWorld(scene, quality);
   mark('world');
   const assets = await assetsPromise;
-  for (const c of buildKickClips(SkeletonUtils.clone(assets.bodies.m), assets.clips)) assets.clips.set(c.name, c);
   for (const c of buildClimbClips(SkeletonUtils.clone(assets.bodies.m), assets.clips)) assets.clips.set(c.name, c);
+  // Where each strike's fist or foot is on its contact frame, so lunges connect.
+  const reach = buildReachTable(SkeletonUtils.clone(assets.bodies.m), assets.clips);
   mark('clips');
   onProgress(0.9);
   // Characters that only appear later (goons, the Joker, every suit) join the city for the
@@ -113,12 +115,12 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   const fpsNum = fpsEl.querySelector('.n'), fpsD = fpsEl.querySelector('.d');
   const gpu = gpuRenderer(renderer.getContext());
   const gpuName = gpuShortName(gpu);
-  maybeShowGpuHint(document.body, gpu, storage);
+  let gpuHintBox = maybeShowGpuHint(document.body, gpu, storage);
   // Dynamic resolution rides on top of the Render scale setting (?dynres=0 turns it off, for
   // benchmarks run with vsync off, where there is no refresh budget to aim for).
   const dynRes = createDynamicRes({ min: 0.6, onChange: () => applyResolution() });
   function applyResolution() {
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.pixelRatioCap) * settings.renderScale * dynRes.scale);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.pixelRatioCap) * sanitizeResScale(settings.renderScale, dynRes.scale));
     resize();
   }
 
@@ -131,7 +133,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     ink.uniforms.uHalftoneAmount.value = settings.halftone;
     ink.setComic({ ...quality.comic, wobble: settings.lineWobble ? quality.comic.wobble : 0 });
     dynRes.setEnabled(settings.dynamicRes && params.get('dynres') !== '0');
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.pixelRatioCap) * settings.renderScale * dynRes.scale);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.pixelRatioCap) * sanitizeResScale(settings.renderScale, dynRes.scale));
     fpsEl.style.display = settings.showFps ? '' : 'none';
     fpsEl.classList.toggle('detail', settings.fpsDetails);
     game?.follow.configure(settings);
@@ -174,6 +176,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   function begin(suit, fresh) {
     menus.hide();
     audio.unlock();
+    // Don't let the integrated-GPU hint sit over the boss bar once a run is under way.
+    if (gpuHintBox) { gpuHintBox.remove(); gpuHintBox = null; }
     if (fresh) progress = { ...sanitizeProgress(DEFAULT_PROGRESS), balloons: progress.balloons, goldUnlocked: progress.goldUnlocked };
     progress.suit = suit;
     saveProgress(storage, progress);
@@ -202,7 +206,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const comicFx = createComicFx(document.body);
     const fx = createFx(scene);
     const rng = createRng(99);
-    const combat = createCombat({ hero, follow, time, events, rng, getDifficulty: () => settings.difficulty });
+    const combat = createCombat({ hero, follow, time, events, rng, reach, getDifficulty: () => settings.difficulty });
     hero.combat = combat;
     const key = (a) => `<kbd>${bindingLabel(settings.bindings, a)}</kbd>`;
     const screen = new THREE.Vector3();
@@ -286,6 +290,12 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
 
     // ---- HUD reactions ----
     events.on('impact', ({ pos, outcome }) => fx.impact(pos, outcome === 'hit' ? 0.7 : 1.1));
+    // Dev only (dev server or ?god=1): contact-frame bookkeeping for tools/contact-shots.mjs,
+    // and ?hitstop=<s> stretches every hit-stop so a screenshot lands inside the freeze.
+    if (DEV_TOOLS) {
+      events.on('impact', ({ move, outcome, target }) => { window.__impacts = (window.__impacts ?? 0) + 1; window.__lastImpact = { n: window.__impacts, move, outcome, target: target?.type ?? null, at: performance.now() }; });
+      if (params.get('hitstop')) { const floor = Number(params.get('hitstop')), orig = time.hitStop; time.hitStop = (sec) => orig(Math.max(sec, floor)); }
+    }
     events.on('word', ({ text, pos, big }) => { const p = toScreen(pos); if (!p.behind) hud.sfx(text, p.x, p.y, big); });
     events.on('zipOn', () => events.emit('word', { text: 'ZZZIP!', pos: hero.pos.clone().setY(hero.pos.y + 2), big: false }));
     events.on('diveStart', () => events.emit('word', { text: 'FWOOSH!', pos: hero.pos.clone(), big: false }));
@@ -422,6 +432,10 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
           else hud.glyph(e.id, 0, 0, false);
         }
         hud.pruneGlyphs(glyphIds);
+      } else {
+        // Play stopped (paused, a cutscene, the finale) mid-effect: without this, speed lines or
+        // the action panel border can freeze on screen instead of easing out.
+        comicFx?.update(real, { speed: 0, actionActive: false });
       }
       detective += ((state.detectiveOn && playing ? 1 : 0) - detective) * Math.min(1, real * 6);
       ink.uniforms.uDetective.value = detective;
@@ -436,6 +450,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       winFight: () => { for (const e of combat.enemies) if (e.alive && e.type !== 'joker') { e.health = 0; e.applyHit({ outcome: 'ko' }, hero.pos); } },
     };
     if (params.get('god') === '1') events.on('heroHurt', () => { hero.health = hero.maxHealth; hud.setHealth(1); });
+    if (DEV_TOOLS) window.__game.reach = reach;
     // ?fight=test drops a mixed squad on the GCPD roof (combat sandbox).
     if (params.get('fight') === 'test') {
       const b = SITES.start;
