@@ -1,9 +1,10 @@
 // Freeflow combat: turns hero input into moves against enemies and resolves enemy attacks on the hero.
 import * as THREE from 'three';
-import { resolveHit, damageToHero, DIFFICULTY } from './rules.js';
+import { resolveHit, damageToHero, DIFFICULTY, inShockwave, shouldDiveBomb } from './rules.js';
 import { selectTarget } from './targeting.js';
 import { createCombo } from './combo.js';
 import { createDirector } from './director.js';
+import { createInputBuffer } from './inputBuffer.js';
 
 const PUNCHES = ['Punch_Jab', 'Punch_Cross', 'Punch_Jab'];
 const KICKS = ['Kick_Front', 'Kick_Round'];
@@ -19,8 +20,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
   let difficulty = getDifficulty();
   const director = createDirector({ ...DIFFICULTY[difficulty], rng });
   let enemies = [];
-  let buffer = null;
-  let bufferT = 0;
+  const inputBuffer = createInputBuffer(0.3);
   let punchChain = 0, kickChain = 0, chainT = 0;
   const tmp = new THREE.Vector3(), dir = new THREE.Vector3(), chest = new THREE.Vector3();
   const pick = (a) => a[Math.floor(rng.next() * a.length)];
@@ -497,6 +497,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
     combo.damaged();
     punchChain = kickChain = 0;
     follow.addShake(blocking ? 0.08 : 0.2);
+    if (hero.control?.knockOff) { hero.control.knockOff(); hero.control = null; }
     events.emit('heroHurt', { kind, blocking, damage: dmg, from: e });
     if (hero.health <= 0) { killHero(); return; }
     if (blocking) { hero.control = stagger('Idle_Shield_Break', 0.28, 'blockStagger'); return; }
@@ -568,9 +569,48 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
 
   const ACTIONS = ['block', 'punch', 'kick', 'throw', 'cape', 'batarang', 'dodge', 'special'];
 
+  // A dive-bomb impact: knocks down every downable goon in range. Armored enemies (brutes)
+  // shrug it off via the same immunity resolveHit already gives them (unless stunned), and
+  // the boss is excluded outright so neither can be one-shot by it.
+  function shockwave(center, radius = 4) {
+    let n = 0;
+    let first = null;
+    for (const e of enemies) {
+      if (!e.alive || e.down || e.def.boss || !inShockwave(center, e.pos, radius)) continue;
+      const result = resolveHit('diveBomb', e);
+      const wasAttacking = e.applyHit(result, center, { power: 1.6, launch: 6 });
+      if (wasAttacking) director.release(e.id);
+      if (result.outcome === 'immune' || result.outcome === 'parried') continue;
+      if (!first) first = e;
+      n += 1;
+    }
+    events.emit('diveImpact', { pos: center.clone(), count: n });
+    if (first) critical(first);
+    return n;
+  }
+
+  // An instant KO from a ledge or drop takedown: no fight, just an action shot. Same
+  // wasAttacking/director.release bookkeeping as landHit, so a takedown on a goon that was
+  // mid-windup or mid-attack still frees its director slot for the others.
+  function takedown(e, kind) {
+    if (!e?.alive) return false;
+    e.health = 0;
+    const wasAttacking = e.applyHit({ outcome: 'ko' }, hero.pos);
+    if (wasAttacking) director.release(e.id);
+    critical(e, { slow: 0.7 });
+    events.emit('takedown', { kind, pos: e.pos.clone() });
+    return true;
+  }
+
   return {
     combo,
     director,
+    shockwave,
+    takedown,
+    // Clears a buffered press early when a traversal control (ledge takedown, glide dive-bomb)
+    // already acted on it itself, so it can't also fire a real strike/kick once that control
+    // hands hero.control back.
+    consumeInput(action) { inputBuffer.consume(action); },
     get enemies() { return enemies; },
     setEnemies(list) {
       enemies = list;
@@ -587,14 +627,22 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
       if (chainT <= 0) { punchChain = 0; kickChain = 0; }
       const d = getDifficulty();
       if (d !== difficulty) { difficulty = d; director.configure(DIFFICULTY[d]); }
-      // Buffer the latest press so freeflow chains feel responsive.
-      for (const a of ACTIONS) if (ctx.input.pressed(a)) { buffer = a; bufferT = 0.3; }
-      bufferT -= dt;
-      if (bufferT <= 0) buffer = null;
+      // Buffer the latest press so freeflow chains feel responsive, e.g. a block/counter tap
+      // or an attack press during a grapple, ladder, zip or wall run fires the moment that
+      // control lets go. A press a traversal control acts on itself (the ledge takedown's own
+      // punch, the glide dive-bomb's kick) is cleared via consumeInput() right where that
+      // control consumes it, so it can't also fire a real move later.
+      for (const a of ACTIONS) if (ctx.input.pressed(a)) inputBuffer.press(a);
+      inputBuffer.tick(dt);
+      const buffer = inputBuffer.value;
       const ctl = hero.control;
       const free = !hero.dead && (!ctl || (ctl.combat && ctl.canChain()));
-      if (buffer && free && hero.state !== 'roll' && ctl?.name !== 'grapple') {
-        if (tryStart(buffer, ctx)) buffer = null;
+      // A buffered kick belongs to hero.js's own dive trigger (not the old target-seeking
+      // jump-kick/diveBomb here) only when the dive will actually fire this frame, or while
+      // one is already in progress. Below the height threshold the old air kick still runs.
+      const glideKick = buffer === 'kick' && (shouldDiveBomb(hero.state, hero.heightAboveGround()) || ctl?.name === 'dive');
+      if (buffer && free && hero.state !== 'roll' && ctl?.name !== 'grapple' && !glideKick) {
+        if (tryStart(buffer, ctx)) inputBuffer.consume(buffer);
       }
       // Hold block to guard when nothing else is going on.
       hero.blocking = (!hero.control || hero.control.name === 'blockStagger') && hero.grounded && ctx.input.down('block') && engaged().length > 0;
@@ -604,7 +652,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
       const ready = [];
       for (const e of enemies) {
         e.update(dt, ectx);
-        if (e.aware) ready.push({ id: e.id, ready: e.ready(hero) && !hero.dead });
+        if (e.aware) ready.push({ id: e.id, ready: e.ready(hero) && !hero.dead && !['ladder', 'ledge', 'zip', 'wallrun'].includes(hero.control?.name) });
       }
       for (const id of director.tick(dt, ready)) {
         const e = enemies.find((x) => x.id === id);

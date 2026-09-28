@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createRng } from '../../src/core/rng.js';
 import { createTimeControl } from '../../src/core/time.js';
+import { createEvents, onceEachId } from '../../src/core/events.js';
 import { getQuality } from '../../src/render/quality.js';
 import { batOutline, batSvgPath, BAT_RIGHT_HALF } from '../../src/config/batShape.js';
 import { hex, PALETTE } from '../../src/config/palette.js';
@@ -86,5 +87,36 @@ describe('fixed step', () => {
     const f = createFixedStep();
     expect(f.advance(2).steps).toBe(5);
     expect(f.advance(0).steps).toBe(0);
+  });
+});
+
+describe('onceEachId', () => {
+  it('emits the target event once per id, on the first matching source event', () => {
+    const events = createEvents();
+    const got = [];
+    events.on('moveLearned', ({ id }) => got.push(id));
+    onceEachId(events, { fooOn: 'foo', barOn: 'bar' }, 'moveLearned');
+    events.emit('fooOn');
+    events.emit('fooOn'); // repeat: no second emit for 'foo'
+    events.emit('barOn');
+    expect(got).toEqual(['foo', 'bar']);
+  });
+
+  it('two source events mapped to the same id only emit once', () => {
+    const events = createEvents();
+    const got = [];
+    events.on('learned', ({ id }) => got.push(id));
+    onceEachId(events, { aOn: 'move', bOn: 'move' }, 'learned');
+    events.emit('bOn');
+    events.emit('aOn');
+    expect(got).toEqual(['move']);
+  });
+
+  it('returns the seen-ids set for introspection', () => {
+    const events = createEvents();
+    const seen = onceEachId(events, { xOn: 'x' }, 'learned');
+    expect(seen.has('x')).toBe(false);
+    events.emit('xOn');
+    expect(seen.has('x')).toBe(true);
   });
 });

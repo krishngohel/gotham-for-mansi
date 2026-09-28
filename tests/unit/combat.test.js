@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { resolveHit, damageToHero, ENEMY, DIFFICULTY } from '../../src/combat/rules.js';
+import { resolveHit, damageToHero, ENEMY, DIFFICULTY, inShockwave, shouldDiveBomb, canLedgeTakedown, canDropTakedown } from '../../src/combat/rules.js';
 import { selectTarget } from '../../src/combat/targeting.js';
 import { createCombo } from '../../src/combat/combo.js';
 import { createDirector } from '../../src/combat/director.js';
+import { createInputBuffer } from '../../src/combat/inputBuffer.js';
 import { createRng } from '../../src/core/rng.js';
 
 const foe = (type, extra = {}) => ({ type, health: ENEMY[type].health, stunned: false, down: false, ...extra });
@@ -154,6 +155,49 @@ describe('director', () => {
   });
 });
 
+describe('inputBuffer', () => {
+  it('holds the latest press until consumed or read', () => {
+    const b = createInputBuffer(0.3);
+    expect(b.value).toBe(null);
+    b.press('punch');
+    expect(b.value).toBe('punch');
+  });
+  it('a later press overwrites an earlier one', () => {
+    const b = createInputBuffer(0.3);
+    b.press('punch');
+    b.press('kick');
+    expect(b.value).toBe('kick');
+  });
+  it('ages out after the window with nothing consuming it', () => {
+    const b = createInputBuffer(0.3);
+    b.press('punch');
+    b.tick(0.2);
+    expect(b.value).toBe('punch');
+    b.tick(0.11);
+    expect(b.value).toBe(null);
+  });
+  it('consume clears only the matching action, leaving a different buffered action alone', () => {
+    const b = createInputBuffer(0.3);
+    b.press('kick');
+    b.consume('punch');
+    expect(b.value).toBe('kick');
+    b.consume('kick');
+    expect(b.value).toBe(null);
+  });
+  it('consuming an empty buffer is a no-op', () => {
+    const b = createInputBuffer(0.3);
+    b.consume('punch');
+    expect(b.value).toBe(null);
+  });
+  it('a press right after a consume buffers normally again', () => {
+    const b = createInputBuffer(0.3);
+    b.press('punch');
+    b.consume('punch');
+    b.press('block');
+    expect(b.value).toBe('block');
+  });
+});
+
 describe('new moves', () => {
   it('heavy and spin kick finishers knock down and hit hard', () => {
     const g = foe('grunt');
@@ -175,5 +219,109 @@ describe('new moves', () => {
   });
   it('the Joker cannot be thrown', () => {
     expect(resolveHit('throw', foe('joker', { health: 30 })).outcome).toBe('immune');
+  });
+});
+
+describe('inShockwave', () => {
+  it('shockwave reaches 4 m flat and 2.5 m vertically', () => {
+    expect(inShockwave({ x: 0, y: 0, z: 0 }, { x: 3.9, y: 0, z: 0 }, 4)).toBe(true);
+    expect(inShockwave({ x: 0, y: 0, z: 0 }, { x: 4.1, y: 0, z: 0 }, 4)).toBe(false);
+    expect(inShockwave({ x: 0, y: 0, z: 0 }, { x: 1, y: 3, z: 0 }, 4)).toBe(false);
+  });
+  it('defaults to a 4 m radius', () => {
+    expect(inShockwave({ x: 0, y: 0, z: 0 }, { x: 3.9, y: 0, z: 0 })).toBe(true);
+    expect(inShockwave({ x: 0, y: 0, z: 0 }, { x: 4.1, y: 0, z: 0 })).toBe(false);
+  });
+});
+
+describe('shouldDiveBomb', () => {
+  it('only triggers while gliding above 6 m', () => {
+    expect(shouldDiveBomb('glide', 6.1)).toBe(true);
+    expect(shouldDiveBomb('glide', 25)).toBe(true);
+    expect(shouldDiveBomb('glide', 6)).toBe(false);
+    expect(shouldDiveBomb('glide', 5.9)).toBe(false);
+    expect(shouldDiveBomb('air', 20)).toBe(false);
+    expect(shouldDiveBomb('ground', 20)).toBe(false);
+  });
+});
+
+describe('canLedgeTakedown', () => {
+  const ledge = { x: 0, y: 5, z: 0 };
+  const goon = (extra = {}) => ({ alive: true, down: false, aware: false, def: ENEMY.grunt, state: 'idle', pos: { x: 0, y: 5, z: 0.5 }, ...extra });
+  it('allows an unaware standing goon within reach of the hang point', () => {
+    expect(canLedgeTakedown(goon(), ledge)).toBe(true);
+  });
+  it('rejects a goon out of range (too far along the wall, or wrong height)', () => {
+    expect(canLedgeTakedown(goon({ pos: { x: 2, y: 5, z: 0 } }), ledge)).toBe(false);
+    expect(canLedgeTakedown(goon({ pos: { x: 0, y: 6, z: 0.5 } }), ledge)).toBe(false);
+  });
+  it('the vertical threshold is a strict < 0.4 m', () => {
+    expect(canLedgeTakedown(goon({ pos: { x: 0, y: 5.39, z: 0 } }), ledge)).toBe(true);
+    expect(canLedgeTakedown(goon({ pos: { x: 0, y: 5.4, z: 0 } }), ledge)).toBe(false);
+  });
+  it('the horizontal threshold is a strict < 1.5 m', () => {
+    expect(canLedgeTakedown(goon({ pos: { x: 1.49, y: 5, z: 0 } }), ledge)).toBe(true);
+    expect(canLedgeTakedown(goon({ pos: { x: 1.5, y: 5, z: 0 } }), ledge)).toBe(false);
+  });
+  it('rejects an aware goon', () => {
+    expect(canLedgeTakedown(goon({ aware: true }), ledge)).toBe(false);
+  });
+  it('rejects a dead or already-down goon', () => {
+    expect(canLedgeTakedown(goon({ alive: false }), ledge)).toBe(false);
+    expect(canLedgeTakedown(goon({ down: true }), ledge)).toBe(false);
+  });
+  it('never targets the boss, even if unaware and in range', () => {
+    expect(canLedgeTakedown(goon({ def: ENEMY.joker }), ledge)).toBe(false);
+  });
+  it('rejects a grabbed enemy', () => {
+    expect(canLedgeTakedown(goon({ state: 'grabbed' }), ledge)).toBe(false);
+  });
+});
+
+describe('canDropTakedown', () => {
+  const heroPos = { x: 0, y: 0, z: 0 };
+  const goon = (extra = {}) => ({ alive: true, down: false, def: ENEMY.grunt, state: 'idle', pos: { x: 0.5, y: 0, z: 0 }, ...extra });
+  it('allows a standing goon right under the hero', () => {
+    expect(canDropTakedown(goon(), heroPos)).toBe(true);
+  });
+  it('rejects a goon out of range (too far, or wrong height)', () => {
+    expect(canDropTakedown(goon({ pos: { x: 2, y: 0, z: 0 } }), heroPos)).toBe(false);
+    expect(canDropTakedown(goon({ pos: { x: 0.5, y: 1.5, z: 0 } }), heroPos)).toBe(false);
+  });
+  it('the horizontal threshold is a strict < 1.2 m', () => {
+    expect(canDropTakedown(goon({ pos: { x: 1.19, y: 0, z: 0 } }), heroPos)).toBe(true);
+    expect(canDropTakedown(goon({ pos: { x: 1.2, y: 0, z: 0 } }), heroPos)).toBe(false);
+  });
+  it('the vertical threshold is a strict < 1 m', () => {
+    expect(canDropTakedown(goon({ pos: { x: 0.5, y: 0.99, z: 0 } }), heroPos)).toBe(true);
+    expect(canDropTakedown(goon({ pos: { x: 0.5, y: 1.0, z: 0 } }), heroPos)).toBe(false);
+  });
+  it('rejects a dead or already-down goon', () => {
+    expect(canDropTakedown(goon({ alive: false }), heroPos)).toBe(false);
+    expect(canDropTakedown(goon({ down: true }), heroPos)).toBe(false);
+  });
+  it('never targets the boss, so a drop can never one-shot the Joker', () => {
+    expect(canDropTakedown(goon({ def: ENEMY.joker }), heroPos)).toBe(false);
+  });
+  it('rejects a grabbed enemy', () => {
+    expect(canDropTakedown(goon({ state: 'grabbed' }), heroPos)).toBe(false);
+  });
+});
+
+describe('diveBomb move (used by the shockwave)', () => {
+  it('knocks down a healthy grunt without killing it', () => {
+    const g = foe('grunt');
+    const r = resolveHit('diveBomb', g);
+    expect(r.outcome).toBe('knockdown');
+    expect(g.health).toBe(ENEMY.grunt.health - 2);
+  });
+  it('does not one-shot an unstunned brute (armored immunity applies)', () => {
+    const b = foe('brute');
+    expect(resolveHit('diveBomb', b).outcome).toBe('immune');
+    expect(b.health).toBe(ENEMY.brute.health);
+  });
+  it('does hit a stunned brute', () => {
+    const b = foe('brute', { stunned: true });
+    expect(resolveHit('diveBomb', b).outcome).toBe('knockdown');
   });
 });

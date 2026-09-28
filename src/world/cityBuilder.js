@@ -9,6 +9,7 @@ import { neonTexture, billboardTexture, graffitiTexture } from './textures.js';
 import { createHalos } from './halos.js';
 import { facadeRelief, decoCrown, awnings } from './facadeDetail.js';
 import { dressStreets } from './streetDressing.js';
+import { createClimbables, addLadder } from './climbables.js';
 
 const CAR_COLORS = [0x6d2f2f, 0x2f3f5a, 0x39473a, 0x5a5146, 0x1e2026, 0x7a6a44, 0x4a3a52];
 const NEON = { pink: PALETTE.neonPink, cyan: PALETTE.neonCyan };
@@ -27,6 +28,7 @@ export function createCityContext(scene, rng, collision) {
     roofs: [],
     steam: [],   // { x, y, z, s }: sources of rising steam (vents, chimneys, manholes)
     reflect: [], // { x, y, z, h, color, w, len, k }: lights that streak on the wet ground below them
+    climbables: createClimbables(),
   };
   scene.add(ctx.halos.points);
   return ctx;
@@ -70,6 +72,13 @@ function ring(ctx, key, x, z, w, d, y, hgt, over) {
   ctx.buckets.add(key, box(w + 2 * over, hgt, t, x, y, z + d / 2 + over - t / 2));
   ctx.buckets.add(key, box(t, hgt, d, x - w / 2 - over + t / 2, y, z));
   ctx.buckets.add(key, box(t, hgt, d, x + w / 2 + over - t / 2, y, z));
+  // Comic cast shadow: a flat black band under every cornice and belt course. It hangs from the
+  // ring's underside, 0.02 m proud of the wall, so the ink reads from the street.
+  const sh = 0.35, o = 0.02, by = y - hgt / 2 - sh / 2;
+  ctx.buckets.add('painted', box(w + o * 2, sh, 0.02, x, by, z - d / 2 - o), 0x0b0b12);
+  ctx.buckets.add('painted', box(w + o * 2, sh, 0.02, x, by, z + d / 2 + o), 0x0b0b12);
+  ctx.buckets.add('painted', box(0.02, sh, d + o * 2, x - w / 2 - o, by, z), 0x0b0b12);
+  ctx.buckets.add('painted', box(0.02, sh, d + o * 2, x + w / 2 + o, by, z), 0x0b0b12);
 }
 
 // Returns the texture u offset so window-aligned relief can find the painted windows.
@@ -98,7 +107,7 @@ function fireEscape(ctx, b) {
   for (let y = 6.8; y < b.h - 3; y += 3.4) {
     const cx = f.px + f.nx * 0.7, cz = f.pz + f.nz * 0.7;
     const sx = Math.abs(along.x) > 0 ? width : 1.3, sz = Math.abs(along.z) > 0 ? width : 1.3;
-    ctx.buckets.add('steel', box(sx, 0.08, sz, cx, y, cz));
+    solid(ctx, 'steel', box(sx, 0.08, sz, cx, y, cz));
     const rx = f.px + f.nx * 1.32, rz = f.pz + f.nz * 1.32;
     ctx.buckets.add('steel', box(Math.abs(along.x) > 0 ? width : 0.05, 0.05, Math.abs(along.z) > 0 ? width : 0.05, rx, y + 1, rz));
     for (const s of [-1, 1]) ctx.buckets.add('steel', box(0.05, 1, 0.05, rx + along.x * s * width / 2, y + 0.5, rz + along.z * s * width / 2));
@@ -109,6 +118,40 @@ function fireEscape(ctx, b) {
     stair.translate(cx, y + 1.7, cz);
     ctx.buckets.add('steel', stair);
   }
+  // Climbable ladders: a drop ladder from the street to the first landing, short ladders
+  // between landings at alternating ends, and a roof ladder from the top landing.
+  const levels = [];
+  for (let y = 6.8; y < b.h - 3; y += 3.4) levels.push(y);
+  if (!levels.length) return;
+  const outer = { x: f.px + f.nx * 1.32, z: f.pz + f.nz * 1.32 };
+  const endOffset = (i) => (i % 2 ? -1 : 1) * (width / 2 - 0.5);
+  const rungs = (lx, lz, nx, nz, y0, y1) => {
+    const sideX = -nz * 0.25, sideZ = nx * 0.25;
+    for (const s of [-1, 1]) ctx.buckets.add('steel', box(0.05, y1 - y0, 0.05, lx + sideX * s, (y0 + y1) / 2, lz + sideZ * s));
+    for (let k = y0 + 0.3; k < y1; k += 0.3) ctx.buckets.add('steel', box(Math.abs(nz) > 0 ? 0.5 : 0.04, 0.04, Math.abs(nx) > 0 ? 0.5 : 0.04, lx, k, lz));
+  };
+  // Drop ladder hangs off the outer rail of the first landing, facing the street. Storefront
+  // buildings have awnings running the length of every wall around y=3.5, which the drop ladder
+  // would clip through; skip it there and keep the fire escape reachable via the roof (glide or
+  // grapple to the roof edge, then climb down the roof ladder and the between-landing ladders).
+  if (!b.storefront) {
+    const dx = outer.x + along.x * endOffset(0), dz = outer.z + along.z * endOffset(0);
+    rungs(dx, dz, f.nx, f.nz, 0, levels[0]);
+    addLadder(ctx.climbables, { x: dx, z: dz, nx: f.nx, nz: f.nz, bottom: 0, top: levels[0] });
+  }
+  // Between landings: off the outer rail like the drop ladder, alternating ends, so stepping
+  // off the top (ladderExit steps inward from the mount) lands on the landing platform rather
+  // than inside the wall behind it.
+  for (let i = 0; i < levels.length - 1; i++) {
+    const lx = outer.x + along.x * endOffset(i + 1), lz = outer.z + along.z * endOffset(i + 1);
+    rungs(lx, lz, f.nx, f.nz, levels[i], levels[i + 1]);
+    addLadder(ctx.climbables, { x: lx, z: lz, nx: f.nx, nz: f.nz, bottom: levels[i], top: levels[i + 1] });
+  }
+  // Roof ladder from the top landing up the wall.
+  const last = levels[levels.length - 1];
+  const rx2 = f.px + along.x * endOffset(levels.length), rz2 = f.pz + along.z * endOffset(levels.length);
+  rungs(rx2, rz2, f.nx, f.nz, last, b.h);
+  addLadder(ctx.climbables, { x: rx2, z: rz2, nx: f.nx, nz: f.nz, bottom: last, top: b.h });
 }
 
 const NEON_WORDS = ['CAFE', 'LIQUOR', 'TATTOO', 'ARCADE', 'KARAOKE', 'PIZZA', 'CLUB', 'MOTEL', 'RECORDS', 'COMICS', 'DANCE', 'BOWL', 'CINEMA', 'OPEN'];
@@ -236,6 +279,7 @@ export function waterTower(ctx, x, y, z) {
   }
   for (const s of [-0.25, 0.25]) ctx.buckets.add('steel', box(0.05, 6.4, 0.05, x + s, y + 3.2, z + 2.3));
   for (let k = 0.4; k < 6.3; k += 0.45) ctx.buckets.add('steel', box(0.5, 0.04, 0.04, x, y + k, z + 2.3));
+  addLadder(ctx.climbables, { x, z: z + 2.3, nx: 0, nz: 1, bottom: y, top: y + 7 });
   ctx.grapple.push({ x, y: y + 7, z, nx: 0, nz: 1, perch: true });
 }
 

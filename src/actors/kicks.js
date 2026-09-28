@@ -1,47 +1,7 @@
 // Kick animations authored in code on the shared skeleton. Bone axes are discovered numerically
 // (rotate a bone, see where its child goes) so the clips don't depend on the rig's conventions.
 import * as THREE from 'three';
-
-function samplePose(model, clip, t = 0) {
-  const mixer = new THREE.AnimationMixer(model);
-  const action = mixer.clipAction(clip);
-  action.play();
-  mixer.setTime(t);
-  model.updateMatrixWorld(true);
-  const pose = new Map();
-  model.traverse((o) => { if (o.isBone) pose.set(o.name, o.quaternion.clone()); });
-  return { pose, dispose: () => { action.stop(); mixer.uncacheRoot(model); } };
-}
-
-// Local axis (and sign) that swings `bone` so that `child` moves toward `dir` (model space).
-function axisToward(model, bone, child, dir) {
-  const base = model.worldToLocal(child.getWorldPosition(new THREE.Vector3()));
-  const q0 = bone.quaternion.clone();
-  let best = null, bestGain = -Infinity;
-  for (const axis of [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)]) {
-    for (const sign of [1, -1]) {
-      bone.quaternion.copy(q0).multiply(new THREE.Quaternion().setFromAxisAngle(axis, 0.3 * sign));
-      model.updateMatrixWorld(true);
-      const p = model.worldToLocal(child.getWorldPosition(new THREE.Vector3()));
-      const gain = p.sub(base).dot(dir);
-      if (gain > bestGain) { bestGain = gain; best = axis.clone().multiplyScalar(sign); }
-    }
-  }
-  bone.quaternion.copy(q0);
-  model.updateMatrixWorld(true);
-  return best;
-}
-
-function track(name, rest, axis, keys) {
-  const times = [], values = [];
-  const q = new THREE.Quaternion();
-  for (const [t, angle] of keys) {
-    q.copy(rest).multiply(new THREE.Quaternion().setFromAxisAngle(axis, angle));
-    times.push(t);
-    values.push(q.x, q.y, q.z, q.w);
-  }
-  return new THREE.QuaternionKeyframeTrack(`${name}.quaternion`, times, values);
-}
+import { samplePose, axisToward, track } from './rigTools.js';
 
 export function buildKickClips(model, clips, fwd = 1) {
   const idle = clips.get('Idle_Loop');

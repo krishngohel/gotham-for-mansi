@@ -6,6 +6,7 @@ import { createCollision } from '../world/collision.js';
 import { buildMapData, WORLD, SITES } from '../world/mapData.js';
 import { createCityContext, buildCity, finishCity } from '../world/cityBuilder.js';
 import { buildDistricts } from '../world/districts.js';
+import { buildZiplines } from '../world/ziplines.js';
 import { createSkyDome } from '../world/sky.js';
 import { createBackdrop } from '../world/skyline.js';
 import { createBatsignal } from '../world/batsignal.js';
@@ -38,6 +39,7 @@ export function createWorld(scene, quality) {
   ctx.quality = quality;
   buildCity(ctx, data);
   buildDistricts(ctx);
+  buildZiplines(ctx);
   finishCity(ctx);
 
   // Lighting: a low sky fill so walls turned from the moon fall into shadow, a moon that casts
@@ -76,6 +78,10 @@ export function createWorld(scene, quality) {
   const rain = createRain(quality.rainCount);
   scene.add(rain.mesh);
   const pool = createLightPool(scene, ctx.lights, 4);
+  // The finale's firework flash, dark until then. It lives here so the number of lights (part of
+  // every lit shader's compile key) never changes after boot.
+  const fireworkLight = new THREE.PointLight(0xfff0d0, 0, 400, 1.2);
+  scene.add(fireworkLight);
   const streaks = createWetStreaks(ctx.reflect, { fogDensity: scene.fog.density });
   streaks.name = 'wetStreaks';
   scene.add(streaks);
@@ -90,12 +96,14 @@ export function createWorld(scene, quality) {
   return {
     collision,
     grapplePoints: ctx.grapple,
+    climbables: ctx.climbables,
     roofs: ctx.roofs,
     halos: ctx.halos,
     sky,
     signal,
     rain,
     moon,
+    fireworkLight,
     data,
     setFlash(k) { moon.intensity = MOON + 9 * k; backdrop.userData.setFlash(k); },
     update(t, dt, focus, camera, hero = null) {

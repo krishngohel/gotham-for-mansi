@@ -9,13 +9,17 @@ export const DEFAULT_SETTINGS = {
   fov: 60,
   cameraShake: true,
   actionCam: true,
+  lineWobble: true,
+  impactFrames: true,
   quality: 'high',
   renderScale: 1,
+  dynamicRes: true,
   halftone: 1,
   showFps: false,
   volume: { master: 0.8, music: 0.6, sfx: 0.9 },
   difficulty: 'normal',
   hints: true,
+  autoLedge: true,
 };
 
 const num = (v, min, max, fallback) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fallback);
@@ -57,8 +61,11 @@ export function sanitizeSettings(raw = {}) {
     fov: num(r.fov, 50, 90, d.fov),
     cameraShake: bool(r.cameraShake, d.cameraShake),
     actionCam: bool(r.actionCam, d.actionCam),
+    lineWobble: bool(r.lineWobble, d.lineWobble),
+    impactFrames: bool(r.impactFrames, d.impactFrames),
     quality: oneOf(r.quality, ['high', 'low'], d.quality),
     renderScale: num(r.renderScale, 0.5, 1, d.renderScale),
+    dynamicRes: bool(r.dynamicRes, d.dynamicRes),
     halftone: num(r.halftone, 0, 1.5, d.halftone),
     showFps: bool(r.showFps, d.showFps),
     volume: {
@@ -68,6 +75,7 @@ export function sanitizeSettings(raw = {}) {
     },
     difficulty: oneOf(r.difficulty, ['story', 'normal', 'hard'], d.difficulty),
     hints: bool(r.hints, d.hints),
+    autoLedge: bool(r.autoLedge, d.autoLedge),
   };
 }
 

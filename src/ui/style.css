@@ -44,8 +44,8 @@ canvas#game { display: block; width: 100vw; height: 100vh; }
 
 .glyph.red path { fill: #ff4b3b; }
 .glyph.red { filter: drop-shadow(0 0 10px #ff4b3b) drop-shadow(2px 2px 0 var(--ink)); }
-.hud-hint { position: absolute; left: 50%; bottom: 46px; transform: translate(-50%, 20px) rotate(-0.6deg); max-width: min(640px, 80vw); padding: 10px 18px; background: var(--paper); color: var(--ink); border: 3px solid var(--ink); box-shadow: 5px 5px 0 var(--ink); font: 22px/1.25 'Patrick Hand SC', cursive; text-align: center; opacity: 0; transition: opacity 0.25s, transform 0.25s; }
-.hud-hint.show { opacity: 1; transform: translate(-50%, 0) rotate(-0.6deg); }
+.hud-hint { position: absolute; left: 50%; bottom: 46px; transform: translate(-50%, 20px) rotate(0.6deg); max-width: min(640px, 80vw); padding: 10px 18px; background: var(--paper); color: var(--ink); border: 3px solid var(--ink); box-shadow: 3px 3px 0 #0b0b12; font: 22px/1.25 'Patrick Hand SC', cursive; text-align: center; opacity: 0; transition: opacity 0.25s, transform 0.25s; }
+.hud-hint.show { opacity: 1; transform: translate(-50%, 0) rotate(0.6deg); }
 kbd { display: inline-block; min-width: 1.4em; padding: 0 6px; margin: 0 2px; border: 2px solid var(--ink); border-bottom-width: 4px; border-radius: 4px; background: #fff8e6; font: 700 18px 'Barlow Condensed', sans-serif; text-align: center; line-height: 1.3; }
 .hud-flash { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, transparent 45%, rgba(200, 30, 40, 0.85) 100%); }
 .hud-flash.fade { animation: flash 0.5s ease-out forwards; }
@@ -90,8 +90,8 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0 6px; margin: 0 2px; bo
 
 .hud-caption.new { animation: newobj 0.6s ease-out; }
 @keyframes newobj { 0% { transform: rotate(-1deg) scale(1.25); background: #fff; } 100% { transform: rotate(-1deg) scale(1); } }
-.hud-card { position: absolute; left: 50%; top: 110px; width: min(520px, 80vw); transform: translate(-50%, -20px) rotate(0.8deg); padding: 14px 20px 16px; background: #fffdf5; border: 4px solid var(--ink); box-shadow: 8px 8px 0 var(--balloon); color: var(--ink); opacity: 0; transition: opacity 0.35s, transform 0.35s; text-align: center; }
-.hud-card.show { opacity: 1; transform: translate(-50%, 0) rotate(0.8deg); }
+.hud-card { position: absolute; left: 50%; top: 110px; width: min(520px, 80vw); transform: translate(-50%, -20px) rotate(-1.2deg); padding: 14px 20px 16px; background: #fffdf5; border: 4px solid var(--ink); box-shadow: 4px 4px 0 #0b0b12; color: var(--ink); opacity: 0; transition: opacity 0.35s, transform 0.35s; text-align: center; }
+.hud-card.show { opacity: 1; transform: translate(-50%, 0) rotate(-1.2deg); }
 .hud-card .card-title { font: 34px 'Bangers', cursive; letter-spacing: 1.5px; color: var(--balloon); -webkit-text-stroke: 1.5px var(--ink); }
 .hud-card .card-text { font: 23px/1.3 'Patrick Hand SC', cursive; margin-top: 4px; }
 
@@ -157,6 +157,9 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0 6px; margin: 0 2px; bo
 .credits-menu .legal { font-size: 15px !important; opacity: 0.7; }
 .credits-menu.final { animation: rise 1.2s ease-out; }
 @keyframes rise { from { transform: translateY(40px) rotate(-0.6deg); opacity: 0; } }
+.gpu-hint { position: fixed; left: 50%; top: 14px; transform: translateX(-50%); z-index: 40; max-width: min(560px, calc(100vw - 32px)); display: flex; gap: 12px; align-items: center; padding: 10px 14px; background: var(--paper); color: var(--ink); border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); font: 19px 'Patrick Hand SC', 'Barlow Condensed', sans-serif; }
+.gpu-hint p { margin: 0; line-height: 1.25; }
+.gpu-hint button { flex: none; font: 700 16px 'Barlow Condensed', sans-serif; padding: 6px 12px; background: var(--signal); color: var(--ink); border: 2px solid var(--ink); cursor: pointer; }
 .fps { position: fixed; right: 8px; bottom: 6px; z-index: 6; font: 700 14px 'Barlow Condensed', sans-serif; color: var(--paper); text-shadow: 1px 1px 0 var(--ink); }
 
 .sfx.big { font-size: 104px; -webkit-text-stroke: 5px var(--ink); text-shadow: 7px 7px 0 var(--ink); color: #ffe45c; animation-duration: 1s; }
@@ -165,3 +168,17 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0 6px; margin: 0 2px; bo
   -webkit-mask: radial-gradient(circle at 50% 50%, transparent 32%, black 70%); mask: radial-gradient(circle at 50% 50%, transparent 32%, black 70%); }
 .hud-speed.on { animation: speed 0.6s ease-out; }
 @keyframes speed { 0% { opacity: 0; transform: scale(1.15) rotate(0deg); } 15% { opacity: 1; } 100% { opacity: 0; transform: scale(1) rotate(6deg); } }
+
+.speed-lines { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+.action-panel { position: fixed; inset: 0; pointer-events: none; z-index: 6; opacity: 0; transition: opacity 0.12s; }
+.action-panel.on { opacity: 1; }
+.action-panel::before {
+  content: ''; position: absolute; inset: -2.4vmin;
+  /* A bold cream gutter and ink rule, tilted as if the moment were cut into its own panel.
+     The box is oversized (inset) beyond the tilt's rotation so no background peeks through
+     at the corners, while the border itself (bigger than the overshoot) still reads as a
+     clearly visible ~2.2vmin gutter inside the true frame edge. */
+  border: 4.6vmin solid #efe6cf;
+  outline: 0.7vmin solid #0b0b12; outline-offset: -4.6vmin;
+  transform: rotate(-1deg);
+}

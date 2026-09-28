@@ -4,22 +4,25 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { loadSettings } from '../core/settings.js';
 import { loadProgress, saveProgress, sanitizeProgress, DEFAULT_PROGRESS } from '../core/save.js';
 import { createInput } from '../core/input.js';
-import { createEvents } from '../core/events.js';
+import { createEvents, onceEachId } from '../core/events.js';
 import { createTimeControl } from '../core/time.js';
 import { createRng } from '../core/rng.js';
 import { bindingLabel } from '../core/bindings.js';
 import { getQuality } from '../render/quality.js';
 import { createRenderer } from '../render/renderer.js';
 import { createInkPipeline } from '../render/inkPipeline.js';
+import { paletteAt } from '../render/comicPalette.js';
 import { loadAssets } from '../actors/assets.js';
 import { createHero } from '../actors/hero.js';
 import { buildKickClips } from '../actors/kicks.js';
+import { buildClimbClips } from '../actors/climbAnims.js';
 import { createEnemy } from '../actors/enemy.js';
 import { SITES } from '../world/mapData.js';
 import { pickGrapplePoint } from '../world/grapple.js';
 import { createPickups, createNeonParty } from '../world/storyProps.js';
 import { createCombat } from '../combat/combatSystem.js';
 import { createHud } from '../ui/hud.js';
+import { createComicFx } from '../ui/comicFx.js';
 import { createComic } from '../ui/comic.js';
 import { createMenus } from '../ui/menus.js';
 import { createPromptQueue } from '../ui/prompts.js';
@@ -36,6 +39,10 @@ import { STEPS } from './story.js';
 import { wireAudio } from './sound.js';
 import { createBoss } from './boss.js';
 import { createFinale } from './finale.js';
+import { createWarmCast } from './warmCast.js';
+import { drawEverything, uploadTextures, readyObjects } from '../render/prewarm.js';
+import { createDynamicRes, sanitizeResScale } from '../render/dynamicRes.js';
+import { gpuRenderer, gpuShortName, maybeShowGpuHint } from '../ui/gpuInfo.js';
 
 async function loadFonts() {
   try {
@@ -50,8 +57,14 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   const settings = loadSettings(storage);
   const quality = getQuality(params.get('q') ?? settings.quality);
   const renderer = createRenderer(canvas, quality);
-  const ink = createInkPipeline(renderer, quality);
+  const ink = createInkPipeline(renderer, quality, { gpuTime: params.get('gputime') === '1' });
+  ink.setComic(quality.comic);
+  ink.setPalette(paletteAt(0, 0));
   const scene = new THREE.Scene();
+  // The camera fill light exists from boot (dark until a run starts) so the light count never
+  // changes: a new light would recompile every lit shader the first time each one is drawn.
+  const fill = new THREE.DirectionalLight(0x9fb2d6, 0);
+  scene.add(fill, fill.target);
   const camera = new THREE.PerspectiveCamera(settings.fov, 1, 0.1, 1500);
   const input = createInput({ target: window, bindings: settings.bindings });
   const events = createEvents();
@@ -69,10 +82,15 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   mark('world');
   const assets = await assetsPromise;
   for (const c of buildKickClips(SkeletonUtils.clone(assets.bodies.m), assets.clips)) assets.clips.set(c.name, c);
+  for (const c of buildClimbClips(SkeletonUtils.clone(assets.bodies.m), assets.clips)) assets.clips.set(c.name, c);
   mark('clips');
   onProgress(0.9);
+  // Characters that only appear later (goons, the Joker, every suit) join the city for the
+  // compile and the prewarm draw below, then leave again.
+  const warmCast = createWarmCast(assets);
+  scene.add(warmCast);
   // Compile the city's shaders behind the loading bar instead of freezing the first frame.
-  try { await renderer.compileAsync(scene, camera); } catch { /* compiles on first draw instead */ }
+  try { await ink.compileAsync(scene, camera); } catch { /* compiles on first draw instead */ }
   mark('compiled');
   onProgress(0.97);
 
@@ -90,6 +108,16 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   const menus = createMenus({ root: document.body, settings, storage, input, sound: (n) => audio.play(n), onChange: () => applySettings() });
   const fpsEl = Object.assign(document.createElement('div'), { className: 'fps' });
   document.body.appendChild(fpsEl);
+  const gpu = gpuRenderer(renderer.getContext());
+  const gpuName = gpuShortName(gpu);
+  let gpuHintBox = maybeShowGpuHint(document.body, gpu, storage);
+  // Dynamic resolution rides on top of the Render scale setting (?dynres=0 turns it off, for
+  // benchmarks run with vsync off, where there is no refresh budget to aim for).
+  const dynRes = createDynamicRes({ min: 0.6, onChange: () => applyResolution() });
+  function applyResolution() {
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.pixelRatioCap) * sanitizeResScale(settings.renderScale, dynRes.scale));
+    resize();
+  }
 
   const state = { frame: 0, fps: 0, ready: false, t: 0, phase: 'title', paused: false };
   let game = null; // everything that exists once a run has begun
@@ -98,7 +126,9 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     input.setBindings(settings.bindings);
     audio.setVolumes(settings.volume);
     ink.uniforms.uHalftoneAmount.value = settings.halftone;
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.pixelRatioCap) * settings.renderScale);
+    ink.setComic({ ...quality.comic, wobble: settings.lineWobble ? quality.comic.wobble : 0 });
+    dynRes.setEnabled(settings.dynamicRes && params.get('dynres') !== '0');
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.pixelRatioCap) * sanitizeResScale(settings.renderScale, dynRes.scale));
     fpsEl.style.display = settings.showFps ? '' : 'none';
     game?.follow.configure(settings);
     if (game) {
@@ -140,6 +170,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   function begin(suit, fresh) {
     menus.hide();
     audio.unlock();
+    // Don't let the integrated-GPU hint sit over the boss bar once a run is under way.
+    if (gpuHintBox) { gpuHintBox.remove(); gpuHintBox = null; }
     if (fresh) progress = { ...sanitizeProgress(DEFAULT_PROGRESS), balloons: progress.balloons, goldUnlocked: progress.goldUnlocked };
     progress.suit = suit;
     saveProgress(storage, progress);
@@ -147,24 +179,29 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     input.setEnabled(true);
     state.phase = 'play';
     applySettings();
+    // The run's own objects (hero, boss, pickups, effects) get the same treatment as the city at
+    // boot; programs are mostly cached by now, so this is a short, one-off stall on the click.
+    try { uploadTextures(renderer, scene); drawEverything(renderer, ink, scene, camera); } catch (err) { console.error(err); }
+    mark('runWarm');
     game.flow.start();
   }
 
   function buildRun(suit) {
-    const hero = createHero({ assets, suit, scene, collision: world.collision, events });
+    const hero = createHero({ assets, suit, scene, collision: world.collision, events, climbables: world.climbables, settings });
     hero.teleport(SITES.start, Math.PI * 1.2);
     if (settings.difficulty === 'story') { hero.maxHealth = 150; hero.health = 150; }
     const follow = createFollowCamera(camera, world.collision);
     follow.configure(settings);
     follow.snapBehind(hero.bat.yaw);
-    const fill = new THREE.DirectionalLight(0x9fb2d6, 1.25);
-    scene.add(fill, fill.target);
+    fill.intensity = 1.25;
 
     const hud = createHud(hudRoot);
     hud.setHealth(1);
+    const comicFx = createComicFx(document.body);
     const fx = createFx(scene);
     const rng = createRng(99);
     const combat = createCombat({ hero, follow, time, events, rng, getDifficulty: () => settings.difficulty });
+    hero.combat = combat;
     const key = (a) => `<kbd>${bindingLabel(settings.bindings, a)}</kbd>`;
     const screen = new THREE.Vector3();
     const toScreen = (v) => { screen.copy(v).project(camera); return { x: (screen.x * 0.5 + 0.5) * innerWidth, y: (-screen.y * 0.5 + 0.5) * innerHeight, behind: screen.z > 1 }; };
@@ -172,10 +209,20 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     let nextId = 0;
     const spawn = (type, p) => {
       const e = createEnemy({ id: `e${nextId++}`, type, assets, scene, collision: world.collision, rng });
+      readyObjects(e.ch.root);
       e.place(p, Math.atan2(hero.pos.x - p.x, hero.pos.z - p.z) + rng.range(-1, 1));
+      // A goon's first draw builds its bone textures and vertex bindings (~8 ms). A wave of four
+      // in one frame is a visible hitch, so new goons join the scene one per frame instead.
+      scene.remove(e.ch.root);
+      toReveal.push(e);
       return e;
     };
-    const despawn = (e) => e.remove();
+    const toReveal = [];
+    const despawn = (e) => {
+      const i = toReveal.indexOf(e);
+      if (i >= 0) toReveal.splice(i, 1);
+      e.remove();
+    };
     const encounters = createEncounters({ spawn, despawn, combat, events, collision: world.collision });
     const balloons = createBalloons(scene, progress.balloons);
     const pickups = createPickups(scene, world.halos, SITES);
@@ -238,7 +285,18 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     // ---- HUD reactions ----
     events.on('impact', ({ pos, outcome }) => fx.impact(pos, outcome === 'hit' ? 0.7 : 1.1));
     events.on('word', ({ text, pos, big }) => { const p = toScreen(pos); if (!p.behind) hud.sfx(text, p.x, p.y, big); });
+    events.on('zipOn', () => events.emit('word', { text: 'ZZZIP!', pos: hero.pos.clone().setY(hero.pos.y + 2), big: false }));
+    events.on('diveStart', () => events.emit('word', { text: 'FWOOSH!', pos: hero.pos.clone(), big: false }));
+    events.on('diveImpact', ({ pos }) => events.emit('word', { text: 'KA-THOOM!', pos, big: true }));
+    // hard THUD is the hero's own landing only; the boss emits 'land' too (boss.js) but has no `who`.
+    events.on('land', ({ hard, who }) => { if (hard && who === 'hero') events.emit('word', { text: 'THUD', pos: hero.pos.clone(), big: false }); });
     events.on('critical', () => hud.critical());
+    events.on('critical', ({ target } = {}) => {
+      if (!settings.impactFrames) return;
+      const p = target ? toScreen(target.pos.clone().setY(target.pos.y + 1)) : null;
+      const at = p && !p.behind ? p : { x: innerWidth / 2, y: innerHeight / 2 };
+      ink.impact(at.x / innerWidth, 1 - at.y / innerHeight);
+    });
     events.on('heroHurt', ({ damage }) => { hud.damage(damage); hud.setHealth(hero.health / hero.maxHealth); });
     const HINTS = {
       parried: () => `Knife goons parry punches. ${key('kick')} kick or ${key('cape')} cape-stun them first.`,
@@ -253,15 +311,28 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     events.on('blocked', ({ outcome, target }) => hud.hint((target?.type === 'joker' ? HINTS.joker : HINTS[outcome])(), 3500));
     events.on('hint', ({ id }) => HINTS[id] && hud.hint(HINTS[id](), 3000));
     events.on('bossStaggered', () => hud.hint(HINTS.finish(), 3500));
-    const PROMPT_DONE = { throwRelease: 'throw', slam: 'slam', glideStart: 'glide', grapple: 'grapple', grappleBoost: 'grappleBoost', counter: 'counter', cape: 'cape', batarangThrow: 'batarang', dodge: 'dodge', special: 'special', jumpKick: 'kick' };
+    const PROMPT_DONE = {
+      throwRelease: 'throw', slam: 'slam', glideStart: 'glide', grapple: 'grapple', grappleBoost: 'grappleBoost', counter: 'counter', cape: 'cape',
+      batarangThrow: 'batarang', dodge: 'dodge', special: 'special', jumpKick: 'kick',
+      ladderOn: 'ladder', ledgeGrab: 'ledge', zipOn: 'zip', wallRun: 'wallrun', diveStart: 'divebomb', takedown: 'takedown',
+    };
     for (const [ev, id] of Object.entries(PROMPT_DONE)) events.on(ev, () => prompts.done(id));
     events.on('swing', ({ kind, finisher }) => { prompts.done(kind === 'kick' ? 'kick' : 'punch'); if (finisher) prompts.done('finisher'); });
     events.on('step', ({ step }) => { if (step.id === 'toDocks') setTimeout(() => prompts.show(['detective', 'balloons']), 30000); });
+
+    // Progress tracking (Plan 3C): one moveLearned event the first time each traversal move happens.
+    const MOVE_IDS = { ladderOn: 'ladder', ledgeGrab: 'ledge', zipOn: 'zipline', wallRun: 'wallrun', diveImpact: 'divebomb' };
+    onceEachId(events, MOVE_IDS, 'moveLearned');
 
     const sound = wireAudio({ audio, events, hero, combat, flow, settings, voice });
     sound.start();
 
     // ---- grapple targeting ----
+    // Ledge-variant grapple points: every non-perch grapple point, dropped 0.1m so the vault
+    // lands slightly short and finds a ledge to hang from instead of standing on top. Only
+    // offered while the player holds `back` when the target is picked, so they don't crowd
+    // out the normal landing points.
+    const ledgeGrapplePoints = world.grapplePoints.filter((p) => !p.perch).map((p) => ({ ...p, y: p.y - 0.1, ledge: true }));
     const grapple = { target: null, timer: 0 };
     const eye = new THREE.Vector3(), camDir = new THREE.Vector3(), toPt = new THREE.Vector3();
     function pickGrapple(dt) {
@@ -271,7 +342,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       if (hero.control) { grapple.target = null; return; }
       follow.lookDir(camDir);
       eye.copy(hero.pos); eye.y += 1.6;
-      grapple.target = pickGrapplePoint(world.grapplePoints, camera.position, camDir, hero.pos, {
+      const points = input.down('back') ? ledgeGrapplePoints : world.grapplePoints;
+      grapple.target = pickGrapplePoint(points, camera.position, camDir, hero.pos, {
         visible: (p) => {
           toPt.set(p.x + (p.nx ?? 0) * 0.4 - eye.x, p.y + 0.3 - eye.y, p.z + (p.nz ?? 0) * 0.4 - eye.z);
           const d = toPt.length();
@@ -287,8 +359,17 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const ctx = { input, cam: follow, grappleTarget: null, fx };
     let lastCombo = -1;
     let detective = 0;
+    let palT = 0;
+    const palBuf = new Array(18).fill(0);
+    // First-time traversal hints (ladder, zip, divebomb). Kept to one cheap pass every 0.5s
+    // (including the divebomb altitude check, which calls hero.heightAboveGround(), a raycast,
+    // so it must not run every frame), and each one stops checking once it has shown.
+    let hintCheckT = 0;
+    let glideHighT = 0;
+    const hintShown = { ladder: false, zip: false, divebomb: false };
 
     function update(real) {
+      if (toReveal.length) scene.add(toReveal.shift().ch.root);
       const playing = flow.mode === 'play' || flow.mode === 'dead';
       const dt = playing && !state.paused ? time.scale(real) : 0;
       if (playing && !state.paused) {
@@ -297,11 +378,31 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         // Grapple is only locked while a fight is actually around you.
         const busy = combat.enemies.some((e) => e.alive && e.aware && e.pos.distanceTo(hero.pos) < 12 && Math.abs(e.pos.y - hero.pos.y) < 4);
         ctx.grappleTarget = busy ? null : grapple.target;
+        hintCheckT -= real;
+        if (hintCheckT <= 0) {
+          hintCheckT = 0.5;
+          if (!hintShown.ladder) {
+            for (const l of world.climbables.ladders) {
+              const lx = l.x + l.nx * 0.45, lz = l.z + l.nz * 0.45;
+              if (Math.hypot(hero.pos.x - lx, hero.pos.z - lz) < 6 && Math.abs(hero.pos.y - l.bottom) < 6) { prompts.show(['ladder']); hintShown.ladder = true; break; }
+            }
+          }
+          if (!hintShown.zip && ctx.grappleTarget?.zip) { prompts.show(['zip']); hintShown.zip = true; }
+          if (!hintShown.divebomb) {
+            // Sampled once per throttle tick, not every frame: the timer advances by the
+            // tick length instead of by `real`, so it still reads as "~3s continuously high".
+            if (hero.state === 'glide' && hero.heightAboveGround() > 10) glideHighT += 0.5; else glideHighT = 0;
+            if (glideHighT > 3) { prompts.show(['divebomb']); hintShown.divebomb = true; }
+          }
+        }
         combat.update(dt, ctx);
         hero.update(dt, ctx);
         fx.update(dt);
         if (hero.pos.y < -0.8) { events.emit('splash'); hero.teleport(hero.lastSafe); }
         follow.update(real, hero.pos, input.look, combat.cameraMode ?? hero.cameraMode(), hero.speed);
+        comicFx.update(real, { speed: hero.control?.speed ?? Math.hypot(hero.vel.x, hero.vel.y, hero.vel.z), actionActive: follow.actionActive });
+        palT -= real;
+        if (palT <= 0) { palT = 0.25; ink.setPalette(paletteAt(camera.position.x, camera.position.z, palBuf)); }
         hero.updateCape(dt);
         boss.update(dt);
         if (boss.speech) { const p = toScreen(boss.headWorld(new THREE.Vector3())); hud.speechPos(p.x, p.y - 20, !p.behind); }
@@ -319,6 +420,10 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
           else hud.glyph(e.id, 0, 0, false);
         }
         hud.pruneGlyphs(glyphIds);
+      } else {
+        // Play stopped (paused, a cutscene, the finale) mid-effect: without this, speed lines or
+        // the action panel border can freeze on screen instead of easing out.
+        comicFx?.update(real, { speed: 0, actionActive: false });
       }
       detective += ((state.detectiveOn && playing ? 1 : 0) - detective) * Math.min(1, real * 6);
       ink.uniforms.uDetective.value = detective;
@@ -329,7 +434,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     }
 
     const api = {
-      hero, follow, combat, hud, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn,
+      hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn,
       winFight: () => { for (const e of combat.enemies) if (e.alive && e.type !== 'joker') { e.health = 0; e.applyHit({ outcome: 'ko' }, hero.pos); } },
     };
     if (params.get('god') === '1') events.on('heroHurt', () => { hero.health = hero.maxHealth; hud.setHealth(1); });
@@ -343,7 +448,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       ]);
       for (const e of combat.enemies) e.wake();
     }
-    Object.assign(window.__game, api, { teleport: (site) => {
+    Object.assign(window.__game, api, { climbables: world.climbables, teleport: (site) => {
         const p = { ...(SITES[site] ?? site) };
         const g = world.collision.groundBelow(p.x, p.y + 4, p.z, 0.3);
         if (g > -Infinity) p.y = g;
@@ -424,7 +529,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   window.addEventListener('mousedown', () => audio.unlock(), { once: true });
   window.addEventListener('keydown', () => audio.unlock(), { once: true });
 
-  window.__game = { state, camera, scene, world, input, events, audio, voice, settings, time, get progress() { return progress; }, begin };
+  window.__game = { state, renderer, ink, dynRes, camera, scene, world, input, events, audio, voice, settings, time, get progress() { return progress; }, begin, lightningNow: () => { weather.next = 0; } };
 
   // ---------------- frame loop ----------------
   let last = performance.now(), fpsT = 0, fpsN = 0, errors = 0;
@@ -435,6 +540,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     if (weather.next <= 0) {
       weather.next = 9 + Math.random() * 12;
       weather.flashT = 0.26;
+      if (game) game.hud.sfx('KRAKOOM!', innerWidth * (0.2 + Math.random() * 0.6), innerHeight * (0.12 + Math.random() * 0.15), true);
       setTimeout(() => events.emit('thunder'), 300 + Math.random() * 900);
     }
     if (weather.flashT > 0) weather.flashT -= real;
@@ -443,9 +549,12 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     ink.uniforms.uFlash.value = k;
     world.setFlash(k);
   }
+  let prevNow = performance.now();
   function frame(now) {
     requestAnimationFrame(frame);
     try { step(now); } catch (err) { if (errors++ < 5) console.error(err); }
+    dynRes.update(now - prevNow);
+    prevNow = now;
     if (state.frame === 1) mark('firstFrame');
   }
   function step(now) {
@@ -473,16 +582,24 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     audio.update(real);
     state.frame += 1;
     fpsT += real; fpsN += 1;
-    if (fpsT >= 1) { state.fps = Math.round(fpsN / fpsT); fpsT = 0; fpsN = 0; fpsEl.textContent = `${state.fps} fps`; }
+    if (fpsT >= 1) { state.fps = Math.round(fpsN / fpsT); fpsT = 0; fpsN = 0; fpsEl.textContent = `${state.fps} fps · ${Math.round(settings.renderScale * dynRes.scale * 100)}% · ${gpuName}`; }
   }
 
   applySettings();
   onProgress(1);
-  // One hidden frame of the title view: texture uploads and post-process setup happen under the
-  // loading screen instead of stalling the first visible frame.
+  // Hidden frames under the loading screen: every texture and buffer uploaded and every shader
+  // variant (shadow, normal pass, x-ray) built for the whole city and the warm cast, then one
+  // real frame of the title view, so nothing compiles or uploads on first sight mid-play.
   camera.position.set(Math.sin(orbit) * 95, 82, Math.cos(orbit) * 95 + 10);
   camera.lookAt(-20, 60, -60);
-  try { world.update(0, 0, camera.position, camera, null); ink.render(scene, camera, 0); } catch (err) { console.error(err); }
+  try {
+    world.update(0, 0, camera.position, camera, null);
+    uploadTextures(renderer, scene);
+    drawEverything(renderer, ink, scene, camera);
+    scene.remove(warmCast);
+    ink.render(scene, camera, 0);
+  } catch (err) { console.error(err); }
+  scene.remove(warmCast);
   mark('prewarm');
   requestAnimationFrame(frame);
   state.ready = true;
