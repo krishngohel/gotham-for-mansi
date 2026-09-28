@@ -10,8 +10,6 @@ import { STEPS } from '../game/story.js';
 import { bindingLabel } from '../core/bindings.js';
 import { promptText } from '../ui/prompts.js';
 
-// The wheel never opens over (and closes under) the controls in gadgetDefs' NO_GADGET_CONTROLS:
-// a chain takedown's timeline, the Bat Swarm's and a challenge's 3-2-1 countdown.
 // How long the returning-player summary card stays up before the party popper gets its own.
 export const NEWS_CARD_S = 9;
 // Mouse pixels (pointer lock) for a full push toward a slot. Small, so a short trackpad swipe
@@ -132,7 +130,8 @@ export function createGadgetSystem(deps) {
     return { name: st.name, text: st.text };
   }
   // Only in live play: never dead, in a cutscene or comic, paused, in photo mode, mid chain
-  // takedown, in a challenge countdown or while steering the remote batarang.
+  // takedown or the Bat Swarm (gadgetDefs NO_GADGET_CONTROLS), in a challenge countdown or while
+  // steering the remote batarang.
   function canUseWheel() {
     return isPlaying() && !hero.dead && !gadgetsLocked(hero) && !byId.get('remote')?.active;
   }
