@@ -1,12 +1,14 @@
 // A throwaway cast drawn once under the loading screen so every character shader variant, outfit
 // texture and suit texture is ready before play: the painted and the gold Batsuit (with cape and
 // the female hair), every goon look, the civilian bystander, the Joker, and the side content
-// props (challenge pillar, ink hoop, crime van, loot bags). Nothing here is kept; the real
-// characters and props are built later and reuse the compiled programs and uploaded textures.
+// props (challenge pillar, ink hoop, crime van, loot bags), and one of every gadget visual.
+// Nothing here is kept; the real characters and props are built later and reuse the compiled
+// programs and uploaded textures.
 import * as THREE from 'three';
 import { createBat, createGoon, createJoker } from '../actors/characters.js';
 import { createCape } from '../actors/cape.js';
 import { createPillar, createRingMesh, createVan, createLootBags } from '../world/sideProps.js';
+import { createGadgetWarm } from '../gadgets/gadgetFx.js';
 
 export function createWarmCast(assets) {
   const group = new THREE.Group();
@@ -30,5 +32,8 @@ export function createWarmCast(assets) {
   // sighting (a new hoop, the crime van) from uploading anything mid-play.
   [createPillar(), createRingMesh(), createVan(), createLootBags()].forEach((m, i) => { m.position.set(40 + i * 5, -50, 0); group.add(m); });
   add(createJoker(assets), (x += 2));
+  // Every gadget material and geometry (gel, ice, smoke, confetti, lines, debris, textured
+  // breakables): drawn once here so no gadget compiles a shader on first use.
+  group.add(createGadgetWarm());
   return group;
 }
