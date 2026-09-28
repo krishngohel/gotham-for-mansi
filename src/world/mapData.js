@@ -133,4 +133,9 @@ export const SITES = {
   cake: { x: 184, y: 10, z: -112 },
   arena: { x: -62, y: 58, z: -154 },
   balcony: { x: -62, y: 68, z: -176 },
+  // Predator rooms (src/stealth/stealthRooms.js): each room's centre and where Batman arrives.
+  monarchBalcony: { x: 203, y: 13, z: -60 },
+  monarchBalconyEntry: { x: 192, y: 22, z: -60 },
+  aceCatwalks: { x: 124, y: 0.15, z: -118 },
+  aceCatwalksEntry: { x: 172, y: 10, z: -124 },
 };
