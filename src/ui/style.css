@@ -163,3 +163,15 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0 6px; margin: 0 2px; bo
   -webkit-mask: radial-gradient(circle at 50% 50%, transparent 32%, black 70%); mask: radial-gradient(circle at 50% 50%, transparent 32%, black 70%); }
 .hud-speed.on { animation: speed 0.6s ease-out; }
 @keyframes speed { 0% { opacity: 0; transform: scale(1.15) rotate(0deg); } 15% { opacity: 1; } 100% { opacity: 0; transform: scale(1) rotate(6deg); } }
+
+.speed-lines { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+.action-panel { position: fixed; inset: 0; pointer-events: none; z-index: 6; opacity: 0; transition: opacity 0.12s; }
+.action-panel.on { opacity: 1; }
+.action-panel::before {
+  content: ''; position: absolute; inset: -2vmin;
+  /* A white gutter and a tilted, jagged ink border, as if the moment were cut into its own panel. */
+  border: 3.2vmin solid #efe6cf;
+  outline: 0.9vmin solid #0b0b12; outline-offset: -3.2vmin;
+  transform: rotate(-1.4deg) scale(1.02);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 0 0, 4% 6%, 3% 93%, 96% 95%, 97% 4%, 4% 6%);
+}

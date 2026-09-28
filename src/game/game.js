@@ -21,6 +21,7 @@ import { pickGrapplePoint } from '../world/grapple.js';
 import { createPickups, createNeonParty } from '../world/storyProps.js';
 import { createCombat } from '../combat/combatSystem.js';
 import { createHud } from '../ui/hud.js';
+import { createComicFx } from '../ui/comicFx.js';
 import { createComic } from '../ui/comic.js';
 import { createMenus } from '../ui/menus.js';
 import { createPromptQueue } from '../ui/prompts.js';
@@ -166,6 +167,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
 
     const hud = createHud(hudRoot);
     hud.setHealth(1);
+    const comicFx = createComicFx(document.body);
     const fx = createFx(scene);
     const rng = createRng(99);
     const combat = createCombat({ hero, follow, time, events, rng, getDifficulty: () => settings.difficulty });
@@ -243,6 +245,12 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     events.on('impact', ({ pos, outcome }) => fx.impact(pos, outcome === 'hit' ? 0.7 : 1.1));
     events.on('word', ({ text, pos, big }) => { const p = toScreen(pos); if (!p.behind) hud.sfx(text, p.x, p.y, big); });
     events.on('critical', () => hud.critical());
+    events.on('critical', () => {
+      if (!settings.impactFrames) return;
+      const t = combat.enemies.find((e) => e.alive) ?? null;
+      const p = t ? toScreen(t.pos.clone().setY(t.pos.y + 1)) : { x: innerWidth / 2, y: innerHeight / 2 };
+      ink.impact(p.x / innerWidth, 1 - p.y / innerHeight);
+    });
     events.on('heroHurt', ({ damage }) => { hud.damage(damage); hud.setHealth(hero.health / hero.maxHealth); });
     const HINTS = {
       parried: () => `Knife goons parry punches. ${key('kick')} kick or ${key('cape')} cape-stun them first.`,
@@ -291,6 +299,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const ctx = { input, cam: follow, grappleTarget: null, fx };
     let lastCombo = -1;
     let detective = 0;
+    let palT = 0;
+    const palBuf = new Array(18).fill(0);
 
     function update(real) {
       const playing = flow.mode === 'play' || flow.mode === 'dead';
@@ -306,6 +316,9 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         fx.update(dt);
         if (hero.pos.y < -0.8) { events.emit('splash'); hero.teleport(hero.lastSafe); }
         follow.update(real, hero.pos, input.look, combat.cameraMode ?? hero.cameraMode(), hero.speed);
+        comicFx.update(real, { speed: hero.control?.speed ?? Math.hypot(hero.vel.x, hero.vel.y, hero.vel.z), actionActive: follow.actionActive });
+        palT -= real;
+        if (palT <= 0) { palT = 0.25; ink.setPalette(paletteAt(camera.position.x, camera.position.z, palBuf)); }
         hero.updateCape(dt);
         boss.update(dt);
         if (boss.speech) { const p = toScreen(boss.headWorld(new THREE.Vector3())); hud.speechPos(p.x, p.y - 20, !p.behind); }
@@ -333,7 +346,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     }
 
     const api = {
-      hero, follow, combat, hud, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn,
+      hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn,
       winFight: () => { for (const e of combat.enemies) if (e.alive && e.type !== 'joker') { e.health = 0; e.applyHit({ outcome: 'ko' }, hero.pos); } },
     };
     if (params.get('god') === '1') events.on('heroHurt', () => { hero.health = hero.maxHealth; hud.setHealth(1); });
