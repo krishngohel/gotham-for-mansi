@@ -3,6 +3,7 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { PALETTE } from '../config/palette.js';
 import { batOutline } from '../config/batShape.js';
 import { toonMaterial, addHullOutline, addXray } from '../render/toon.js';
+import { LAYER_FX } from '../render/layers.js';
 import { createAnimator } from './animator.js';
 import { attachRigid, measureBody, surfaceFrontZ, bindPosition } from './rig.js';
 import { wear, duotone, hideBody, addRim, isSkinMaterial } from './outfitParts.js';
@@ -76,6 +77,29 @@ function bindBallHeight(body) {
   return new THREE.Vector3().setFromMatrixPosition(body.skeleton.boneInverses[i].clone().invert()).applyMatrix4(body.bindMatrixInverse).y;
 }
 
+// Moves the triangles whose vertices all satisfy pick(p) (bind-pose position) into a second
+// skinned mesh that shares the body's attributes and skeleton and wears its own material.
+function splitBody(body, pick, material) {
+  const g = body.geometry;
+  const pos = g.attributes.position;
+  const idx = g.index.array;
+  const sel = new Uint8Array(pos.count);
+  const p = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) { p.fromBufferAttribute(pos, i); sel[i] = pick(p) ? 1 : 0; }
+  const keep = [], moved = [];
+  for (let t = 0; t < idx.length; t += 3) (sel[idx[t]] && sel[idx[t + 1]] && sel[idx[t + 2]] ? moved : keep).push(idx[t], idx[t + 1], idx[t + 2]);
+  g.setIndex(keep);
+  const g2 = new THREE.BufferGeometry();
+  for (const [name, attr] of Object.entries(g.attributes)) g2.setAttribute(name, attr);
+  g2.setIndex(moved);
+  const part = new THREE.SkinnedMesh(g2, material);
+  part.bind(body.skeleton, body.bindMatrix);
+  part.frustumCulled = false;
+  part.castShadow = true;
+  body.parent.add(part);
+  return part;
+}
+
 function rigidMesh(geometry, material, pos, rotation = new THREE.Euler()) {
   const m = new THREE.Mesh(geometry, material);
   m.position.copy(pos);
@@ -90,7 +114,16 @@ export function createBat(assets, suit = 'm') {
   const colors = SUIT_COLORS[suit];
   const paint = suit !== 'gold' ? assets.suitTex?.[suit] : null;
   if (paint) {
-    body.material = toonMaterial({ map: paint, normalMap: body.material.normalMap });
+    body.geometry = body.geometry.clone();
+    // The paint carries the muscle detail; the body's normal map only adds a little relief so it
+    // does not muddy the flat comic shading.
+    body.material = toonMaterial({ map: paint, normalMap: body.material.normalMap, normalScale: 0.45 });
+    // The head is its own mesh: no normal map, shadows lifted so the face stays a flat skin tone,
+    // and on LAYER_FX so the crease pass does not ink the nose and lips. Its silhouette comes from
+    // the depth pass plus a thin hull (a wide hull pokes through at the nostrils and lip crease).
+    ch.head = splitBody(body, (p) => p.y > lm.neckY - 0.02, addRim(toonMaterial({ map: paint }), 0x9fc3ff, 0.8, [0.5, 0.62], 0.55));
+    ch.head.layers.set(LAYER_FX);
+    addHullOutline(ch.head, 0.004);
   } else {
     paintRegions(body, classifySuitVertex, colors, lm);
     body.material = toonMaterial({ vertexColors: true, normalMap: body.material.normalMap, palette: Object.values(colors) });

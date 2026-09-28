@@ -285,22 +285,25 @@ function anatomy(key, lm, bone) {
 
 function makePainter(key, lm, bone) {
   const colors = SUIT_COLORS[key];
+  const f = key === 'f';
   const C = {
-    suit: rgb(colors.suit), cowl: rgb(colors.cowl), skin: rgb(colors.skin), belt: rgb(colors.belt),
+    // Batman's grey is lifted a little in the paint only: under the game's night lighting the flat
+    // suit colour reads near-black, and the reference is a medium grey.
+    suit: f ? rgb(colors.suit) : mix(rgb(colors.suit), [255, 255, 255], 0.14), cowl: rgb(colors.cowl), skin: rgb(colors.skin), belt: rgb(colors.belt),
     glove: rgb(colors.glove), boot: rgb(colors.boot), emblem: rgb(colors.emblem), ink: rgb(PALETTE.ink),
   };
-  const f = key === 'f';
   const fwd = lm.fwd;
   const strokes = anatomy(key, lm, bone);
+  // The face stays flat skin: one short, thin mouth line is the only mark on it.
   const mouthY = lm.eyeY - (f ? 0.072 : 0.078);
-  const mouth = makeStroke({ pts: [[-0.017, mouthY + 0.002, 0.0012], [-0.008, mouthY, 0.0022], [0.008, mouthY, 0.0022], [0.017, mouthY + 0.002, 0.0012]], face: 0.4, mirror: false, region: 'skin' });
-  const chin = makeStroke({ pts: [[-0.013, mouthY - 0.03, 0.001], [0, mouthY - 0.034, 0.002], [0.013, mouthY - 0.03, 0.001]], face: 0.4, mirror: false, region: 'skin' });
-  strokes.push(mouth, chin);
+  strokes.push(makeStroke({ pts: [[-0.015, mouthY + 0.0015, 0.001], [-0.006, mouthY, 0.0018], [0.006, mouthY, 0.0018], [0.015, mouthY + 0.0015, 0.001]], face: 0.4, mirror: false, region: 'skin' }));
 
   // Emblem: the batOutline polygon at the size and place of the old flat mesh (a touch larger,
   // since paint follows the curve of the chest).
-  const emScale = f ? 0.003 : 0.0031;
-  const emblemY = lm.chestY + (f ? 0.085 : 0);
+  // Batwoman's sits on the upper chest above the bust, under a shallower cowl V so the head and
+  // upper wings are not cut off.
+  const emScale = f ? 0.0026 : 0.0031;
+  const emblemY = lm.chestY + (f ? 0.06 : 0);
   const emblem = batOutline().map(([x, y]) => [x * emScale, emblemY + y * emScale]);
   const emblemBox = [-0.2, 0.2, emblemY - 0.09, emblemY + 0.1];
   const chestBack = lm.chestFrontZ - 0.1;
@@ -316,10 +319,12 @@ function makePainter(key, lm, bone) {
   const cowlLine = (x, z) => {
     const front = (z - lm.headCenter.z) * fwd;
     const ax = Math.abs(x);
-    return front > 0 ? lm.neckY - 0.045 + ax * 0.75 : lm.neckY - 0.015 + ax * 0.5;
+    if (front > 0) return f ? lm.neckY - 0.005 + ax * 0.6 : lm.neckY - 0.045 + ax * 0.75;
+    return lm.neckY - 0.015 + ax * 0.5;
   };
-  // Face: the lower face below the nose, framed by the cowl.
-  const faceEdge = (x) => lm.eyeY - (f ? 0.05 : 0.056) + 0.018 * clamp01((Math.abs(x) - 0.013) / 0.03);
+  // Face: the lower face below the nose, framed by the cowl, whose edge is one smooth curve
+  // dipping under the nose and rising over the cheeks.
+  const faceEdge = (x) => { const t = clamp01((Math.abs(x) - 0.004) / 0.046); return lm.eyeY - (f ? 0.052 : 0.058) + 0.022 * t * t * (3 - 2 * t); };
 
   function classify(p, n) {
     const ax = Math.abs(p.x);
