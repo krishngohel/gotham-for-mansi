@@ -13,6 +13,7 @@ const MODES = {
   wallrun: { dist: 4.4, height: 1.4, side: 0.2, fov: 10 },
   dive: { dist: 5.5, height: 2.2, side: 0, fov: 14 },
   chain: { dist: 4.8, height: 1.6, side: 0.2, fov: 2 },
+  remote: { dist: 2.4, height: 0.35, side: 0, fov: 8 },
 };
 
 export function createFollowCamera(camera, collision) {
