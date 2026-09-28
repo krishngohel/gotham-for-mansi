@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { PALETTE } from '../config/palette.js';
 import { LAYER_FX } from '../render/layers.js';
 import { toonMaterial } from '../render/toon.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { WORLD } from './mapData.js';
 
 const LINES = [-210, -150, -90, -30, 30, 90, 150, 210];
@@ -17,10 +18,28 @@ function beamMaterial(color, strength = 0.22) {
   });
 }
 
+// One car in its own space (origin on the road, nose toward +x): body, cabin, a dark bumper line
+// and wheels merged into a single instanced mesh. Vertex colors keep the trim dark while the
+// instance color paints the body.
+function carGeometry() {
+  const parts = [];
+  const add = (g, hex) => {
+    const c = new THREE.Color(hex);
+    const n = g.attributes.position.count;
+    g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 3).map((_, i) => [c.r, c.g, c.b][i % 3]), 3));
+    parts.push(g.index ? g.toNonIndexed() : g);
+  };
+  add(new THREE.BoxGeometry(4.3, 0.85, 1.9).translate(0, 0.8, 0), 0xffffff);
+  add(new THREE.BoxGeometry(2.2, 0.7, 1.7).translate(-0.2, 1.5, 0), 0xffffff);
+  add(new THREE.BoxGeometry(4.42, 0.22, 1.96).translate(0, 0.5, 0), 0x1a1b20);
+  for (const [a, b] of [[1.4, 0.95], [1.4, -0.95], [-1.4, 0.95], [-1.4, -0.95]]) add(new THREE.CylinderGeometry(0.37, 0.37, 0.28, 10).rotateX(Math.PI / 2).translate(a, 0.37, b), 0x16171b);
+  return mergeGeometries(parts);
+}
+
 function createTraffic(scene, halos, rng, count = 44) {
-  const body = new THREE.InstancedMesh(new THREE.BoxGeometry(4.3, 0.85, 1.9), toonMaterial({ color: 0xffffff }), count);
-  const cabin = new THREE.InstancedMesh(new THREE.BoxGeometry(2.2, 0.7, 1.7), toonMaterial({ color: 0xffffff }), count);
-  const glass = new THREE.InstancedMesh(new THREE.BoxGeometry(2.25, 0.45, 1.55), toonMaterial({ color: PALETTE.glass }), count);
+  const body = new THREE.InstancedMesh(carGeometry(), toonMaterial({ vertexColors: true }), count);
+  const glass = new THREE.InstancedMesh(new THREE.BoxGeometry(2.25, 0.45, 1.55).translate(-0.2, 1.52, 0), toonMaterial({ color: PALETTE.glass }), count);
+  const lamps = new THREE.InstancedMesh(new THREE.BoxGeometry(0.08, 0.16, 1.5).translate(2.17, 0.85, 0), new THREE.MeshBasicMaterial({ color: 0xfff3d0 }), count);
   const c = new THREE.Color();
   const cars = [];
   for (let i = 0; i < count; i++) {
@@ -31,9 +50,8 @@ function createTraffic(scene, halos, rng, count = 44) {
     cars.push({ alongX, line, dir, t: rng.range(min, max), min, max, speed: rng.range(9, 15), cur: 0, head: [halos.add(0, 0, 0, 0xfff3d0, 2), halos.add(0, 0, 0, 0xfff3d0, 2)], tail: [halos.add(0, 0, 0, 0xff3030, 1.2), halos.add(0, 0, 0, 0xff3030, 1.2)] });
     c.set(rng.pick(CAR_COLORS));
     body.setColorAt(i, c);
-    cabin.setColorAt(i, c);
   }
-  for (const m of [body, cabin, glass]) { m.castShadow = true; m.frustumCulled = false; scene.add(m); }
+  for (const m of [body, glass, lamps]) { m.castShadow = m !== lamps; m.frustumCulled = false; scene.add(m); }
   const mtx = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(1, 1, 1), p = new THREE.Vector3();
   const yAxis = new THREE.Vector3(0, 1, 0);
   return {
@@ -51,9 +69,10 @@ function createTraffic(scene, halos, rng, count = 44) {
         if (car.t < car.min) car.t = car.max;
         const yaw = car.alongX ? (car.dir > 0 ? 0 : Math.PI) : (car.dir > 0 ? -Math.PI / 2 : Math.PI / 2);
         q.setFromAxisAngle(yAxis, yaw);
-        mtx.compose(p.set(x, 0.8, z), q, s); body.setMatrixAt(i, mtx);
-        mtx.compose(p.set(x - Math.cos(yaw) * 0.2, 1.5, z + Math.sin(yaw) * 0.2), q, s); cabin.setMatrixAt(i, mtx);
-        mtx.compose(p.set(x - Math.cos(yaw) * 0.2, 1.52, z + Math.sin(yaw) * 0.2), q, s); glass.setMatrixAt(i, mtx);
+        mtx.compose(p.set(x, 0, z), q, s);
+        body.setMatrixAt(i, mtx);
+        glass.setMatrixAt(i, mtx);
+        lamps.setMatrixAt(i, mtx);
         const fx = Math.cos(yaw), fz = -Math.sin(yaw);
         for (const k of [0, 1]) {
           const side = k ? 0.65 : -0.65;
@@ -61,7 +80,7 @@ function createTraffic(scene, halos, rng, count = 44) {
           halos.set(car.tail[k], x - fx * 2.2 - fz * side, 0.9, z - fz * 2.2 + fx * side, car.cur < 1 ? 2 : 1.2);
         }
       });
-      body.instanceMatrix.needsUpdate = cabin.instanceMatrix.needsUpdate = glass.instanceMatrix.needsUpdate = true;
+      for (const m of [body, glass, lamps]) m.instanceMatrix.needsUpdate = true;
     },
   };
 }

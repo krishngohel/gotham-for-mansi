@@ -7,12 +7,14 @@ import { buildMapData, WORLD, SITES } from '../world/mapData.js';
 import { createCityContext, buildCity, finishCity } from '../world/cityBuilder.js';
 import { buildDistricts } from '../world/districts.js';
 import { createSkyDome } from '../world/sky.js';
-import { createSkyline } from '../world/skyline.js';
+import { createBackdrop } from '../world/skyline.js';
 import { createBatsignal } from '../world/batsignal.js';
 import { createWater } from '../world/water.js';
 import { createLightPool } from '../world/lightPool.js';
 import { createRain } from '../render/rain.js';
 import { createCityLife } from '../world/cityLife.js';
+import { createWetStreaks } from '../world/wetStreaks.js';
+import { createSteam } from '../world/steam.js';
 
 export const SIGNAL_LAMP = new THREE.Vector3(SITES.signal.x, SITES.signal.y + 1.3, SITES.signal.z);
 export const SIGNAL_POINT = new THREE.Vector3(-110, 210, -215);
@@ -33,13 +35,16 @@ export function createWorld(scene, quality) {
   const data = buildMapData(11);
   const ctx = createCityContext(scene, rng, collision);
   ctx.compounds = data.compounds;
+  ctx.quality = quality;
   buildCity(ctx, data);
   buildDistricts(ctx);
   finishCity(ctx);
 
-  // Lighting: sky fill, a moon that casts shadows near the player, a cool rim from behind.
-  scene.add(new THREE.HemisphereLight(0x6a7fa8, 0x14171f, 1.05));
-  const moon = new THREE.DirectionalLight(0xa9bde0, 2.1);
+  // Lighting: a low sky fill so walls turned from the moon fall into shadow, a moon that casts
+  // shadows near the player, and a cool rim from behind that mostly shows on silhouettes.
+  scene.add(new THREE.HemisphereLight(0x6a7fa8, 0x14171f, 0.75));
+  const MOON = 2.4;
+  const moon = new THREE.DirectionalLight(0xa9bde0, MOON);
   const moonOffset = new THREE.Vector3(-30, 60, 22);
   if (quality.shadows) {
     moon.castShadow = true;
@@ -49,14 +54,21 @@ export function createWorld(scene, quality) {
     moon.shadow.normalBias = 0.06;
   }
   scene.add(moon, moon.target);
-  const rim = new THREE.DirectionalLight(0xcfe0ff, 1.9);
+  const rim = new THREE.DirectionalLight(0xcfe0ff, 1.1);
   rim.position.set(20, 30, -60);
   scene.add(rim);
 
   const sky = createSkyDome();
   sky.setSignalPoint(SIGNAL_POINT, 34);
   scene.add(sky.mesh);
-  scene.add(createSkyline(rng, { count: 260, minDist: 330, maxDist: 620, backdrop: true }));
+  const backdrop = createBackdrop(rng);
+  backdrop.name = 'backdrop';
+  scene.add(backdrop);
+  for (const [x, y, z] of backdrop.userData.beacons) {
+    const i = ctx.halos.add(x, y, z, PALETTE.balloon, 7);
+    ctx.blinkers.push({ i, size: 7, phase: x * 0.01 + z });
+  }
+  for (const [x, y, z] of backdrop.userData.bridgeLamps) ctx.halos.add(x, y, z, PALETTE.sodium, 9);
   const signal = createBatsignal(SIGNAL_LAMP, SIGNAL_POINT);
   scene.add(signal.group);
   const water = createWater();
@@ -64,6 +76,14 @@ export function createWorld(scene, quality) {
   const rain = createRain(quality.rainCount);
   scene.add(rain.mesh);
   const pool = createLightPool(scene, ctx.lights, 4);
+  const streaks = createWetStreaks(ctx.reflect, { fogDensity: scene.fog.density });
+  streaks.name = 'wetStreaks';
+  scene.add(streaks);
+  const low = quality.name === 'low';
+  const steam = createSteam(low ? ctx.steam.filter((s) => s.y < 1) : ctx.steam, { perSource: low ? 3 : 5, fogDensity: scene.fog.density });
+  steam.mesh.name = 'steam';
+  scene.add(steam.mesh);
+  for (const o of [backdrop, streaks, steam.mesh]) { o.updateMatrix(); o.matrixAutoUpdate = false; }
   const life = createCityLife(scene, ctx.halos, rng);
 
   const snap = new THREE.Vector3();
@@ -77,13 +97,16 @@ export function createWorld(scene, quality) {
     rain,
     moon,
     data,
-    setFlash(k) { moon.intensity = 2.1 + 9 * k; },
+    setFlash(k) { moon.intensity = MOON + 9 * k; backdrop.userData.setFlash(k); },
     update(t, dt, focus, camera, hero = null) {
       for (const u of ctx.updaters) u(t);
       life.update(t, dt, hero);
       sky.update(t, camera.position);
       water.update(t, camera.position);
-      rain.update(t, camera.position);
+      // Splashes on whatever the player stands on, hidden while gliding or falling.
+      const ground = hero ? collision.groundBelow(hero.pos.x, hero.pos.y + 0.5, hero.pos.z, 0.3) : -Infinity;
+      rain.update(t, camera.position, hero && hero.pos.y - ground < 1.5 && ground > -5 ? ground : null);
+      steam.update(t);
       signal.update(t);
       pool.update(dt, focus);
       // Keep the shadow box centered on the player, snapped to texels to stop shimmering.

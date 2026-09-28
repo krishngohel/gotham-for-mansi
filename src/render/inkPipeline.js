@@ -28,9 +28,11 @@ void main() {
   float ic = 1.0 / dc;
   float lap = 0.0;
   vec3 gxN = vec3(0.0), gyN = vec3(0.0);
+  // A wider kernel close to the camera gives near silhouettes a bolder brush line.
+  vec2 texel = uTexel * mix(1.6, 1.0, smoothstep(6.0, 28.0, dc));
   for (int i = -1; i <= 1; i++) {
     for (int j = -1; j <= 1; j++) {
-      vec2 uv = vUv + vec2(float(i), float(j)) * uTexel;
+      vec2 uv = vUv + vec2(float(i), float(j)) * texel;
       float kx = float(i) * (j == 0 ? 2.0 : 1.0);
       float ky = float(j) * (i == 0 ? 2.0 : 1.0);
       lap += 1.0 / viewDepth(uv);
@@ -49,7 +51,9 @@ void main() {
   // Halftone: dots grow as the tone darkens.
   vec2 frag = gl_FragCoord.xy;
   vec2 cell = mat2(0.7071, -0.7071, 0.7071, 0.7071) * frag / uHalftone;
-  float r = smoothstep(0.2, 0.03, L) * 0.6 * step(dc, 400.0) * uHalftoneAmount;
+  // Ben-Day tint: dots of one size across a shadow mass (clean, not noisy), only slightly
+  // bigger in the deepest shadow so they never merge into mud.
+  float r = (0.3 * smoothstep(0.24, 0.15, L) + 0.12 * smoothstep(0.1, 0.04, L)) * (1.0 - smoothstep(60.0, 150.0, dc)) * uHalftoneAmount;
   float dotMask = 1.0 - smoothstep(r - 0.06, r + 0.06, length(fract(cell) - 0.5));
   col = mix(col, uInk, dotMask * step(0.001, r) * 0.9);
 

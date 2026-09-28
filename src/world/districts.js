@@ -4,7 +4,8 @@ import { PALETTE } from '../config/palette.js';
 import { LAYER_FX } from '../render/layers.js';
 import { SITES } from './mapData.js';
 import { box, cylinder, prism, tiledBox } from './buckets.js';
-import { solid, glow, lightSpot, edgeGrapples, graffiti, waterTower } from './cityBuilder.js';
+import { bareTree } from './trees.js';
+import { solid, glow, lightSpot, edgeGrapples, graffiti, waterTower, acUnit, vent, duct } from './cityBuilder.js';
 
 const CONTAINERS = [PALETTE.containerRed, PALETTE.containerBlue, PALETTE.containerGreen, PALETTE.containerOrange, 0x5a5f66];
 
@@ -30,10 +31,19 @@ function gcpd(ctx) {
     lightSpot(ctx, fx, y + 2.5, fz, PALETTE.windowCool, 30, 22);
   }
   graffiti(ctx, -4, y, 2, 0, 0, 9);
+  // Working roof clutter, kept clear of the start point, the helipad and the signal.
+  waterTower(ctx, 15, y, 1);
+  acUnit(ctx, -16, y, 5, true);
+  acUnit(ctx, -16, y, 0.5, true);
+  acUnit(ctx, -6.5, y, 17.2);
+  duct(ctx, -1, y, -17.4, 9, true);
+  for (const [vx, vz] of [[-8, -17.2], [17, 9], [17.2, -8]]) vent(ctx, vx, y, vz);
+  ctx.steam.push({ x: -8, y: y + 1.6, z: -17.2, s: 0.7 });
+  for (const [fx, fz] of [[-18, 18], [18, -18]]) ctx.reflect.push({ x: fx, y, z: fz, h: 2.3, color: PALETTE.windowCool, w: 0.7, len: 6, k: 0.35 });
 }
 
 // ---------------- Docks ----------------
-function container(ctx, x, y, z, alongX, color) {
+function container(ctx, x, y, z, alongX, color, perch = true) {
   const L = 12.2, W = 2.44, H = 2.6;
   solid(ctx, 'painted', box(alongX ? L : W, H, alongX ? W : L, x, y + H / 2, z), { color });
   // Door frame and ribs read as ink lines.
@@ -41,7 +51,7 @@ function container(ctx, x, y, z, alongX, color) {
     const rx = alongX ? x + k : x, rz = alongX ? z : z + k;
     ctx.buckets.add('painted', box(alongX ? 0.08 : W + 0.06, H - 0.3, alongX ? W + 0.06 : 0.08, rx, y + H / 2, rz), new THREE.Color(color).offsetHSL(0, 0, -0.06).getHex());
   }
-  ctx.grapple.push({ x, y: y + H, z, nx: 0, nz: 1, perch: true });
+  if (perch) ctx.grapple.push({ x, y: y + H, z, nx: 0, nz: 1, perch: true });
 }
 
 function crane(ctx, x) {
@@ -73,9 +83,9 @@ function freighter(ctx) {
   // Deck rails (low walls you must hop), superstructure at the stern end.
   for (const s of [-1, 1]) solid(ctx, 'steel', box(0.15, 1, zMax - zMin - 12, x0 + s * (w / 2 - 0.2), deck + 0.5, (zMin + zMax) / 2 - 5));
   const sz = zMin + 8;
-  solid(ctx, 'painted', box(16, 13, 14, x0, deck + 6.5, sz), { color: PALETTE.stripe });
+  solid(ctx, 'painted', box(16, 13, 14, x0, deck + 6.5, sz), { color: PALETTE.trim });
   solid(ctx, 'painted', box(18, 0.4, 16, x0, deck + 13.2, sz), { color: 0x6a7489 });
-  solid(ctx, 'painted', box(6, 4, 6, x0, deck + 15.4, sz), { color: PALETTE.stripe });
+  solid(ctx, 'painted', box(6, 4, 6, x0, deck + 15.4, sz), { color: PALETTE.trim });
   solid(ctx, 'painted', cylinder(1.5, 1.8, 7, x0, deck + 20, sz + 1.5, 12), { color: PALETTE.containerRed });
   ctx.grapple.push({ x: x0, y: deck + 23.5, z: sz + 1.5, nx: 0, nz: 1, perch: true });
   for (let k = 0; k < 5; k++) {
@@ -86,12 +96,13 @@ function freighter(ctx) {
   edgeGrapples(ctx, x0, (zMin + zMax) / 2 - 5, w, zMax - zMin - 10, deck, 10);
   // Deck cargo: a few containers as cover.
   container(ctx, x0 - 6, deck, 258, false, PALETTE.containerBlue);
-  container(ctx, x0 + 6, deck, 262, false, PALETTE.containerGreen);
+  container(ctx, x0 + 6, deck, 262, false, PALETTE.containerGreen, false);
   container(ctx, x0 + 6, deck + 2.6, 262, false, PALETTE.containerRed);
   // Mast lights.
   solid(ctx, 'steel', cylinder(0.15, 0.2, 12, x0, deck + 6, 276, 6));
   ctx.halos.add(x0, deck + 12.2, 276, PALETTE.windowCool, 3);
   lightSpot(ctx, x0, deck + 8, 250, PALETTE.windowCool, 40, 34);
+  ctx.reflect.push({ x: x0 + 12, y: -0.5, z: 250, h: 18, color: PALETTE.windowCool, w: 1, len: 20, k: 0.3, far: 1.6 });
   lightSpot(ctx, x0, deck + 8, 226, PALETTE.window, 30, 26);
   graffiti(ctx, x0 - w / 2 - 0.05, 5, 250, -1, 0, 10);
 }
@@ -105,6 +116,7 @@ function lighthouse(ctx) {
   ctx.grapple.push({ x, y: 29.8, z, nx: 0, nz: -1, perch: true });
   ctx.halos.add(x, 27.1, z, PALETTE.window, 10);
   lightSpot(ctx, x, 26, z, PALETTE.window, 60, 50);
+  ctx.reflect.push({ x, y: -0.5, z: z - 4, h: 27, color: PALETTE.window, w: 2.2, len: 45, k: 0.55, far: 2.6 });
   // Rotating beam.
   const beamGeo = new THREE.CylinderGeometry(9, 0.4, 150, 20, 1, true).translate(0, 75, 0).rotateZ(-Math.PI / 2);
   const beamMat = new THREE.ShaderMaterial({
@@ -117,14 +129,15 @@ function lighthouse(ctx) {
   beam.position.set(x, 27.1, z);
   beam.layers.set(LAYER_FX);
   beam.frustumCulled = false;
+  beam.userData.dynamic = true;
   ctx.scene.add(beam);
   ctx.updaters.push((t) => { beam.rotation.y = t * 0.45; });
 }
 
 function docks(ctx) {
   // Piers.
-  solid(ctx, 'wood', box(12, 3.6, 88, -64, -0.2, 249), { tag: 'pier' });
-  solid(ctx, 'wood', box(10, 3.6, 46, 23, -0.2, 228), { tag: 'pier' });
+  solid(ctx, 'wood', tiledBox(12, 3.6, 88, -64, -0.2, 249, { uvScale: [2.4, 2.4] }), { tag: 'pier' });
+  solid(ctx, 'wood', tiledBox(10, 3.6, 46, 23, -0.2, 228, { uvScale: [2.4, 2.4] }), { tag: 'pier' });
   for (let z = 210; z < 292; z += 8) for (const px of [-70, -58]) ctx.buckets.add('wood', cylinder(0.25, 0.25, 4, px, -0.4, z, 6));
   for (let z = 210; z < 292; z += 12) {
     ctx.buckets.add('painted', cylinder(0.3, 0.35, 0.8, -58.6, 2, z, 8), 0x1e2026);
@@ -137,7 +150,7 @@ function docks(ctx) {
     for (let x = -17; x <= 17; x += 13) {
       if (zRow === 186 && Math.abs(x) < 2) continue;
       const stack = rng.int(1, 3);
-      for (let s = 0; s < stack; s++) container(ctx, x, 0.15 + s * 2.6, zRow, true, rng.pick(CONTAINERS));
+      for (let s = 0; s < stack; s++) container(ctx, x, 0.15 + s * 2.6, zRow, true, rng.pick(CONTAINERS), s === stack - 1);
     }
   }
   // Crates, barrels and bollards along the warehouses.
@@ -215,7 +228,14 @@ function pipe(ctx, x1, z1, x2, z2, y, r = 0.55) {
 
 function aceChemicals(ctx) {
   const c = ctx.compounds.ace;
-  solid(ctx, 'concrete', tiledBox(c.maxX - c.minX, 0.15, c.maxZ - c.minZ, (c.minX + c.maxX) / 2, 0.075, (c.minZ + c.maxZ) / 2, { uvScale: [8, 8] }));
+  solid(ctx, 'yard', tiledBox(c.maxX - c.minX, 0.15, c.maxZ - c.minZ, (c.minX + c.maxX) / 2, 0.075, (c.minZ + c.maxZ) / 2, { uvScale: [12, 12] }));
+  // Spilled chemicals glowing on the slab, and their reflections.
+  for (const [px, pz, r] of [[104, -104, 3.5], [121, -134, 2.6], [138, -110, 2.2], [76, -150, 2.8], [160, -140, 3.2], [60, -104, 2]]) {
+    ctx.buckets.add('pool', new THREE.CircleGeometry(r, 20).scale(1, 0.7, 1).rotateX(-Math.PI / 2).translate(px, 0.17, pz), 0x5aa83a);
+    ctx.buckets.add('puddle', new THREE.PlaneGeometry(r * 1.6, r * 1.1).rotateX(-Math.PI / 2).translate(px, 0.165, pz));
+  }
+  for (const [vx, vz] of [[112, -112], [128, -126]]) ctx.reflect.push({ x: vx, y: 0.16, z: vz, h: 6.5, color: PALETTE.chem, w: 1.6, len: 14, k: 0.35 });
+  ctx.reflect.push({ x: 140, y: 25.1, z: -150, h: 6, color: PALETTE.chem, w: 3, len: 10, k: 0.3 });
   // Chain-link fence with two gates.
   const fence = (x1, z1, x2, z2) => solid(ctx, 'steel', box(Math.max(0.1, Math.abs(x2 - x1)), 3.2, Math.max(0.1, Math.abs(z2 - z1)), (x1 + x2) / 2, 1.75, (z1 + z2) / 2));
   fence(c.minX, c.maxZ, 88, c.maxZ); fence(112, c.maxZ, c.maxX, c.maxZ);
@@ -263,7 +283,9 @@ function aceChemicals(ctx) {
   for (let x = 122; x <= 158; x += 9) solid(ctx, 'steel', box(0.3, 12, 0.3, x, 30, -152.6));
   for (let k = 0; k < 5; k++) ctx.halos.add(124 + k * 8, 31, -150.5, PALETTE.chem, 9);
   lightSpot(ctx, 140, 30, -146, PALETTE.chem, 45, 30);
-  ctx.grapple.push({ x: 140, y: 36, z: -152, nx: 0, nz: 1, perch: true });
+  // A walkway along the top of the sign frame, so its perch has something to stand on.
+  solid(ctx, 'steel', box(40, 0.25, 1.1, 140, 36.1, -152.6));
+  ctx.grapple.push({ x: 140, y: 36.23, z: -152.6, nx: 0, nz: 1, perch: true });
   // Barrels.
   for (let k = 0; k < 30; k++) {
     const x = ctx.rng.range(45, 195), z = ctx.rng.range(-148, -100);
@@ -314,15 +336,20 @@ function clockPlaza(ctx) {
   for (const tx of [-129, -111]) {
     solid(ctx, 'painted', box(8, 48, 8, tx, 24, -122), { color: PALETTE.stone });
     ctx.buckets.add('trim', box(8.8, 0.6, 8.8, tx, 48, -122));
-    solid(ctx, 'roof', new THREE.ConeGeometry(4.6, 16, 4).rotateY(Math.PI / 4).translate(tx, 56, -122));
+    // The spire's collider steps in with the cone, leaving a standable rim around its base.
+    ctx.buckets.add('roof', new THREE.ConeGeometry(4.6, 16, 4).rotateY(Math.PI / 4).translate(tx, 56, -122));
+    for (const [half, y0, y1] of [[3, 48, 49.5], [2.2, 49.5, 53], [1.2, 53, 60], [0.5, 60, 64]]) ctx.collision.addBox(tx - half, y0, -122 - half, tx + half, y1, -122 + half, 'spire');
     glow(ctx, box(1.4, 6, 0.1, tx, 36, -117.95), PALETTE.windowCool);
-    edgeGrapples(ctx, tx, -122, 8, 8, 48, 4);
+    for (const [nx, nz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) ctx.grapple.push({ x: tx + nx * 3.55, y: 48, z: -122 + nz * 3.55, nx, nz, perch: true });
   }
   for (let z = -175; z < -125; z += 10) for (const s of [-1, 1]) solid(ctx, 'painted', box(2, 20, 2.4, -120 + s * 14, 10, z), { color: PALETTE.stone });
+  // The nave's side ledges sit under its pitched roof, so the ridge gets its own perches instead.
+  for (const z of [-172, -165, -150, -135, -128]) ctx.grapple.push({ x: -120, y: 37, z, nx: 0, nz: 1, perch: true });
   const rose = new THREE.CircleGeometry(4, 24).translate(-120, 30, -118.9);
   glow(ctx, rose, PALETTE.jokerPurple);
   ctx.halos.add(-120, 30, -118.5, PALETTE.neonPink, 12);
   lightSpot(ctx, -120, 20, -112, PALETTE.jokerPurple, 30, 26);
+  ctx.reflect.push({ x: -120, y: 0.16, z: -117, h: 30, color: PALETTE.jokerPurple, w: 1.5, len: 12, k: 0.22 });
   for (let z = -170; z < -125; z += 7) for (const s of [-1, 1]) glow(ctx, box(0.1, 5, 1.6, -120 + s * 13.05, 16, z), s > 0 ? 0x3a5a9a : 0x9a3a4a);
 
   // Clock tower on the hall's north edge.
@@ -357,6 +384,7 @@ function clockPlaza(ctx) {
     glow(ctx, box(0.6, 0.8, 0.6, lx, 61.6, lz), PALETTE.window);
     ctx.halos.add(lx, 61.6, lz, PALETTE.window, 3);
     lightSpot(ctx, lx, 61, lz, PALETTE.window, 22, 16);
+    ctx.reflect.push({ x: lx, y: 58, z: lz, h: 3.6, color: PALETTE.window, w: 0.6, len: 7, k: 0.4 });
   }
   // Fountain and statues in the plaza.
   solid(ctx, 'painted', cylinder(6, 6.2, 0.9, -90, 0.6, -110, 28), { color: PALETTE.stone });
@@ -368,6 +396,35 @@ function clockPlaza(ctx) {
     ctx.buckets.add('painted', new THREE.SphereGeometry(0.4, 10, 8).translate(sx, 4.9, -100), 0x3b4a44);
   }
   graffiti(ctx, -62, 58, -150, 0, 0, 10, 'HA HA HA');
+
+  // The cathedral portal: a tall pointed doorway with candlelight inside.
+  const portal = new THREE.Shape();
+  portal.moveTo(-2.4, 0); portal.lineTo(-2.4, 5.5); portal.quadraticCurveTo(-2.2, 8.2, 0, 9.4);
+  portal.quadraticCurveTo(2.2, 8.2, 2.4, 5.5); portal.lineTo(2.4, 0); portal.lineTo(-2.4, 0);
+  ctx.buckets.add('painted', new THREE.ExtrudeGeometry(portal, { depth: 0.5, bevelEnabled: false }).scale(1.25, 1.1, 1).translate(-120, 0.15, -119.2), 0x55524d);
+  ctx.buckets.add('glow', new THREE.ShapeGeometry(portal).translate(-120, 0.15, -118.65), 0x6a4a28);
+  ctx.halos.add(-120, 4, -118, PALETTE.window, 7);
+  ctx.reflect.push({ x: -120, y: 0.16, z: -117, h: 4, color: PALETTE.window, w: 1.8, len: 9, k: 0.35 });
+  // Pinnacles on every buttress.
+  for (let z = -175; z < -125; z += 10) for (const s of [-1, 1]) {
+    ctx.buckets.add('painted', new THREE.ConeGeometry(0.9, 4, 4).rotateY(Math.PI / 4).translate(-120 + s * 14, 22, z), PALETTE.stone);
+  }
+  // Gothic lamp posts and bare trees around the plaza.
+  for (const [lx, lz] of [[-104, -112], [-76, -112], [-104, -130], [-58, -104], [-46, -126], [-90, -134]]) {
+    solid(ctx, 'steel', cylinder(0.12, 0.2, 4.6, lx, 0.15 + 2.3, lz, 8));
+    ctx.buckets.add('steel', box(1.6, 0.1, 0.1, lx, 4.5, lz));
+    for (const s of [-0.7, 0.7]) {
+      ctx.buckets.add('steel', new THREE.ConeGeometry(0.34, 0.35, 4).rotateY(Math.PI / 4).translate(lx + s, 4.95, lz));
+      glow(ctx, box(0.36, 0.5, 0.36, lx + s, 4.55, lz), PALETTE.window);
+      ctx.halos.add(lx + s, 4.55, lz, PALETTE.window, 2.4);
+    }
+    lightSpot(ctx, lx, 4.2, lz, PALETTE.window, 20, 15);
+    ctx.reflect.push({ x: lx, y: 0.16, z: lz, h: 4.5, color: PALETTE.sodium, w: 0.5, len: 7, k: 0.3 });
+  }
+  for (const [tx, tz, sc] of [[-98, -122, 1.2], [-82, -123, 1], [-52, -113, 1.3], [-66, -106, 0.9], [-104, -104, 1], [-45, -134, 1.1]]) {
+    for (const g of bareTree(ctx.rng, tx, 0.15, tz, sc)) ctx.buckets.add('painted', g, 0x201c1c);
+    ctx.collision.addBox(tx - 0.3, 0.15, tz - 0.3, tx + 0.3, 3, tz + 0.3, 'tree');
+  }
 }
 
 export function buildDistricts(ctx) {

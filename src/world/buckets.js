@@ -29,7 +29,8 @@ export function createBuckets(materials) {
     } else if (g.attributes.color) g.deleteAttribute('color');
     g.computeBoundingBox();
     g.boundingBox.getCenter(tmp);
-    const id = `${key}|${Math.floor(tmp.x / CHUNK)},${Math.floor(tmp.z / CHUNK)}`;
+    // Cheap flat overlays (userData.global) go in one city-wide mesh: fewer draw calls beats culling.
+    const id = mat.userData.global ? key : `${key}|${Math.floor(tmp.x / CHUNK)},${Math.floor(tmp.z / CHUNK)}`;
     if (!groups.has(id)) groups.set(id, { key, list: [] });
     groups.get(id).list.push(g);
   }

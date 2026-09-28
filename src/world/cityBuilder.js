@@ -2,11 +2,13 @@
 import * as THREE from 'three';
 import { PALETTE } from '../config/palette.js';
 import { LAYER_FX } from '../render/layers.js';
-import { GRID, WORLD, districtAt } from './mapData.js';
+import { GRID, WORLD, SITES, districtAt } from './mapData.js';
 import { createBuckets, tiledBox, box, cylinder, prism } from './buckets.js';
 import { createCityMaterials, FACADE_METERS, FLOOR_METERS } from './materials.js';
 import { neonTexture, billboardTexture, graffitiTexture } from './textures.js';
 import { createHalos } from './halos.js';
+import { facadeRelief, decoCrown, awnings } from './facadeDetail.js';
+import { dressStreets } from './streetDressing.js';
 
 const CAR_COLORS = [0x6d2f2f, 0x2f3f5a, 0x39473a, 0x5a5146, 0x1e2026, 0x7a6a44, 0x4a3a52];
 const NEON = { pink: PALETTE.neonPink, cyan: PALETTE.neonCyan };
@@ -23,6 +25,8 @@ export function createCityContext(scene, rng, collision) {
     flickers: [],
     updaters: [],
     roofs: [],
+    steam: [],   // { x, y, z, s }: sources of rising steam (vents, chimneys, manholes)
+    reflect: [], // { x, y, z, h, color, w, len, k }: lights that streak on the wet ground below them
   };
   scene.add(ctx.halos.points);
   return ctx;
@@ -68,12 +72,15 @@ function ring(ctx, key, x, z, w, d, y, hgt, over) {
   ctx.buckets.add(key, box(t, hgt, d, x + w / 2 + over - t / 2, y, z));
 }
 
+// Returns the texture u offset so window-aligned relief can find the painted windows.
 function facade(ctx, style, w, h, d, x, y0, z) {
+  const uOffset = ctx.rng.next();
   ctx.buckets.add(`facade_${style}`, tiledBox(w, h, d, x, y0 + h / 2, z, {
-    uvScale: [FACADE_METERS[style], FLOOR_METERS], uOffset: ctx.rng.next(), faces: [0, 1, 4, 5],
+    uvScale: [FACADE_METERS[style], FLOOR_METERS], uOffset, faces: [0, 1, 4, 5],
   }));
   ctx.buckets.add('roof', tiledBox(w, h, d, x, y0 + h / 2, z, { uvScale: [8, 8], faces: [2] }));
   ctx.collision.addBox(x - w / 2, y0, z - d / 2, x + w / 2, y0 + h, z + d / 2, 'building');
+  return uOffset;
 }
 
 function faceFrame(face, x, z, w, d) {
@@ -175,6 +182,7 @@ function neonSign(ctx, b, n) {
     ctx.halos.add(hx, hy, hz, color, n.big ? 9 : 5);
   }
   lightSpot(ctx, f.px + f.nx * 3, yMid, f.pz + f.nz * 3, color, 24, 18);
+  ctx.reflect.push({ x: px + f.nx * 0.3, y: 0.16, z: pz + f.nz * 0.3, h: yMid, color, w: n.big ? 1.1 : 0.55, len: 12, k: 0.5 });
   if (ctx.rng.chance(0.3)) ctx.flickers.push({ mat, phase: ctx.rng.range(0, 10) });
 }
 
@@ -209,26 +217,81 @@ function billboard(ctx, b, bb) {
 export function waterTower(ctx, x, y, z) {
   for (const [lx, lz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) solid(ctx, 'steel', cylinder(0.12, 0.12, 3, x + lx * 1.5, y + 1.5, z + lz * 1.5, 6));
   ctx.buckets.add('steel', box(3.4, 0.15, 3.4, x, y + 3, z));
-  solid(ctx, 'wood', cylinder(2.1, 2.1, 3.4, x, y + 4.7, z, 20));
+  // Tank staves run vertically: swap the plank texture's axes around the cylinder.
+  const tank = cylinder(2.1, 2.1, 3.4, x, y + 4.7, z, 20);
+  const tuv = tank.attributes.uv;
+  for (let i = 0; i < tuv.count; i++) tuv.setXY(i, tuv.getY(i) * 0.4, tuv.getX(i) * 5);
+  solid(ctx, 'wood', tank);
   ctx.buckets.add('steel', cylinder(2.16, 2.16, 0.15, x, y + 4, z, 20, true));
   ctx.buckets.add('steel', cylinder(2.16, 2.16, 0.15, x, y + 5.6, z, 20, true));
-  solid(ctx, 'roof', cylinder(0.05, 2.3, 1.2, x, y + 7, z, 20));
-  ctx.grapple.push({ x, y: y + 6.4, z, nx: 0, nz: 1, perch: true });
+  // A low, flat-topped cap: its collider top is the perch, so the hero stands on the roof of the tank.
+  solid(ctx, 'roof', cylinder(0.9, 2.3, 0.6, x, y + 6.7, z, 20));
+  ctx.buckets.add('steel', cylinder(0.08, 0.08, 0.9, x + 0.6, y + 7.4, z, 6));
+  // Cross bracing between the legs and a ladder up the side.
+  for (const [ax, az, bx, bz] of [[-1, -1, 1, -1], [1, -1, 1, 1], [1, 1, -1, 1], [-1, 1, -1, -1]]) {
+    const len = Math.hypot(3, 3);
+    const brace = new THREE.BoxGeometry(0.05, len, 0.05).rotateZ(Math.PI / 4);
+    brace.rotateY(-Math.atan2(bz - az, bx - ax)).translate(x + (ax + bx) * 0.75, y + 1.5, z + (az + bz) * 0.75);
+    ctx.buckets.add('steel', brace);
+  }
+  for (const s of [-0.25, 0.25]) ctx.buckets.add('steel', box(0.05, 6.4, 0.05, x + s, y + 3.2, z + 2.3));
+  for (let k = 0.4; k < 6.3; k += 0.45) ctx.buckets.add('steel', box(0.5, 0.04, 0.04, x, y + k, z + 2.3));
+  ctx.grapple.push({ x, y: y + 7, z, nx: 0, nz: 1, perch: true });
 }
 
-function acUnit(ctx, x, y, z) {
-  solid(ctx, 'painted', box(2, 1.2, 1.4, x, y + 0.6, z), { color: 0x6a7489 });
-  ctx.buckets.add('painted', cylinder(0.5, 0.5, 0.12, x, y + 1.26, z, 14), 0x1e2026);
+export function acUnit(ctx, x, y, z, big = false) {
+  const w = big ? 3 : 2, d = big ? 2 : 1.4, hgt = big ? 1.5 : 1.2;
+  solid(ctx, 'painted', box(w, hgt, d, x, y + hgt / 2, z), { color: 0x454b55 });
+  ctx.buckets.add('painted', box(w + 0.12, 0.1, d + 0.12, x, y + hgt, z), 0x555c67);
+  for (const fx of big ? [-0.65, 0.65] : [0]) {
+    ctx.buckets.add('painted', cylinder(0.48, 0.48, 0.1, x + fx, y + hgt + 0.1, z, 14), 0x14151a);
+    ctx.buckets.add('painted', box(0.9, 0.04, 0.06, x + fx, y + hgt + 0.16, z), 0x3a3f48);
+  }
+  // Louvers on both long sides.
+  for (let k = 0; k < 3; k++) for (const s of [-1, 1]) ctx.buckets.add('painted', box(w * 0.78, 0.07, 0.03, x, y + 0.3 + k * 0.26, z + s * (d / 2 + 0.015)), 0x2a2d33);
+  // A pipe running from the unit down into the roof.
+  ctx.buckets.add('steel', cylinder(0.08, 0.08, 0.9, x + w / 2 + 0.15, y + 0.45, z, 6));
 }
 
-function vent(ctx, x, y, z) {
+export function vent(ctx, x, y, z) {
   solid(ctx, 'steel', cylinder(0.35, 0.35, 1.3, x, y + 0.65, z, 10));
   ctx.buckets.add('steel', cylinder(0.05, 0.6, 0.4, x, y + 1.5, z, 10));
+  if (ctx.rng.chance(0.35)) ctx.steam.push({ x, y: y + 1.6, z, s: 0.6 });
+}
+
+// A long sheet-metal duct on short legs, ending in an elbow that drops into the roof.
+export function duct(ctx, x, y, z, len, alongX) {
+  const sx = alongX ? len : 0.8, sz = alongX ? 0.8 : len;
+  solid(ctx, 'painted', box(sx, 0.8, sz, x, y + 0.85, z), { color: 0x555b65 });
+  for (let t = -len / 2 + 0.8; t < len / 2; t += 1.6) {
+    ctx.buckets.add('painted', box(alongX ? 0.07 : 0.88, 0.88, alongX ? 0.88 : 0.07, x + (alongX ? t : 0), y + 0.85, z + (alongX ? 0 : t)), 0x4c515b);
+    ctx.buckets.add('steel', box(alongX ? 0.06 : 0.7, 0.45, alongX ? 0.7 : 0.06, x + (alongX ? t : 0), y + 0.22, z + (alongX ? 0 : t)));
+  }
+  const ex = x + (alongX ? len / 2 : 0), ez = z + (alongX ? 0 : len / 2);
+  ctx.buckets.add('painted', box(1, 1.3, 1, ex, y + 0.65, ez), 0x5d636d);
+}
+
+function hatch(ctx, x, y, z) {
+  solid(ctx, 'painted', box(1.3, 0.5, 1.3, x, y + 0.25, z), { color: 0x3b4250 });
+  ctx.buckets.add('painted', box(1.4, 0.08, 1.4, x, y + 0.54, z), 0x4b586e);
+  ctx.buckets.add('steel', box(0.5, 0.06, 0.06, x, y + 0.62, z));
+}
+
+function dish(ctx, x, y, z) {
+  solid(ctx, 'steel', cylinder(0.06, 0.08, 1.4, x, y + 0.7, z, 6));
+  const a = ctx.rng.range(0, Math.PI * 2);
+  const g = new THREE.SphereGeometry(0.75, 12, 6, 0, Math.PI * 2, 0, 0.9).rotateX(-1.1).rotateY(a).translate(x, y + 1.55, z);
+  ctx.buckets.add('painted', g, 0x8c877d);
 }
 
 function skylight(ctx, x, y, z) {
   solid(ctx, 'trim', box(3.2, 0.5, 2.2, x, y + 0.25, z));
-  ctx.buckets.add('glass', prism(3, 0.9, 2, x, y + 0.5, z));
+  if (ctx.rng.chance(0.45)) {
+    ctx.buckets.add('glow', prism(3, 0.9, 2, x, y + 0.5, z), 0x7a5a32);
+    ctx.halos.add(x, y + 1.2, z, PALETTE.window, 2.2);
+  } else ctx.buckets.add('glass', prism(3, 0.9, 2, x, y + 0.5, z));
+  // Muntins over the glass.
+  for (let k = -1; k <= 1; k++) ctx.buckets.add('steel', prism(0.06, 0.93, 2.04, x + k, y + 0.5, z));
 }
 
 function hut(ctx, x, y, z, rot) {
@@ -238,6 +301,7 @@ function hut(ctx, x, y, z, rot) {
   ctx.buckets.add('painted', box(rot ? 1.1 : 0.05, 2.1, rot ? 0.05 : 1.1, x + dx, y + 1.05, z + dz), 0x1a1c22);
   glow(ctx, box(0.3, 0.15, 0.3, x + dx * 1.05, y + 2.4, z + dz * 1.05), PALETTE.window);
   ctx.halos.add(x + dx * 1.1, y + 2.4, z + dz * 1.1, PALETTE.window, 1.4);
+  ctx.reflect.push({ x: x + dx * 1.2, y, z: z + dz * 1.2, h: 2.4, color: PALETTE.window, w: 0.5, len: 3.5, k: 0.5 });
 }
 
 function antenna(ctx, x, y, z, h) {
@@ -250,12 +314,22 @@ function antenna(ctx, x, y, z, h) {
 function chimney(ctx, x, y, z) {
   solid(ctx, 'painted', box(1.1, 2.4, 1.1, x, y + 1.2, z), { color: PALETTE.brick });
   ctx.buckets.add('painted', box(1.3, 0.2, 1.3, x, y + 2.45, z), 0x3a2a24);
+  ctx.buckets.add('painted', cylinder(0.22, 0.22, 0.5, x, y + 2.75, z, 8), 0x2a2420);
+  ctx.steam.push({ x, y: y + 3, z, s: 0.8 });
 }
+
+// Keeps rooftop clutter off the story sites, the corners (deco crowns) and upper tiers.
+const clearOfSites = (px, py, pz, r) => Object.values(SITES).every((s) => Math.abs(s.y - py) > 4 || Math.hypot(s.x - px, s.z - pz) > 7 + r);
 
 function roofProps(ctx, b, x, z, w, d, y) {
   const rng = ctx.rng;
   const placed = [];
-  const free = (px, pz, r) => placed.every((p) => Math.hypot(p.x - px, p.z - pz) > p.r + r) && Math.abs(px - x) < w / 2 - r - 0.6 && Math.abs(pz - z) < d / 2 - r - 0.6;
+  const tier = b.tiers[0];
+  const free = (px, pz, r) => placed.every((p) => Math.hypot(p.x - px, p.z - pz) > p.r + r)
+    && Math.abs(px - x) < w / 2 - r - 1.9 && Math.abs(pz - z) < d / 2 - r - 1.9
+    && !(Math.abs(px - x) > w / 2 - 3.2 - r && Math.abs(pz - z) > d / 2 - 3.2 - r)
+    && !(tier && Math.abs(px - x) < tier.w / 2 + r + 0.5 && Math.abs(pz - z) < tier.d / 2 + r + 0.5)
+    && clearOfSites(px, y, pz, r);
   const put = (r, fn) => {
     for (let t = 0; t < 12; t++) {
       const px = x + rng.range(-w / 2, w / 2), pz = z + rng.range(-d / 2, d / 2);
@@ -265,15 +339,25 @@ function roofProps(ctx, b, x, z, w, d, y) {
   };
   const area = w * d;
   if (b.props === 'industrial') {
-    for (let i = 0; i < area / 120; i++) put(1.2, (px, pz) => (rng.chance(0.5) ? vent(ctx, px, y, pz) : acUnit(ctx, px, y, pz)));
+    for (let i = 0; i < area / 120; i++) put(1.6, (px, pz) => (rng.chance(0.4) ? vent(ctx, px, y, pz) : acUnit(ctx, px, y, pz, rng.chance(0.5))));
+    for (let i = 0; i < 2; i++) {
+      const alongX = rng.chance(0.5), len = rng.range(6, 12);
+      put(len / 2 + 0.6, (px, pz) => duct(ctx, px, y, pz, len, alongX));
+    }
     return;
   }
-  if (rng.chance(['brick', 'stone'].includes(b.style) ? 0.45 : 0.2) && area > 300) put(3, (px, pz) => waterTower(ctx, px, y, pz));
-  if (rng.chance(0.75)) put(2.4, (px, pz) => hut(ctx, px, y, pz, rng.chance(0.5)));
-  for (let i = 0, n = rng.int(1, Math.max(1, Math.floor(area / 200))); i < n; i++) put(1.3, (px, pz) => acUnit(ctx, px, y, pz));
-  for (let i = 0, n = rng.int(0, 3); i < n; i++) put(0.6, (px, pz) => vent(ctx, px, y, pz));
-  if (['brick', 'deco'].includes(b.style) && rng.chance(0.4)) put(2, (px, pz) => skylight(ctx, px, y, pz));
-  if (b.style === 'brick' && rng.chance(0.5)) put(0.8, (px, pz) => chimney(ctx, px, y, pz));
+  if (rng.chance(['brick', 'stone'].includes(b.style) ? 0.6 : 0.3) && area > 300) put(3, (px, pz) => waterTower(ctx, px, y, pz));
+  if (rng.chance(0.8)) put(2.4, (px, pz) => hut(ctx, px, y, pz, rng.chance(0.5)));
+  for (let i = 0, n = rng.int(1, Math.max(1, Math.floor(area / 160))); i < n; i++) put(1.4, (px, pz) => acUnit(ctx, px, y, pz, rng.chance(0.3)));
+  if (area > 350 && rng.chance(0.55)) {
+    const alongX = rng.chance(0.5), len = rng.range(5, 10);
+    put(len / 2 + 0.6, (px, pz) => duct(ctx, px, y, pz, len, alongX));
+  }
+  for (let i = 0, n = rng.int(1, 4); i < n; i++) put(0.6, (px, pz) => vent(ctx, px, y, pz));
+  if (rng.chance(0.6)) put(0.9, (px, pz) => hatch(ctx, px, y, pz));
+  if (rng.chance(0.3)) put(0.9, (px, pz) => dish(ctx, px, y, pz));
+  if (['brick', 'deco', 'stone'].includes(b.style) && rng.chance(0.5)) put(2, (px, pz) => skylight(ctx, px, y, pz));
+  if (b.style === 'brick' || (b.style === 'stone' && rng.chance(0.4))) for (let i = 0, n = rng.int(1, 2); i < n; i++) put(0.8, (px, pz) => chimney(ctx, px, y, pz));
   if (b.h > 30 && rng.chance(0.5)) put(0.5, (px, pz) => antenna(ctx, px, y, pz, rng.range(5, 12)));
 }
 
@@ -281,19 +365,34 @@ function roofProps(ctx, b, x, z, w, d, y) {
 
 function building(ctx, b) {
   const { x, z, w, d, h, style } = b;
-  facade(ctx, style, w, h, d, x, 0, z);
+  const uFacade = facade(ctx, style, w, h, d, x, 0, z);
   ctx.roofs.push({ id: b.id, x, z, w, d, y: h, district: b.district });
   if (b.storefront && h > 8) {
-    ctx.buckets.add('storefront', tiledBox(w + 0.3, 4.2, d + 0.3, x, 0.15 + 2.1, z, { uvScale: [39, 4.2], uOffset: ctx.rng.next(), faces: [0, 1, 4, 5] }));
+    const uShop = ctx.rng.next();
+    // Pick one of the two painted rows of shops so neighbors are not identical.
+    const row = ctx.rng.int(0, 1);
+    const shopBox = tiledBox(w + 0.3, 4.2, d + 0.3, x, 0.15 + 2.1, z, { uvScale: [39, 4.2], uOffset: uShop, faces: [0, 1, 4, 5] });
+    const suv = shopBox.attributes.uv;
+    for (let i = 0; i < suv.count; i++) suv.setY(i, suv.getY(i) * 0.5 + (row === 0 ? 0.5 : 0));
+    ctx.buckets.add('storefront', shopBox);
     ring(ctx, 'trim', x, z, w, d, 4.5, 0.4, 0.35);
+    awnings(ctx, x, z, w, d, uShop, ctx.materials.storefront.userData.shops.slice(row * 6, row * 6 + 6));
   }
+  facadeRelief(ctx, b, uFacade);
   if (b.cornice) {
     ring(ctx, 'trim', x, z, w, d, h - 0.3, 0.6, 0.4);
     if (h > 24) ring(ctx, 'trim', x, z, w, d, Math.round(h * 0.36), 0.35, 0.15);
   }
   if (b.parapet) parapet(ctx, x, z, w, d, h);
   if (b.roof === 'sawtooth') {
-    for (let t = -d / 2 + 3; t < d / 2 - 2; t += 6) ctx.buckets.add('roof', prism(w - 1, 2.2, 6, x, h, z + t, { sawtooth: true }));
+    for (let t = -d / 2 + 3; t < d / 2 - 2; t += 6) {
+      ctx.buckets.add('roof', prism(w - 1, 2.2, 6, x, h, z + t, { sawtooth: true }));
+      // North-light glazing on the steep face of each tooth; the chemical plant works nights.
+      const pane = box(w - 2.2, 1.5, 0.06, x, h + 1.05, z + t - 3 - 0.04);
+      if (b.district === 'ace' && ctx.rng.chance(0.4)) ctx.buckets.add('glow', pane, 0x283020);
+      else ctx.buckets.add('painted', pane, 0x1c2331);
+      for (let m = -w / 2 + 2; m < w / 2 - 1; m += 2.4) ctx.buckets.add('steel', box(0.08, 1.6, 0.1, x + m, h + 1.05, z + t - 3 - 0.06));
+    }
     ctx.collision.addBox(x - w / 2, h, z - d / 2, x + w / 2, h + 1.1, z + d / 2, 'roof');
   }
   if (b.roof === 'pitched') {
@@ -317,6 +416,10 @@ function building(ctx, b) {
       solid(ctx, 'steel', new THREE.ConeGeometry(Math.min(t.w, t.d) * 0.28, 14, 4).rotateY(Math.PI / 4).translate(x, top + 7, z));
       antenna(ctx, x, top + 14, z, 4);
     }
+  }
+  if (style === 'deco' && !b.landmark && top > 30) {
+    const last = b.tiers[b.tiers.length - 1];
+    if (!last?.spire) decoCrown(ctx, x, z, last ? last.w : w, last ? last.d : d, top, solid);
   }
   if (b.fireEscape && h > 12) fireEscape(ctx, b);
   for (const n of b.neon) neonSign(ctx, b, n);
@@ -343,9 +446,13 @@ function streetLamp(ctx, x, z, nx, nz) {
   solid(ctx, 'steel', cylinder(0.09, 0.14, 6.2, x, 3.1, z, 8));
   const hx = x + nx * 1.4, hz = z + nz * 1.4;
   ctx.buckets.add('steel', box(Math.abs(nx) ? 1.5 : 0.1, 0.1, Math.abs(nz) ? 1.5 : 0.1, x + nx * 0.7, 6.15, z + nz * 0.7));
-  glow(ctx, box(0.55, 0.18, 0.55, hx, 6.05, hz), PALETTE.sodium);
+  ctx.buckets.add('steel', box(0.75, 0.22, 0.75, hx, 6.22, hz));
+  glow(ctx, box(0.55, 0.12, 0.55, hx, 6.06, hz), PALETTE.sodium);
   ctx.halos.add(hx, 5.9, hz, PALETTE.sodium, 3.2);
   lightSpot(ctx, hx, 5.6, hz, PALETTE.sodium, 26, 17);
+  ctx.reflect.push({ x: hx, y: 0.16, z: hz, h: 6, color: PALETTE.sodium, w: 0.45, len: 9, k: 0.34 });
+  // A shaft of lamplight through the rain (color pass only, skipped on Low).
+  if (ctx.quality?.name !== 'low') ctx.buckets.add('cone', new THREE.CylinderGeometry(0.3, 2.7, 5.9, 14, 1, true).translate(hx, 6.0 - 2.95, hz));
   const pool = new THREE.PlaneGeometry(9, 9).rotateX(-Math.PI / 2).translate(hx, 0.03, hz);
   ctx.buckets.add('pool', pool, 0x6b4520);
 }
@@ -372,7 +479,7 @@ function streets(ctx) {
   const { rng } = ctx;
   // Ground: asphalt everywhere on land, the harbor is water (see water.js).
   const landD = WORLD.waterZ - WORLD.minZ - 4;
-  ctx.buckets.add('asphalt', tiledBox(WORLD.maxX - WORLD.minX + 8, 0.2, landD + 8, 0, -0.1, WORLD.minZ + landD / 2, { uvScale: [10, 10], faces: [2] }));
+  ctx.buckets.add('asphalt', tiledBox(WORLD.maxX - WORLD.minX + 8, 0.2, landD + 8, 0, -0.1, WORLD.minZ + landD / 2, { uvScale: [17, 17], faces: [2] }));
   // Seawall along the harbor.
   solid(ctx, 'concrete', box(WORLD.maxX - WORLD.minX + 8, 1.4, 3, 0, -0.5, WORLD.waterZ - 1.5), { collide: false });
 
@@ -467,11 +574,33 @@ export function buildCity(ctx, data) {
   streets(ctx);
   for (const b of data.buildings) building(ctx, b);
   wires(ctx);
+  dressStreets(ctx);
   return ctx;
 }
 
+// Drops grapple points whose landing spot is buried in something solid (a landing inside a box
+// would shove the hero off, or drop them through the city).
+function pruneGrapples(ctx) {
+  const keep = ctx.grapple.filter((p) => {
+    const k = p.perch ? 0 : -1.1;
+    const lx = p.x + (p.nx ?? 0) * k, lz = p.z + (p.nz ?? 0) * k;
+    return !ctx.collision.query(lx - 0.2, lz - 0.2, lx + 0.2, lz + 0.2).some((b) =>
+      b.maxY > p.y + 0.5 && b.minY < p.y + 1.8 && lx > b.minX - 0.2 && lx < b.maxX + 0.2 && lz > b.minZ - 0.2 && lz < b.maxZ + 0.2);
+  });
+  ctx.grapple.length = 0;
+  ctx.grapple.push(...keep);
+}
+
 export function finishCity(ctx) {
+  pruneGrapples(ctx);
   ctx.buckets.flush(ctx.scene);
+  // Everything built so far stands still (signs, decals, wires): freeze their matrices so the
+  // renderer stops recomposing them every pass. Movers opt out with userData.dynamic.
+  for (const o of ctx.scene.children) {
+    if (o.userData.dynamic || !o.matrixAutoUpdate) continue;
+    o.updateMatrix();
+    o.matrixAutoUpdate = false;
+  }
   ctx.updaters.push((t) => {
     for (const b of ctx.blinkers) ctx.halos.setSize(b.i, Math.sin(t * 2 + b.phase) > 0.2 ? b.size : 0.01);
     for (const f of ctx.flickers) f.mat.opacity = Math.sin(t * 23 + f.phase) > -0.93 || Math.sin(t * 1.3 + f.phase) > 0 ? 1 : 0.25;
