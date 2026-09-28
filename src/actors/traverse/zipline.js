@@ -26,8 +26,10 @@ export function createZipControl(h, { events }, { line, s = 0 }) {
       h.pos.set(p.x, p.y - 2.05, p.z); // hanging below the cable by one arm
       h.vel.set(line.dir.x * speed, line.dir.y * speed, line.dir.z * speed);
       if (ctx.input.pressed('jump')) {
+        // Let go with full momentum. `release` sets airT above the air-state glide threshold, so
+        // if the player keeps holding jump, hero.js's normal air-state rule starts the glide a
+        // frame later (inheriting this velocity); a tap just falls.
         release(6);
-        if (ctx.input.down('jump')) h.startGlide();
         return true;
       }
       if (pos >= line.length - 0.5) { release(8); return true; }

@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { addZipline } from './climbables.js';
 import { solid } from './cityBuilder.js';
+import { LAYER_FX } from '../render/layers.js';
 
 export const ZIP_ROUTES = [
   // [from {x,z}, to {x,z}]  (world coordinates of a roof each end sits on)
@@ -11,7 +12,7 @@ export const ZIP_ROUTES = [
   [{ x: -60, z: 120 }, { x: -120, z: 120 }],   // Docks: cold storage to warehouse 5
   [{ x: 120, z: -48 }, { x: 120, z: 0 }],      // Neon Row: pawn shop down to the Gazette
   [{ x: 120, z: 112 }, { x: 180, z: 115 }],    // Neon Row: across the avenue, south block
-  [{ x: 120, z: 0 }, { x: 180, z: -9 }],       // Neon Row: the Gazette across to the 24h diner block
+  [{ x: 120, z: 0 }, { x: 180, z: -9 }],       // Neon Row: the Gazette across to the 24h diner block (shares the Gazette roof with the route above, at a different edge; intentional)
   [{ x: 140, z: -172 }, { x: 180, z: -118 }],  // Ace factory roof to the vat deck
   [{ x: -120, z: -150 }, { x: -190.5, z: -130.5 }], // Cathedral to the clock-district tower
   [{ x: 0, z: 0 }, { x: -60, z: 0 }],          // GCPD roof west into downtown
@@ -48,9 +49,15 @@ export function buildZiplines(ctx) {
     const hit = ctx.collision.raycast({ x: a.x, y: a.y - 0.3, z: a.z }, { x: d.x / len, y: d.y / len, z: d.z / len }, len - 1);
     if (hit) { console.warn('zipline blocked', fa, fb, hit.box.tag); continue; }
     const line = addZipline(ctx.climbables, a, b);
-    // Purely a visual post: no collider, so it never shadows its own grapple point (which sits
-    // right below the post top) out of pruneGrapples' head-clearance check.
-    for (const p of [a, b]) solid(ctx, 'steel', new THREE.CylinderGeometry(0.09, 0.12, 2.2, 6).translate(p.x, p.y - 1.1, p.z), { collide: false });
+    // The far post (b) is a normal solid obstacle. The near post (a) carries the grapple point
+    // 1.2 m below its top, and pruneGrapples rejects a grapple point with a solid box reaching
+    // above p.y + 0.5 (= a.y - 0.7) in the headroom window above it; a full-height post collider
+    // there would shadow its own point out of the grapple list. So post a's mesh still draws full
+    // height, but its collider only runs from the roof up to a.y - 0.8 (comfortably under the
+    // a.y - 0.7 line), which still blocks walking through the post's base.
+    solid(ctx, 'steel', new THREE.CylinderGeometry(0.09, 0.12, 2.2, 6).translate(a.x, a.y - 1.1, a.z), { collide: false });
+    ctx.collision.addBox(a.x - 0.12, a.y - 2.2, a.z - 0.12, a.x + 0.12, a.y - 0.8, a.z + 0.12, 'zipPost');
+    solid(ctx, 'steel', new THREE.CylinderGeometry(0.09, 0.12, 2.2, 6).translate(b.x, b.y - 1.1, b.z));
     // The cable sags 3% in the middle; drawn as an ink line strip.
     const n = 24, arr = [];
     for (let i = 0; i <= n; i++) {
@@ -58,6 +65,7 @@ export function buildZiplines(ctx) {
       arr.push(new THREE.Vector3(a.x + d.x * k, a.y + d.y * k - Math.sin(k * Math.PI) * len * 0.03, a.z + d.z * k));
     }
     const cable = new THREE.Line(new THREE.BufferGeometry().setFromPoints(arr), new THREE.LineBasicMaterial({ color: 0x0b0b12 }));
+    cable.layers.set(LAYER_FX);
     ctx.scene.add(cable);
     ctx.grapple.push({ x: a.x, y: a.y - 1.2, z: a.z, nx: 0, nz: 0, perch: true, zip: line });
     pts.push(line);
