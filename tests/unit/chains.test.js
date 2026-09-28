@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  CHAINS, chainForAction, chainCost, chainEligible, stealthChainReady, chainAvailability, comboAfter,
+  CHAINS, CHAIN_RULES, chainForAction, chainCost, chainEligible, stealthChainReady, chainAvailability, comboAfter,
   selectChainTargets, chainHearers, tiedGroup, chainOutcome, chainHudKey, strikeSpot, midSpot, pileCenter, backSpot, lungePoint,
 } from '../../src/combat/chains.js';
 import { createCombo } from '../../src/combat/combo.js';
@@ -140,6 +140,14 @@ describe('after the chain', () => {
   it('chainHearers wakes unaware goons within 8 m that were not in the chain', () => {
     const a = goon('a', 1, 0, { aware: false }), b = goon('b', 7, 0, { aware: false }), c = goon('c', 9, 0, { aware: false }), d = goon('d', 2, 0);
     expect(chainHearers(O, [a, b, c, d], [a]).map((e) => e.id)).toEqual(['b']);
+  });
+  it('chainHearers only reaches CHAIN_RULES.hearRise up or down: the Ace catwalks (7 m) are out of earshot', () => {
+    expect(CHAIN_RULES.hearRise).toBe(4);
+    const at = (id, y) => goon(id, 3, 0, { aware: false, pos: { x: 3, y, z: 0 } });
+    const list = [at('step', 3.9), at('below', -3.9), at('catwalk', 7), at('pit', -4.5)];
+    expect(chainHearers(O, list, []).map((e) => e.id)).toEqual(['step', 'below']);
+    // The tolerance is an argument too, like the radius.
+    expect(chainHearers(O, list, [], CHAIN_RULES.hearRadius, 8).map((e) => e.id)).toEqual(['step', 'below', 'catwalk', 'pit']);
   });
   it('chainHearers skips a tied or downed goon: waking it mid-tie/getup would fight its own state machine', () => {
     const tied = goon('tied', 1, 0, { aware: false, down: true, state: 'tied' });

@@ -15,6 +15,7 @@ export const CHAIN_RULES = {
   maxTargets: 3,
   minTargets: 2,
   hearRadius: 8,    // a silent chain still wakes unaware goons this close
+  hearRise: 4,      // and this far above or below (a goon on the 7 m catwalks doesn't hear the floor)
   tiedTime: 6,      // seconds a Rope-a-Dope bundle stays tied
 };
 
@@ -93,8 +94,8 @@ export function selectChainTargets(origin, facing, enemies, {
 // Unaware, upright goons close enough to hear a silent chain (the ones in the chain don't count).
 // Skips a tied or downed goon: waking one mid-tie/getup would fight enemy.js's own state machine
 // (see enemy.wake), and it can't act on being woken until it's back on its feet anyway.
-export function chainHearers(origin, enemies, chained, radius = CHAIN_RULES.hearRadius) {
-  return enemies.filter((e) => e.alive && !e.aware && !e.down && !chained.includes(e) && planar(origin, e.pos) <= radius && Math.abs(e.pos.y - origin.y) <= 4);
+export function chainHearers(origin, enemies, chained, radius = CHAIN_RULES.hearRadius, rise = CHAIN_RULES.hearRise) {
+  return enemies.filter((e) => e.alive && !e.aware && !e.down && !chained.includes(e) && planar(origin, e.pos) <= radius && Math.abs(e.pos.y - origin.y) <= rise);
 }
 
 // Everyone tied up with `e` who is still tied, e included: one hit knocks them all out.
