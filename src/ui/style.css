@@ -217,3 +217,45 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0 6px; margin: 0 2px; bo
 .ch-marker[data-medal="bronze"] path { fill: #c07a3c; }
 .ch-marker[data-medal="silver"] path { fill: #c9ccd6; }
 .ch-marker[data-medal="gold"] path { fill: var(--signal); }
+
+/* Gadget icons (HUD panel and wheel). */
+.g-ico path, .g-ico rect, .g-ico circle { fill: none; stroke: var(--ink); stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
+.g-ico .fill { fill: var(--paper); }
+.g-ico .gel { fill: #9fe3ff; }
+.g-ico .smoke { fill: #bdb9b0; }
+.g-ico .pop { fill: var(--balloon); }
+.g-ico .dash { stroke-dasharray: 3 4; }
+
+/* Equipped gadget, beside the health ring. */
+.ghud { position: absolute; left: 162px; bottom: 34px; }
+.gh-panel { position: relative; width: 70px; height: 70px; background: var(--paper); border: 4px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); transform: rotate(-3deg); }
+.gh-panel svg { width: 100%; height: 100%; }
+.gh-panel.pop { animation: pop 0.2s ease-out; }
+.gh-panel.cooling svg { opacity: 0.55; }
+.gh-cd { position: absolute; inset: 0; pointer-events: none; background: conic-gradient(rgba(11, 11, 18, 0.55) calc(var(--cd, 0) * 360deg), transparent 0); }
+.gh-pips { position: absolute; left: 0; right: 0; bottom: -15px; display: flex; gap: 5px; justify-content: center; }
+.gh-pips i { width: 11px; height: 11px; border: 2px solid var(--ink); background: #3a3a44; transform: rotate(45deg); }
+.gh-pips i.on { background: #9fe3ff; }
+.gh-key { position: absolute; right: -12px; top: -14px; font: 24px 'Bangers', cursive; color: var(--signal); -webkit-text-stroke: 1.5px var(--ink); paint-order: stroke fill; }
+.gh-name { margin-top: 18px; font: 700 16px 'Barlow Condensed', sans-serif; letter-spacing: 1px; text-transform: uppercase; text-shadow: 2px 2px 0 var(--ink); }
+
+/* The gadget wheel: comic panels in a ring over a halftone wash. */
+.gwheel { position: fixed; inset: 0; z-index: 6; display: none; pointer-events: none;
+  background: radial-gradient(circle, rgba(11, 11, 18, 0.25) 0 35%, rgba(11, 11, 18, 0.6) 70%),
+    radial-gradient(rgba(11, 11, 18, 0.35) 1.2px, transparent 1.6px) 0 0 / 7px 7px; }
+.gwheel.show { display: block; }
+.gwheel.warm { display: block; visibility: hidden; }
+.gw-ring { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+.gw-panel { position: absolute; width: 104px; height: 104px; background: var(--paper); border: 4px solid var(--ink); box-shadow: 5px 5px 0 var(--ink);
+  transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y))) rotate(var(--r)); transition: transform 0.08s, background 0.08s; }
+.gw-panel svg { position: absolute; inset: 8px; width: calc(100% - 16px); height: calc(100% - 16px); }
+.gw-panel .gw-lock { display: none; }
+.gw-panel b { position: absolute; left: -10px; top: -14px; font: 28px 'Bangers', cursive; color: var(--paper); -webkit-text-stroke: 2px var(--ink); paint-order: stroke fill; }
+.gw-panel.on { background: var(--signal); transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y))) rotate(var(--r)) scale(1.16); }
+.gw-panel.locked { background: #3a3a44; }
+.gw-panel.locked .gw-icon { display: none; }
+.gw-panel.locked .gw-lock { display: block; }
+.gw-panel.locked.on { background: #5a5a66; }
+.gw-center { position: absolute; left: 0; top: 0; width: 230px; transform: translate(-50%, -50%) rotate(-1.5deg); padding: 10px 14px 12px; background: #fffdf5; border: 4px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); text-align: center; color: var(--ink); }
+.gw-name { font: 30px/1 'Bangers', cursive; letter-spacing: 1px; color: var(--balloon); -webkit-text-stroke: 1px var(--ink); }
+.gw-text { margin-top: 4px; font: 18px/1.2 'Patrick Hand SC', cursive; }
