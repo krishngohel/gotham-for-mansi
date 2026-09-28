@@ -101,6 +101,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     input.setBindings(settings.bindings);
     audio.setVolumes(settings.volume);
     ink.uniforms.uHalftoneAmount.value = settings.halftone;
+    ink.setComic({ ...quality.comic, wobble: settings.lineWobble ? quality.comic.wobble : 0 });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.pixelRatioCap) * settings.renderScale);
     fpsEl.style.display = settings.showFps ? '' : 'none';
     game?.follow.configure(settings);
