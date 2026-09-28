@@ -51,3 +51,13 @@ export function freeForGadget(hero) {
   const c = hero.control;
   return !c || (!!c.combat && !!c.canChain?.());
 }
+
+// The one card a returning save gets for gadgets it earned before they existed.
+export function gadgetNewsCard(ids, wheelKey) {
+  const names = ids.map((id) => gadgetById(id).name);
+  const list = names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0];
+  return {
+    title: 'WAYNETECH DELIVERY!',
+    text: `Lucius sent new toys: ${list}. Hold ${wheelKey} for the gadget wheel.`,
+  };
+}

@@ -12,6 +12,8 @@ import { promptText } from '../ui/prompts.js';
 
 // The wheel never opens over (and closes under) the controls in gadgetDefs' NO_GADGET_CONTROLS:
 // a chain takedown's timeline, the Bat Swarm's and a challenge's 3-2-1 countdown.
+// How long the returning-player summary card stays up before the party popper gets its own.
+export const NEWS_CARD_S = 9;
 // Mouse pixels (pointer lock) for a full push toward a slot. Small, so a short trackpad swipe
 // (a MacBook in Safari) is enough: past the 0.35 dead zone after about 25 px.
 const WHEEL_PX = 70;
@@ -55,14 +57,49 @@ export function createGadgetSystem(deps) {
     },
   };
 
+  // Gadgets a returning save earned before they existed (a save past their unlock steps, or one
+  // that finished the story): unlocked now, never announced. They are told on the first live play
+  // frame (one summary card, then the party popper's own card) and only then remembered, so the
+  // news never repeats. A ?gadgets=all run has no news and never writes.
+  const news = devAll ? [] : [...state.unlocked].filter((id) => id !== 'batarang' && !saved.unlocked.includes(id));
+  let newsT = 0;
+  // The wheel tutorial, once per run while more than one gadget is unlocked and the wheel has
+  // never been opened (progress.gadgets.wheelUsed).
+  let wheelTip = !devAll && !saved.wheelUsed;
+
   // Every gadget the story has unlocked is remembered in the save, so a new game keeps it.
   function remember() {
     if (devAll) return;
     let dirty = false;
-    for (const id of state.unlocked) if (id !== 'batarang' && !saved.unlocked.includes(id)) { saved.unlocked.push(id); dirty = true; }
+    for (const id of state.unlocked) {
+      if (id !== 'batarang' && !news.includes(id) && !saved.unlocked.includes(id)) { saved.unlocked.push(id); dirty = true; }
+    }
     if (dirty) save();
   }
   remember();
+
+  // Runs every play frame; does nothing once the news is out (a length check and a Set size).
+  function updateNews(real) {
+    if (wheelTip && state.unlocked.size > 1 && isPlaying()) { wheelTip = false; events.emit('gadgetWheelTip'); }
+    if (!news.length || !isPlaying()) return;
+    newsT -= real;
+    if (newsT > 0) return;
+    const popper = news.indexOf('popper');
+    const rest = news.length - (popper >= 0 ? 1 : 0);
+    if (rest > 1) {
+      const ids = news.filter((id) => id !== 'popper');
+      events.emit('gadgetNews', { ids });
+      news.length = 0;
+      if (popper >= 0) { news.push('popper'); newsT = NEWS_CARD_S; }
+    } else {
+      // One gadget (the popper, or any other on its own) gets its normal unlock card.
+      const id = rest ? news.find((g) => g !== 'popper') : 'popper';
+      news.splice(news.indexOf(id), 1);
+      events.emit('gadgetUnlocked', { id });
+      if (news.length) newsT = NEWS_CARD_S;
+    }
+    remember();
+  }
 
   function unlockCheck() {
     if (devAll) return;
@@ -71,6 +108,13 @@ export function createGadgetSystem(deps) {
     for (const id of fresh) events.emit('gadgetUnlocked', { id });
   }
   events.on('step', unlockCheck);
+  // The Joker only answers to the batarang: his fight starts with it in hand. Not saved, so the
+  // gadget picked before still comes back on the next load.
+  events.on('step', (e) => {
+    if (e?.step?.type !== 'boss' || state.equipped === 'batarang') return;
+    state.equip('batarang');
+    hudCode = -1;
+  });
 
   function equip(id) {
     if (!state.equip(id)) return false;
@@ -116,7 +160,12 @@ export function createGadgetSystem(deps) {
     if (slot !== null && GADGET_IDS[slot] !== state.equipped) equip(GADGET_IDS[slot]);
   }
   function updateWheel() {
-    if (wheel.open && unseen) { unseen = false; events.emit('wheelSeen'); }
+    if (wheel.open && unseen) {
+      unseen = false;
+      wheelTip = false;
+      if (!devAll && !saved.wheelUsed) { saved.wheelUsed = true; save(); }
+      events.emit('wheelSeen');
+    }
     if (input.pressed('gadgetWheel')) openWheel();
     if (!wheel.open) return;
     // Play stopped or a chain began under the wheel: shut it without equipping.
@@ -161,6 +210,7 @@ export function createGadgetSystem(deps) {
 
   function update(real, dt, ctx) {
     state.tick(dt);
+    updateNews(real);
     updateWheel();
     ctx.lockInput = wheel.open;
     sys.wheelOpen = wheel.open;

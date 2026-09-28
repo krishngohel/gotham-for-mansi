@@ -3,8 +3,8 @@ import '../gadgets/gadgetSave.js';
 import '../progress/wayneSave.js';
 import { upgradeEffects } from '../progress/upgrades.js';
 import { createWayneTech } from '../progress/wayneTech.js';
-import { gadgetById } from '../gadgets/gadgetDefs.js';
-import { createGadgetSystem } from '../gadgets/gadgetSystem.js';
+import { gadgetById, gadgetNewsCard } from '../gadgets/gadgetDefs.js';
+import { createGadgetSystem, NEWS_CARD_S } from '../gadgets/gadgetSystem.js';
 import { createGadgetWheel } from '../ui/gadgetWheel.js';
 import { createGadgetHud } from '../ui/gadgetHud.js';
 import * as THREE from 'three';
@@ -453,6 +453,14 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       hud.card(`NEW GADGET: ${g.name.toUpperCase()}`, g.cardText, 7000);
       prompts.show(['gadgetWheel', g.promptId]);
     });
+    // A returning save: one card for every gadget it already earned (the popper follows on its own).
+    events.on('gadgetNews', ({ ids }) => {
+      const c = gadgetNewsCard(ids, bindingLabel(settings.bindings, 'gadgetWheel'));
+      // Down a moment before the popper's card takes its place.
+      hud.card(c.title, c.text, NEWS_CARD_S * 1000 - 700);
+      prompts.show(['gadgetWheel']);
+    });
+    events.on('gadgetWheelTip', () => prompts.show(['gadgetWheel']));
     events.on('swing', ({ kind, finisher }) => { prompts.done(kind === 'kick' ? 'kick' : 'punch'); if (finisher) prompts.done('finisher'); });
     events.on('step', ({ step }) => {
       if (step.id === 'toDocks') {
