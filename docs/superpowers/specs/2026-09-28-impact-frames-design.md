@@ -59,7 +59,7 @@ If a tier 2 trigger and a tier 1 trigger arrive for the same hit (for example `c
   - `cancel()`.
 
   It owns the beat table, the tier priority and the rate limits. Tests cover beat timings, tier priority, rate limits, cancel, and the Soft and Off modes.
-- **`src/render/inkPipeline.js`.** The `impactFrames` frame counter is replaced by a uniform value set from the timeline each frame. The shader branch already takes a strength, since it mixes by `uImpact`. There is no new shader program.
+- **`src/render/inkPipeline.js`.** The `impactFrames` frame counter is replaced by a uniform value set from the timeline each frame. The shader branch already takes a strength, since it mixes by `uImpact`. One new uniform, `uImpactSoft` (0 or 1), makes the branch skip the black and white inversion and draw only the speed lines over a pale paper vignette. Uniforms only, so there is still no new shader program.
 - **`src/ui/impactPanel.js` (new).** Builds one pre-built DOM overlay at boot: the border and the halftone burst, in CSS. Its class and transform change only when the panel state code changes.
 - **`src/game/game.js` wiring.**
   - Maps events to tiers: `critical`, `lastHit` and crit counters to tier 1; `chainFinish`, `swarmFinish`, `special`, story-fight `lastHit` and `bossPhaseHit` to tier 2. Where an event doesn't exist yet on main, the plan names the branch that adds it and wires it at that merge.
