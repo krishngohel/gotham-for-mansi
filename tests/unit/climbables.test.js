@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createClimbables, addLadder, ladderGrab, ladderTopGrab, ladderExit, addZipline, zipPoint, zipClosest, zipSpeed } from '../../src/world/climbables.js';
+import { createClimbables, addLadder, ladderGrab, ladderTopGrab, ladderExit, ladderBottomExit, addZipline, zipPoint, zipClosest, zipSpeed } from '../../src/world/climbables.js';
 
 describe('ladders', () => {
   const c = createClimbables();
@@ -31,6 +31,37 @@ describe('ladders', () => {
     const e = ladderExit(c.ladders[0]);
     expect(e.x).toBeCloseTo(5, 5);
     expect(e.z).toBeCloseTo(19.2, 5);
+  });
+});
+
+describe('ladderBottomExit', () => {
+  it('uses the stand point directly for a street-level ladder, without needing ground', () => {
+    const l = { x: 5, z: 20, nx: 0, nz: 1, bottom: 0, top: 10 };
+    const e = ladderBottomExit(l, () => -Infinity);
+    expect(e.x).toBeCloseTo(5, 5);
+    expect(e.z).toBeCloseTo(20.45, 5);
+  });
+  it('returns the stand point unchanged when it is already solid ground', () => {
+    const l = { x: 100, z: 0, nx: 1, nz: 0, bottom: 6.8, top: 10.2 };
+    // Solid everywhere near the stand point.
+    const e = ladderBottomExit(l, () => 6.8);
+    expect(e.x).toBeCloseTo(100.45, 5);
+    expect(e.z).toBeCloseTo(0, 5);
+  });
+  it('steps inward toward the wall until it finds the landing under an outer-rail mount', () => {
+    // Ladder mounted 1.32 out from the wall (outer rail), landing only spans x in [100.05, 101.35].
+    const l = { x: 101.32, z: -50, nx: 1, nz: 0, bottom: 6.8, top: 10.2 };
+    const groundBelow = (x) => (x >= 100.05 && x <= 101.35 ? 6.8 : -Infinity);
+    const e = ladderBottomExit(l, groundBelow);
+    expect(e.x).toBeLessThanOrEqual(101.35);
+    expect(e.x).toBeGreaterThanOrEqual(100.05);
+    expect(e.z).toBeCloseTo(-50, 5);
+  });
+  it('falls back to the stand point if no ground is found within the search range', () => {
+    const l = { x: 200, z: 0, nx: 1, nz: 0, bottom: 6.8, top: 10.2 };
+    const e = ladderBottomExit(l, () => -Infinity);
+    expect(e.x).toBeCloseTo(200.45, 5);
+    expect(e.z).toBeCloseTo(0, 5);
   });
 });
 

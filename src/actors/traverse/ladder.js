@@ -1,5 +1,5 @@
 // Climbing a ladder: forward/back climb, sprint slides down, jump kicks off, the top pulls up.
-import { ladderExit } from '../../world/climbables.js';
+import { ladderExit, ladderBottomExit } from '../../world/climbables.js';
 
 const CLIMB = 2.4, SLIDE = 9;
 
@@ -57,8 +57,12 @@ export function createLadderControl(h, { collision, events }, { ladder, y, fromT
       if (cy <= l.bottom) {
         cy = l.bottom;
         if (v < 0) {
-          h.pos.set(sx, l.bottom, sz);
-          h.setState(l.bottom <= 0.05 || collision.groundBelow(sx, l.bottom + 0.1, sz, 0.2) >= l.bottom - 0.05 ? 'ground' : 'air');
+          // Step off onto solid ground: the stand point itself for a street-level ladder, or
+          // the nearest landing surface found stepping in from an outer-rail mount.
+          const bx = ladderBottomExit(l, collision.groundBelow);
+          h.pos.set(bx.x, l.bottom, bx.z);
+          h.bat.face(Math.atan2(l.nx, l.nz));
+          h.setState(l.bottom <= 0.05 || collision.groundBelow(bx.x, l.bottom + 0.1, bx.z, 0.2) >= l.bottom - 0.05 ? 'ground' : 'air');
           h.grounded = h.state === 'ground';
           leave();
           return true;

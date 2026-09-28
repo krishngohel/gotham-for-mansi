@@ -123,10 +123,15 @@ function fireEscape(ctx, b) {
     for (const s of [-1, 1]) ctx.buckets.add('steel', box(0.05, y1 - y0, 0.05, lx + sideX * s, (y0 + y1) / 2, lz + sideZ * s));
     for (let k = y0 + 0.3; k < y1; k += 0.3) ctx.buckets.add('steel', box(Math.abs(nz) > 0 ? 0.5 : 0.04, 0.04, Math.abs(nx) > 0 ? 0.5 : 0.04, lx, k, lz));
   };
-  // Drop ladder hangs off the outer rail of the first landing, facing the street.
-  const dx = outer.x + along.x * endOffset(0), dz = outer.z + along.z * endOffset(0);
-  rungs(dx, dz, f.nx, f.nz, 0, levels[0]);
-  addLadder(ctx.climbables, { x: dx, z: dz, nx: f.nx, nz: f.nz, bottom: 0, top: levels[0] });
+  // Drop ladder hangs off the outer rail of the first landing, facing the street. Storefront
+  // buildings have awnings running the length of every wall around y=3.5, which the drop ladder
+  // would clip through; skip it there and keep the fire escape reachable via the roof (glide or
+  // grapple to the roof edge, then climb down the roof ladder and the between-landing ladders).
+  if (!b.storefront) {
+    const dx = outer.x + along.x * endOffset(0), dz = outer.z + along.z * endOffset(0);
+    rungs(dx, dz, f.nx, f.nz, 0, levels[0]);
+    addLadder(ctx.climbables, { x: dx, z: dz, nx: f.nx, nz: f.nz, bottom: 0, top: levels[0] });
+  }
   // Between landings: off the outer rail like the drop ladder, alternating ends, so stepping
   // off the top (ladderExit steps inward from the mount) lands on the landing platform rather
   // than inside the wall behind it.

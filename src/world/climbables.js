@@ -43,6 +43,22 @@ export function ladderExit(l) {
   return { x: l.x - l.nx * 0.8, z: l.z - l.nz * 0.8 };
 }
 
+// Where a climber lands stepping off the BOTTOM of a ladder. The stand point (nx*0.45 out from
+// the ladder) is solid ground for street-level ladders (real floor everywhere), but a ladder
+// mounted off a landing's outer rail can overhang past that landing's edge, so step inward
+// toward the wall in small increments until solid ground is found. `groundBelow` is injected
+// (matching collision.groundBelow's (x, y, z, r) signature) so this stays pure and unit-testable.
+export function ladderBottomExit(l, groundBelow, { step = 0.1, maxSteps = 30 } = {}) {
+  const standX = l.x + l.nx * 0.45, standZ = l.z + l.nz * 0.45;
+  if (l.bottom <= 0.05) return { x: standX, z: standZ };
+  for (let i = 0; i <= maxSteps; i++) {
+    const t = i * step;
+    const x = standX - l.nx * t, z = standZ - l.nz * t;
+    if (groundBelow(x, l.bottom + 0.1, z, 0.2) >= l.bottom - 0.05) return { x, z };
+  }
+  return { x: standX, z: standZ };
+}
+
 export function addZipline(c, a, b) {
   const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
   const length = Math.hypot(dx, dy, dz);
