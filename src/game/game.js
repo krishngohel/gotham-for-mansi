@@ -310,7 +310,9 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const pickups = createPickups(scene, world.halos, SITES);
     const neonParty = createNeonParty(scene, world.halos);
     const comic = createComic(document.body, { onSound: (n) => audio.play(n), onVoice: (id) => voice.say(id) });
-    const prompts = createPromptQueue(hud, () => settings.bindings, () => settings.hints);
+    // Tip cards wait out a takedown or an action shot instead of covering it.
+    const QUIET_CONTROLS = new Set(['silent', 'perchDrop']);
+    const prompts = createPromptQueue(hud, () => settings.bindings, () => settings.hints, () => follow.actionActive || QUIET_CONTROLS.has(hero.control?.name));
     const waypoint = createWaypoint(hudRoot.querySelector('.hud') ?? hudRoot);
     const beacon = createBeacon(scene);
     const boss = createBoss({ assets, scene, rng, combat, events, hud, spawn, despawn, hero, time, getDifficulty: () => settings.difficulty, collision: world.collision });

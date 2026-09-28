@@ -115,3 +115,35 @@ describe('promptText: predator stealth', () => {
     });
   }
 });
+
+describe('createPromptQueue: quiet during takedowns', () => {
+  function makeHud() {
+    const calls = [];
+    return { hint: (text, ms) => calls.push(['hint', text]), hideHint: () => calls.push(['hide']), calls };
+  }
+  it('holds a queued card while busy and shows it once the moment ends', () => {
+    const hud = makeHud();
+    let busy = true;
+    const queue = createPromptQueue(hud, () => DEFAULT_BINDINGS, () => true, () => busy);
+    queue.show(['silent']);
+    queue.update(0.1);
+    queue.update(1);
+    expect(hud.calls).toEqual([]);
+    busy = false;
+    queue.update(0.1);
+    expect(hud.calls).toEqual([['hint', promptText('silent', DEFAULT_BINDINGS)]]);
+  });
+  it('takes a card that is already up down, and shows it again afterwards', () => {
+    const hud = makeHud();
+    let busy = false;
+    const queue = createPromptQueue(hud, () => DEFAULT_BINDINGS, () => true, () => busy);
+    queue.show(['perchDrop', 'distract']);
+    queue.update(0.1);
+    busy = true;
+    queue.update(3);
+    expect(hud.calls.at(-1)).toEqual(['hide']);
+    busy = false;
+    queue.update(0.1);
+    expect(hud.calls.at(-1)).toEqual(['hint', promptText('perchDrop', DEFAULT_BINDINGS)]);
+  });
+});

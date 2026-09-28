@@ -63,8 +63,10 @@ export function promptText(id, bindings) {
   return entry ? entry[1](k, move) : '';
 }
 
-// Queues prompts so they don't talk over each other.
-export function createPromptQueue(hud, getBindings, isEnabled) {
+// Queues prompts so they don't talk over each other. While isBusy() (a takedown or an action
+// camera shot is on screen) nothing new appears, and a card already up is taken down and shown
+// again, in full, once the moment is over.
+export function createPromptQueue(hud, getBindings, isEnabled, isBusy = () => false) {
   const queue = [];
   const seen = new Set();
   let current = null;
@@ -82,6 +84,7 @@ export function createPromptQueue(hud, getBindings, isEnabled) {
     },
     update(dt) {
       if (!isEnabled()) { if (current) { current = null; hud.hideHint(); } return; }
+      if (isBusy()) { if (current) { queue.unshift(current); current = null; hud.hideHint(); } return; }
       t -= dt;
       if (current && t > 0) return;
       if (current) { seen.add(current); current = null; }
