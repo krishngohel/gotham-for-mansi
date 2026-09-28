@@ -709,6 +709,13 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     shotTo.set(hero.pos.x, hero.pos.y + (hero.crouched ? 0.7 : 1.1), hero.pos.z);
     shot.target = e;
     shot.hit = lands && !hero.dead && hero.invulnerable <= 0;
+    // A miss (a warning shot, or out of range) goes wide: past his shoulder, not through him.
+    if (!lands) {
+      const dx = shotTo.x - shotFrom.x, dz = shotTo.z - shotFrom.z, d = Math.hypot(dx, dz) || 1;
+      shotTo.x += (-dz / d) * 0.8;
+      shotTo.z += (dx / d) * 0.8;
+      shotTo.y += 0.35;
+    }
     events.emit('rifleShot', shot);
   }
 

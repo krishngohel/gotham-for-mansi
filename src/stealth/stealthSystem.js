@@ -150,7 +150,8 @@ export function createStealth({ hero, combat, events, collision, perches = [], r
 
   function shout(g) {
     const n = alarmAll(minds, squad);
-    for (const o of goons) if (o.e.alive && HOSTILE.has(o.mind.alert)) o.e.aware = true;
+    // Every rifle's first shot after an alarm is a warning (enemy.js warnShot): it misses on purpose.
+    for (const o of goons) if (o.e.alive && HOSTILE.has(o.mind.alert)) { o.e.aware = true; if (o.e.def?.ranged) o.e.warnShot = true; }
     say(g, 'spot', true);
     events.emit('stealthAlarm', { target: g.e, count: n + 1 });
   }

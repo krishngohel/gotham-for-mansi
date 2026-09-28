@@ -98,6 +98,12 @@ describe('a predator room at run time', () => {
     expect(t.goons[0].seesHero).toBe(true);
     expect(t.stealth.alarm).toBe(true);
   });
+  it('when the alarm goes up every rifle holds a warning shot (its first shot misses)', () => {
+    const t = setup();
+    t.step(3.3);
+    expect(t.stealth.alarm).toBe(true);
+    expect(t.goons.map((e) => e.warnShot === true)).toEqual([true, true, false]);
+  });
   it('in the dark he is seen at 12 m standing, but not crouched', () => {
     const dark = { ...ROOM, lights: [], vent: null };
     const a = setup({ room: dark, hero: [0, 0, 12] });

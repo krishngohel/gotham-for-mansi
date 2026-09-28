@@ -98,7 +98,7 @@ describe('takedowns and rifles', () => {
     combat.takedown(h, 'perch');
     expect(seen).toEqual([['silent', 'g'], 'critical', ['perch', 'h']]);
   });
-  it('a rifle shot emits rifleShot at Batman chest height and lands 25 damage', () => {
+  it('a rifle shot emits rifleShot at Batman chest height and lands 15 damage on Normal', () => {
     const { combat, events, hero } = setup();
     const r = makeGoon('r', 'rifle', 0, 12, { attack: 'rifle' });
     combat.setEnemies([r]);
@@ -106,7 +106,7 @@ describe('takedowns and rifles', () => {
     events.on('rifleShot', (d) => shots.push([d.target.id, d.hit, +d.to.y.toFixed(1)]));
     combat.update(0.016, ctxWith());
     expect(shots).toEqual([['r', true, 1.1]]);
-    expect(hero.health).toBe(75);
+    expect(hero.health).toBe(85);
   });
   it('a shot that enemy.js says will not land (out of range) is a miss, and no damage', () => {
     const { combat, events, hero } = setup();
@@ -116,6 +116,16 @@ describe('takedowns and rifles', () => {
     events.on('rifleShot', (d) => shots.push(d.hit));
     combat.update(0.016, ctxWith());
     expect(shots).toEqual([false]);
+    expect(hero.health).toBe(100);
+  });
+  it('a miss goes wide of Batman: the tracer ends past his shoulder, not at his chest', () => {
+    const { combat, events, hero } = setup();
+    const r = makeGoon('r', 'rifle', 0, 12, { update(dt, ctx) { if (this.fired) return; this.fired = true; ctx.onRifleFire?.(this, false); } });
+    combat.setEnemies([r]);
+    const to = [];
+    events.on('rifleShot', (d) => to.push(d.to.clone()));
+    combat.update(0.016, ctxWith());
+    expect(Math.hypot(to[0].x - hero.pos.x, to[0].z - hero.pos.z)).toBeGreaterThan(0.6);
     expect(hero.health).toBe(100);
   });
   it('a rifle holds its fire while Batman is down: no tracer', () => {

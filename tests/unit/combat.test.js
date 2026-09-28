@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveHit, damageToHero, ENEMY, DIFFICULTY, inShockwave, shouldDiveBomb, canLedgeTakedown, canDropTakedown } from '../../src/combat/rules.js';
+import { resolveHit, damageToHero, ENEMY, DIFFICULTY, inShockwave, shouldDiveBomb, canLedgeTakedown, canDropTakedown, RIFLE_DAMAGE } from '../../src/combat/rules.js';
 import { selectTarget } from '../../src/combat/targeting.js';
 import { createCombo } from '../../src/combat/combo.js';
 import { createDirector } from '../../src/combat/director.js';
@@ -396,10 +396,14 @@ describe('the rifle goon', () => {
     expect(resolveHit('kick', rifle()).outcome).toBe('hit');
     expect(resolveHit('punch', rifle({ stunned: true })).outcome).toBe('hit');
   });
-  it('cannot be countered, and its shot hurts 25 whether blocked or not', () => {
-    expect(ENEMY.rifle).toMatchObject({ counterable: false, parry: true, ranged: true, damage: 25 });
-    expect(damageToHero('rifle')).toBe(25);
-    expect(damageToHero('rifle', { blocking: true })).toBe(25);
-    expect(damageToHero('rifle', { difficulty: 'story' })).toBe(12.5);
+  it('cannot be countered, and its shot hurts 10 on Story, 15 on Normal and 37.5 on Hard, blocked or not', () => {
+    expect(ENEMY.rifle).toMatchObject({ counterable: false, parry: true, ranged: true, damage: 15 });
+    expect(RIFLE_DAMAGE).toEqual({ story: 10, normal: 15, hard: 37.5 });
+    expect(damageToHero('rifle')).toBe(15);
+    expect(damageToHero('rifle', { blocking: true })).toBe(15);
+    expect(damageToHero('rifle', { difficulty: 'story' })).toBe(10);
+    expect(damageToHero('rifle', { difficulty: 'hard' })).toBe(37.5);
+    // Everything else still scales with the difficulty multiplier.
+    expect(damageToHero('knife', { difficulty: 'hard' })).toBe(22.5);
   });
 });

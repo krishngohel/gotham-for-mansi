@@ -119,12 +119,13 @@ describe('getting up', () => {
 });
 
 describe('the rifle shot gate', () => {
-  function fire(dist, seesHero) {
-    const e = createEnemy({
+  function fire(dist, seesHero, warnShot = undefined, e0 = null) {
+    const e = e0 ?? createEnemy({
       id: 'r', type: 'rifle', assets: {}, scene: { add: () => {} }, rng: createRng(1),
       collision: { resolveCylinder: () => ({ groundY: 0 }), groundBelow: () => 0 },
     });
     e.seesHero = seesHero;
+    if (warnShot !== undefined) e.warnShot = warnShot;
     e.state = 'attack';
     e.attackKind = 'rifle';
     e.hitDone = false;
@@ -135,12 +136,25 @@ describe('the rifle shot gate', () => {
       onRifleFire: (who, lands) => out.fired.push(lands), onAttackLand: () => { out.landed += 1; }, onAttackEnd() {},
     };
     e.update(0.016, ctx);
+    out.e = e;
     return out;
   }
+  const shot = (o) => ({ fired: o.fired, landed: o.landed });
   it('lands (and says so to onRifleFire) only when the goon sees Batman within 32 m', () => {
-    expect(fire(20, true)).toEqual({ fired: [true], landed: 1 });
-    expect(fire(20, undefined)).toEqual({ fired: [true], landed: 1 });
-    expect(fire(40, true)).toEqual({ fired: [false], landed: 0 });
-    expect(fire(20, false)).toEqual({ fired: [false], landed: 0 });
+    expect(shot(fire(20, true))).toEqual({ fired: [true], landed: 1 });
+    expect(shot(fire(20, undefined))).toEqual({ fired: [true], landed: 1 });
+    expect(shot(fire(40, true))).toEqual({ fired: [false], landed: 0 });
+    expect(shot(fire(20, false))).toEqual({ fired: [false], landed: 0 });
+  });
+  it('after an alarm (warnShot) the first shot that would hit misses on purpose, and the next one lands', () => {
+    const first = fire(20, true, true);
+    expect(shot(first)).toEqual({ fired: [false], landed: 0 });
+    expect(first.e.warnShot).toBe(false);
+    expect(shot(fire(20, true, undefined, first.e))).toEqual({ fired: [true], landed: 1 });
+  });
+  it('a warning is kept for a shot that could not have hit anyway (out of sight)', () => {
+    const blind = fire(20, false, true);
+    expect(blind.e.warnShot).toBe(true);
+    expect(shot(fire(20, true, undefined, blind.e))).toEqual({ fired: [false], landed: 0 });
   });
 });

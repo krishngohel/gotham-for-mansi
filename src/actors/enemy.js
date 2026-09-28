@@ -376,8 +376,12 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
           faceHero(hero, 10, dt);
           if (!e.hitDone) {
             e.hitDone = true;
-            // One gate for the tracer and the damage: a shot that "hits" always lands.
-            const lands = e.seesHero !== false && dist < 32;
+            // One gate for the tracer and the damage: a shot that "hits" always lands. A rifle
+            // marked warnShot (every rifle in a predator room, when the alarm goes up) misses on
+            // purpose with the first shot that would have hit: a moment to react.
+            const onTarget = e.seesHero !== false && dist < 32;
+            const lands = onTarget && !e.warnShot;
+            if (onTarget) e.warnShot = false;
             ctx.onRifleFire?.(e, lands);
             if (lands) ctx.onAttackLand(e, 'rifle');
           }

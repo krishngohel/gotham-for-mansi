@@ -10,7 +10,7 @@ export const ENEMY = {
   grunt: { health: 4, damage: 10, counterable: true, parry: false, armored: false, speed: 3.3, scale: 1 },
   knife: { health: 4, damage: 15, counterable: true, parry: true, armored: false, speed: 3.5, scale: 1 },
   brute: { health: 10, damage: 20, counterable: false, parry: false, armored: true, speed: 2.4, scale: 1.25 },
-  rifle: { health: 4, damage: 25, counterable: false, parry: true, armored: false, speed: 3.2, scale: 1, ranged: true },
+  rifle: { health: 4, damage: 15, counterable: false, parry: true, armored: false, speed: 3.2, scale: 1, ranged: true },
   joker: { health: 30, damage: 12, counterable: true, parry: false, armored: false, speed: 3.6, scale: 1, boss: true },
 };
 
@@ -42,7 +42,11 @@ export const MOVES = {
 
 // How much of each attack a raised guard absorbs.
 export const BLOCK_REDUCTION = { grunt: 0.8, knife: 0.5, brute: 0.4, charge: 0, joker: 0.6, gas: 0, buzzer: 0, rifle: 0 };
-const ATTACK_DAMAGE = { grunt: 10, knife: 15, brute: 20, charge: 25, joker: 12, gas: 4, buzzer: 12, rifle: 25 };
+const ATTACK_DAMAGE = { grunt: 10, knife: 15, brute: 20, charge: 25, joker: 12, gas: 4, buzzer: 12, rifle: 15 };
+// A rifle shot hurts a set amount per difficulty rather than Normal's figure times the difficulty
+// multiplier: two Normal shots used to take half of Batman's health in under two seconds. Hard
+// keeps what it had (25 x 1.5).
+export const RIFLE_DAMAGE = { story: 10, normal: 15, hard: 37.5 };
 
 // Mutates enemy.health / enemy.stunned. Returns { outcome, damage, stun }.
 // outcome: 'hit' | 'knockdown' | 'ko' | 'stun' | 'parried' | 'immune'
@@ -111,5 +115,6 @@ export function damageToHero(attack, { difficulty = 'normal', blocking = false, 
   if (invulnerable) return 0;
   const base = ATTACK_DAMAGE[attack] ?? 10;
   const reduction = blocking ? BLOCK_REDUCTION[attack] ?? 0 : 0;
+  if (attack === 'rifle') return Math.round((RIFLE_DAMAGE[difficulty] ?? RIFLE_DAMAGE.normal) * (1 - reduction) * 100) / 100;
   return Math.round(base * (1 - reduction) * DIFFICULTY[difficulty].damage * 100) / 100;
 }
