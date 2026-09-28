@@ -23,7 +23,7 @@ export const EFFECTS = ['stagger', 'tether', 'yank', 'tie', 'grab', 'headSmash',
 export const STOCK_BEATS = {
   Punch_Cross: { contact: 0.2 },
   Melee_Hook: { contact: 0.24 },
-  OverhandThrow: { contact: 0.27 },
+  OverhandThrow: { contact: 0.36 },
 };
 
 // The code-authored chain clips (src/actors/chainAnims.js builds them to these beats).

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { sanitizeClip } from '../../src/actors/animator.js';
+import { sanitizeClip, createAnimator } from '../../src/actors/animator.js';
 import { classifySuitVertex, classifyGoonVertex } from '../../src/actors/outfits.js';
 
 const lm = {
@@ -47,5 +47,19 @@ describe('goon regions', () => {
     expect(classifyGoonVertex({ x: 0.6, y: 1.45, z: 0 }, lm)).toBe('skin');
     expect(classifyGoonVertex({ x: 0.1, y: 0.7, z: 0 }, lm)).toBe('pants');
     expect(classifyGoonVertex({ x: 0.1, y: 0.05, z: 0 }, lm)).toBe('boot');
+  });
+});
+
+describe('animator.prime', () => {
+  it('builds actions up front and rejects unknown clips', () => {
+    const root = new THREE.Object3D();
+    const bone = new THREE.Bone();
+    bone.name = 'pelvis';
+    root.add(bone);
+    const clip = new THREE.AnimationClip('A', 1, [new THREE.QuaternionKeyframeTrack('pelvis.quaternion', [0, 1], [0, 0, 0, 1, 0, 0, 0, 1])]);
+    const anim = createAnimator(root, new Map([['A', clip]]));
+    anim.prime(['A']);
+    expect(anim.mixer.existingAction(clip)).toBeTruthy();
+    expect(() => anim.prime(['nope'])).toThrow();
   });
 });

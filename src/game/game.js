@@ -16,6 +16,8 @@ import { loadAssets } from '../actors/assets.js';
 import { createHero } from '../actors/hero.js';
 import { buildReachTable } from '../combat/reach.js';
 import { buildClimbClips } from '../actors/climbAnims.js';
+import { buildChainClips } from '../actors/chainAnims.js';
+import { chainClipNames } from '../combat/chainTimeline.js';
 import { createEnemy } from '../actors/enemy.js';
 import { SITES } from '../world/mapData.js';
 import { pickGrapplePoint } from '../world/grapple.js';
@@ -83,6 +85,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   mark('world');
   const assets = await assetsPromise;
   for (const c of buildClimbClips(SkeletonUtils.clone(assets.bodies.m), assets.clips)) assets.clips.set(c.name, c);
+  for (const c of buildChainClips(SkeletonUtils.clone(assets.bodies.m), assets.clips)) assets.clips.set(c.name, c);
   // Where each strike's fist or foot is on its contact frame, so lunges connect.
   const reach = buildReachTable(SkeletonUtils.clone(assets.bodies.m), assets.clips);
   mark('clips');
@@ -191,6 +194,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   function buildRun(suit) {
     const hero = createHero({ assets, suit, scene, collision: world.collision, events, climbables: world.climbables, settings });
     hero.teleport(SITES.start, Math.PI * 1.2);
+    // Every clip a chain takedown plays gets its mixer action now, not on the first chain.
+    hero.bat.animator.prime(chainClipNames());
     if (settings.difficulty === 'story') { hero.maxHealth = 150; hero.health = 150; }
     const follow = createFollowCamera(camera, world.collision);
     follow.configure(settings);
