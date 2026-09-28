@@ -95,7 +95,8 @@ Each move lives in its own module under `src/actors/traverse/` (`ladder.js`, `le
 `zipline.js`, `wallrun.js`, `divebomb.js`). Each exports `canEnter(ctx)`, `enter(ctx)`,
 `update(ctx, dt)` and `exit(ctx)`. `hero.js` only routes to the active module, so it doesn't grow.
 Ladders and ziplines come from a list in `src/world/climbables.js` that the city builder fills.
-Ledges are detected on the fly from the collision boxes. No new keys are added.
+Ledges are detected on the fly from the collision boxes. Traversal adds no new keys. The only new
+actions in this spec are Crouch (D2) and Photo mode (C3).
 
 ### B1. Ladders
 - **Where:** every fire escape gets a drop ladder from the street to the first landing and a roof
@@ -179,7 +180,7 @@ Ledges are detected on the fly from the collision boxes. No new keys are added.
 This builds on B, because perches and ledges are the hiding spots.
 
 ### D1. Armed goons and awareness
-- **The rifle goon.** A new enemy type, `rifle`, with a CC0 rifle prop. It can't be punched safely
+- **The rifle goon.** A new enemy type, `rifle`, with a rifle modelled in code. It can't be punched safely
   head-on: it shoots in a readable windup with a red laser, taking 25 damage each time.
 - **Patrols.** Rifle goons patrol waypoint routes.
 - **Detection.** Each goon has a vision cone: 70 degrees and 25 m, shorter in shadow and while you
@@ -191,8 +192,8 @@ This builds on B, because perches and ledges are the hiding spots.
   and call out lines ("Where is it?!"). The lines are lettered as speech balloons.
 
 ### D2. Stealth moves
-- **Crouch.** Hold Dodge while standing still to crouch (a separate action, "Crouch", default
-  `KeyZ`). In a crouch you're quiet and harder to see.
+- **Crouch.** A new action, "Crouch" (default `KeyZ`, a toggle; left stick click on a gamepad).
+  In a crouch you're quiet and harder to see.
 - **Silent takedown.** Reach a goon from behind while they're unaware and press Punch. It's a
   2-second takedown that makes noise if another goon is within 6 m.
 - **Gargoyle perches.** Grapple to a gargoyle to hang out of sight above the room. Goons don't look
@@ -264,8 +265,8 @@ flat shapes on the floor, and a counter of armed goons.
   a time.
 
 ### C3. Photo mode
-- **Opening:** from the pause menu, or a key (default `KeyO`; this is the only new action,
-  "Photo mode", and it can be rebound).
+- **Opening:** from the pause menu, or a key (default `KeyO`; a new action, "Photo mode",
+  which can be rebound).
 - **Camera:** time freezes. A free camera orbits and flies within 20 m of Batman, with FOV and roll
   controls.
 - **Options:**
