@@ -115,3 +115,30 @@ describe('getting up', () => {
     expect(e.canNav()).toBe(true);
   });
 });
+
+describe('the rifle shot gate', () => {
+  function fire(dist, seesHero) {
+    const e = createEnemy({
+      id: 'r', type: 'rifle', assets: {}, scene: { add: () => {} }, rng: createRng(1),
+      collision: { resolveCylinder: () => ({ groundY: 0 }), groundBelow: () => 0 },
+    });
+    e.seesHero = seesHero;
+    e.state = 'attack';
+    e.attackKind = 'rifle';
+    e.hitDone = false;
+    e.t = 0;
+    const out = { fired: [], landed: 0 };
+    const ctx = {
+      hero: { pos: new THREE.Vector3(0, 0, dist) }, others: [e],
+      onRifleFire: (who, lands) => out.fired.push(lands), onAttackLand: () => { out.landed += 1; }, onAttackEnd() {},
+    };
+    e.update(0.016, ctx);
+    return out;
+  }
+  it('lands (and says so to onRifleFire) only when the goon sees Batman within 32 m', () => {
+    expect(fire(20, true)).toEqual({ fired: [true], landed: 1 });
+    expect(fire(20, undefined)).toEqual({ fired: [true], landed: 1 });
+    expect(fire(40, true)).toEqual({ fired: [false], landed: 0 });
+    expect(fire(20, false)).toEqual({ fired: [false], landed: 0 });
+  });
+});

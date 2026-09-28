@@ -49,7 +49,7 @@ describe('the silent takedown', () => {
     expect(e.state).toBe('chained');
     expect(h.clips).toEqual(['Takedown_Choke']);
     expect(e.clips).toEqual(['Choked']);
-    expect(api.noises).toEqual([['takedown', 6]]);
+    expect(api.noises).toEqual([['takedown', 3]]);
     run(ctl, 0.3);
     expect(h.pos.z).toBeCloseTo(-CHOKE_OFFSET, 2);
     expect(e.alive).toBe(true);

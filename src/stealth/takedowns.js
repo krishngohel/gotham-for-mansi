@@ -1,6 +1,6 @@
 // The two stealth takedowns, as hero controls (like the traversal controls in src/actors/traverse/).
 // - silent: Batman steps in behind a goon that hasn't noticed him and chokes it out over 2 s.
-//   Goons within 6 m hear it. If he is hit first he lets go, and the goon wakes up hostile.
+//   Goons within 3 m hear it (STEALTH.noise.takedown). If he is hit first he lets go, and the goon wakes up hostile.
 // - perchDrop: from a gargoyle, Batman leaps down onto a goon and knocks it out.
 // Both hold the goon with 4E's chainHold (no AI, no physics) until it is taken down.
 import * as THREE from 'three';

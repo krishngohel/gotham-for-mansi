@@ -66,6 +66,13 @@ export function createStealth({ hero, combat, events, collision, perches = [], r
 
   function end() {
     if (!room) return;
+    // Ended mid-choke or mid-drop (a restart, a story jump): the goon is about to be despawned, so
+    // let go of it and drop the control. One that already landed plays out its short tail.
+    const c = hero.control;
+    if (c && (c.name === 'silent' || c.name === 'perchDrop') && c.target?.alive && goons.some((g) => g.e === c.target)) {
+      c.target.chainRelease?.();
+      hero.control = null;
+    }
     for (const g of goons) { g.e.room = null; g.e.wake = g.baseWake; g.e.search = undefined; g.e.seesHero = undefined; }
     goons.length = 0;
     minds.length = 0;

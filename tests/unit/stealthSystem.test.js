@@ -212,6 +212,29 @@ describe('a predator room at run time', () => {
     expect(u.hero.control).toBe(null);
     expect(names(u.seen, 'hint')).toEqual([['hint', 'perch-none']]);
   });
+  it('a room that ends mid-takedown (a restart, a story jump) drops the takedown and lets go of the goon', () => {
+    const t = setup({ hero: [0, 0, -1.2] });
+    expect(t.stealth.start('punch')).toBe(true);
+    expect(t.goons[0].state).toBe('chained');
+    t.stealth.end();
+    expect(t.hero.control).toBe(null);
+    expect(t.goons[0].state).not.toBe('chained');
+    const u = setup({ perches: [{ x: 0, y: 6, z: 2, perch: true }], hero: [0, 6, 2] });
+    u.step(0.1);
+    expect(u.stealth.start('kick')).toBe(true);
+    u.stealth.end();
+    expect(u.hero.control).toBe(null);
+    expect(u.goons[0].state).not.toBe('chained');
+  });
+  it('a takedown that has already landed keeps playing out when the room ends', () => {
+    const t = setup({ hero: [0, 0, -1.2] });
+    t.stealth.start('punch');
+    const ctl = t.hero.control;
+    for (let i = 0; i < 130; i++) ctl.update(1 / 60);
+    expect(t.goons[0].alive).toBe(false);
+    t.stealth.end();
+    expect(t.hero.control).toBe(ctl);
+  });
   it('end hands the goons back', () => {
     const t = setup();
     t.stealth.end();

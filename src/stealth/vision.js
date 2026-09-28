@@ -16,10 +16,10 @@ export const STEALTH = {
   loseTime: 8,      // seconds unseen before a hostile squad falls back to searching
   huntAfter: 1,     // seconds unseen before engaged goons walk to the last known spot
   lookUp: 3,        // goons that aren't hostile never look higher than this above their feet
-  perchSpot: 6,     // hostile goons spot a perched Batman only this close (planar)
+  perchSpot: 6,     // hostile goons spot a perched Batman only this close (3D: a high gargoyle is safe)
   eye: 1.6, chest: 1.1, crouchChest: 0.7,
   hearDy: 5,        // noises carry this far up or down
-  noise: { step: 5, sprint: 9, land: 10, batarang: 12, takedown: 6, perch: 8 },
+  noise: { step: 5, sprint: 9, land: 10, batarang: 12, takedown: 3, perch: 8 },
   silentReach: 1.6,  // metres between Batman and the goon's back
   silentBehind: -0.2, // cos of the angle between the goon's facing and the way to Batman
   silentTime: 2,     // seconds a silent takedown takes
@@ -61,7 +61,7 @@ export function spotCheck(goon, hero, lights = [], rules = STEALTH) {
   if (hero.hidden || hero.flying) return -1;
   const d = planar(goon.pos, hero.pos);
   const rise = hero.pos.y - goon.pos.y;
-  if (hero.perched) { if (!goon.hostile || d > rules.perchSpot) return -1; }
+  if (hero.perched) { if (!goon.hostile || Math.hypot(d, rise) > rules.perchSpot) return -1; }
   else if (rise > rules.lookUp && !goon.hostile) return -1;
   SIGHT_ARG.crouched = hero.crouched;
   SIGHT_ARG.shadow = inShadow(hero.pos, lights);

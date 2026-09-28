@@ -702,7 +702,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     else e.ch.headWorld(shotFrom, -0.2);
     shotTo.set(hero.pos.x, hero.pos.y + (hero.crouched ? 0.7 : 1.1), hero.pos.z);
     shot.target = e;
-    shot.hit = lands && e.seesHero !== false && !hero.dead && hero.invulnerable <= 0;
+    shot.hit = lands && !hero.dead && hero.invulnerable <= 0;
     events.emit('rifleShot', shot);
   }
 

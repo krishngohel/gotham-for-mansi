@@ -57,10 +57,13 @@ describe('spotCheck', () => {
     expect(spotCheck(goonAt(0, 0), heroAt(8, 10), LIT)).toBe(-1);
     expect(spotCheck(goonAt(0, 0, 0, { hostile: true }), heroAt(8, 10), LIT)).toBeGreaterThan(0);
   });
-  it('goons that are not hostile never look up; hostile ones spot a perched Batman only right below him', () => {
+  it('goons that are not hostile never look up; hostile ones spot a perched Batman only within 6 m (3D)', () => {
     expect(spotCheck(goonAt(0, 0), heroAt(0, 6, { y: 4 }), LIT)).toBe(-1);
-    expect(spotCheck(goonAt(0, 0), heroAt(1, 4, { y: 9, perched: true }), LIT)).toBe(-1);
-    expect(spotCheck(goonAt(0, 0, 0, { hostile: true }), heroAt(1, 4, { y: 9, perched: true }), LIT)).toBeGreaterThan(0);
+    expect(spotCheck(goonAt(0, 0), heroAt(0, 4, { y: 4, perched: true }), LIT)).toBe(-1);
+    // A low perch 4 m up and 4 m across (5.7 m away): a hostile goon sees him.
+    expect(spotCheck(goonAt(0, 0, 0, { hostile: true }), heroAt(0, 4, { y: 4, perched: true }), LIT)).toBeGreaterThan(0);
+    // A Monarch gargoyle 9.9 m up, only 3 m across: too far away in 3D, a safe perch.
+    expect(spotCheck(goonAt(0, 0, 0, { hostile: true }), heroAt(0, 3, { y: 9.9, perched: true }), LIT)).toBe(-1);
     expect(spotCheck(goonAt(0, 0, 0, { hostile: true }), heroAt(1, 10, { y: 9, perched: true }), LIT)).toBe(-1);
   });
   it('the vent steam and a grapple in flight hide him completely', () => {
