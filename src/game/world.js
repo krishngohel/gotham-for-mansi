@@ -86,10 +86,19 @@ export function createWorld(scene, quality) {
   streaks.name = 'wetStreaks';
   scene.add(streaks);
   const low = quality.name === 'low';
-  const steam = createSteam(low ? ctx.steam.filter((s) => s.y < 1) : ctx.steam, { perSource: low ? 3 : 5, fogDensity: scene.fog.density });
+  const citySteam = ctx.steam.filter((s) => !s.vent);
+  const steam = createSteam(low ? citySteam.filter((s) => s.y < 1) : citySteam, { perSource: low ? 3 : 5, fogDensity: scene.fog.density });
   steam.mesh.name = 'steam';
   scene.add(steam.mesh);
-  for (const o of [backdrop, streaks, steam.mesh]) { o.updateMatrix(); o.matrixAutoUpdate = false; }
+  // The predator room's hiding vent: pale chemical steam, dense and low, with an inked rim, that
+  // stays visible up close (Batman crouches inside it). Same shader, so no extra compile.
+  const ventSteam = createSteam(ctx.steam.filter((s) => s.vent), {
+    perSource: low ? 3 : 5, fogDensity: scene.fog.density,
+    look: { alpha: 0.5, rise: 0.3, drift: 0.2, grow: 1.4, near: [0.8, 2.5], rim: 0.55, pulse: 0.3, color: 0xdcebc6, shade: 0x6a8270 },
+  });
+  ventSteam.mesh.name = 'ventSteam';
+  scene.add(ventSteam.mesh);
+  for (const o of [backdrop, streaks, steam.mesh, ventSteam.mesh]) { o.updateMatrix(); o.matrixAutoUpdate = false; }
   const life = createCityLife(scene, ctx.halos, rng);
 
   const snap = new THREE.Vector3();
@@ -115,6 +124,7 @@ export function createWorld(scene, quality) {
       const ground = hero ? collision.groundBelow(hero.pos.x, hero.pos.y + 0.5, hero.pos.z, 0.3) : -Infinity;
       rain.update(t, camera.position, hero && hero.pos.y - ground < 1.5 && ground > -5 ? ground : null);
       steam.update(t);
+      ventSteam.update(t);
       signal.update(t);
       pool.update(dt, focus);
       // Keep the shadow box centered on the player, snapped to texels to stop shimmering.

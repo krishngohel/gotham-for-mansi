@@ -1,5 +1,7 @@
 // Steam rising from manholes, roof vents and chimneys: camera-facing puffs that swell, drift with
-// the wind and fade. Flat comic shapes with a soft edge. One instanced draw call.
+// the wind and fade. Flat comic shapes with a soft edge. One instanced draw call per look: the
+// look (opacity, rise, drift, growth, near fade, inked rim, breathing) is uniforms only, so every
+// instance shares one shader program and the boot prewarm compiles it once.
 import * as THREE from 'three';
 import { PALETTE } from '../config/palette.js';
 import { LAYER_FX } from '../render/layers.js';
@@ -10,6 +12,8 @@ attribute float aPhase;
 uniform float uTime;
 uniform vec2 uWind;
 uniform float uFogDensity;
+uniform float uRise, uDrift, uGrow;
+uniform vec2 uNear;
 varying vec2 vUv;
 varying float vAge;
 varying float vFade;
@@ -19,10 +23,10 @@ void main() {
   float age = fract(uTime * rate + aPhase);
   float s = aSrc.w;
   vec3 p = aSrc.xyz;
-  p.y += age * (2.2 + 3.2 * s);
-  p.x += (uWind.x * age * age * 4.0 + sin(aPhase * 40.0 + uTime * 0.8) * 0.35 * age) * s;
-  p.z += (uWind.y * age * age * 4.0 + cos(aPhase * 30.0 + uTime * 0.7) * 0.35 * age) * s;
-  float size = s * (0.7 + 2.8 * age);
+  p.y += age * (2.2 + 3.2 * s) * uRise;
+  p.x += (uWind.x * age * age * 4.0 * uDrift + sin(aPhase * 40.0 + uTime * 0.8) * 0.35 * age) * s;
+  p.z += (uWind.y * age * age * 4.0 * uDrift + cos(aPhase * 30.0 + uTime * 0.7) * 0.35 * age) * s;
+  float size = s * (0.7 + uGrow * age);
   vec4 mv = viewMatrix * vec4(p, 1.0);
   mv.xy += position.xy * size;
   gl_Position = projectionMatrix * mv;
@@ -30,12 +34,13 @@ void main() {
   vAge = age;
   vSeed = aPhase;
   float d = -mv.z;
-  vFade = exp(-pow(uFogDensity * d, 2.0)) * (1.0 - smoothstep(90.0, 150.0, d)) * smoothstep(3.0, 9.0, d);
+  vFade = exp(-pow(uFogDensity * d, 2.0)) * (1.0 - smoothstep(90.0, 150.0, d)) * smoothstep(uNear.x, uNear.y, d);
 }
 `;
 
 const fragmentShader = /* glsl */ `
 uniform vec3 uColor, uShade;
+uniform float uTime, uAlpha, uRim, uPulse;
 varying vec2 vUv;
 varying float vAge;
 varying float vFade;
@@ -49,12 +54,19 @@ void main() {
   if (body < 0.01) discard;
   // Lit from above: the top of each puff is paler, the underside takes the shade tone.
   vec3 col = mix(uShade, uColor, smoothstep(-0.3, 0.3, vUv.y + 0.1));
+  // An inked rim (0 for the city's soft steam) so a puff reads as a drawn cloud.
+  col = mix(col, uShade * 0.45, uRim * smoothstep(edge - 0.07, edge - 0.03, r));
   float life = smoothstep(0.0, 0.12, vAge) * (1.0 - smoothstep(0.45, 1.0, vAge));
-  gl_FragColor = vec4(col, body * life * 0.2 * vFade);
+  // Breathing: the whole source swells and thins on a slow cycle (0 for the city's steam).
+  float breath = 1.0 - uPulse * (0.5 + 0.5 * sin(uTime * 1.7 + vSeed * 2.0));
+  gl_FragColor = vec4(col, body * life * uAlpha * breath * vFade);
 }
 `;
 
-export function createSteam(sources, { perSource = 5, fogDensity = 0.0062 } = {}) {
+// look: { alpha, rise, drift, grow, near: [start, full], rim, pulse, color, shade }. The defaults
+// are the city's steam.
+export function createSteam(sources, { perSource = 5, fogDensity = 0.0062, look = {} } = {}) {
+  const L = { alpha: 0.2, rise: 1, drift: 1, grow: 2.8, near: [3, 9], rim: 0, pulse: 0, color: PALETTE.stripe, shade: PALETTE.slate, ...look };
   const quad = new THREE.PlaneGeometry(1, 1);
   const geo = new THREE.InstancedBufferGeometry();
   geo.index = quad.index;
@@ -76,8 +88,10 @@ export function createSteam(sources, { perSource = 5, fogDensity = 0.0062 } = {}
     uTime: { value: 0 },
     uWind: { value: new THREE.Vector2(0.6, 0.25) },
     uFogDensity: { value: fogDensity },
-    uColor: { value: new THREE.Color(PALETTE.stripe) },
-    uShade: { value: new THREE.Color(PALETTE.slate) },
+    uAlpha: { value: L.alpha }, uRise: { value: L.rise }, uDrift: { value: L.drift }, uGrow: { value: L.grow },
+    uNear: { value: new THREE.Vector2(L.near[0], L.near[1]) }, uRim: { value: L.rim }, uPulse: { value: L.pulse },
+    uColor: { value: new THREE.Color(L.color) },
+    uShade: { value: new THREE.Color(L.shade) },
   };
   const mesh = new THREE.Mesh(geo, new THREE.ShaderMaterial({ uniforms, vertexShader, fragmentShader, transparent: true, depthWrite: false }));
   mesh.frustumCulled = false;

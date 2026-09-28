@@ -104,5 +104,9 @@ function door(ctx, d) {
 function vent(ctx, v) {
   ctx.buckets.add('steel', box(v.w + 0.3, 0.05, v.d + 0.3, v.x, v.y + 0.02, v.z));
   for (let i = 0; i < 9; i++) ctx.buckets.add('painted', box(v.w, 0.02, 0.1, v.x, v.y + 0.055, v.z - v.d / 2 + 0.15 + i * ((v.d - 0.3) / 8)), PALETTE.ink);
-  for (const [dx, dz, s] of [[0, 0, 1.3], [-0.8, 0.6, 1.0], [0.8, -0.6, 1.0], [0.5, 0.9, 0.8]]) ctx.steam.push({ x: v.x + dx, y: v.y + 0.1, z: v.z + dz, s });
+  // A low bank of puffs over the whole grate (world.js draws `vent` steam with its own look:
+  // denser, inked, hugging the floor and breathing), so the hiding spot reads from across the hall.
+  for (const [dx, dz, s] of [[0, 0, 1.0], [-0.9, 0.7, 0.8], [0.9, -0.7, 0.8], [0.7, 0.9, 0.7], [-0.8, -0.8, 0.7], [0, -1.1, 0.6], [0, 1.1, 0.6]]) {
+    ctx.steam.push({ x: v.x + dx, y: v.y + 0.1, z: v.z + dz, s, vent: true });
+  }
 }
