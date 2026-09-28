@@ -5,7 +5,7 @@
 // - laser sights: a red line from the muzzle to Batman while a rifle goon aims (one LineSegments).
 //   A second, dark ink LineSegments is drawn a hair above and below the same path: against a bright
 //   backdrop (the Ace Chemicals vats' green glow) a lone 1px red line reads as a thin dark scratch,
-//   the same "thin lines lose their colour" issue noted on the batarang trail (gadgetFx.js) — the
+//   the same "thin lines lose their colour" issue noted on the batarang trail (gadgetFx.js). The
 //   ink outline keeps the red core legible everywhere without needing a full ribbon rewrite;
 // - shots: a pale tracer and a muzzle flash for a moment when a rifle fires. A hit tracer reads
 //   warm and bright; a miss reads cooler and dimmer (vertex colours on the one shared material, so
@@ -104,7 +104,7 @@ export function createStealthFx(scene) {
   laserGeo.setDrawRange(0, 0);
   const lasers = new THREE.LineSegments(laserGeo, m.laser);
   // The dark outline twin: two offset copies (above and below) per laser, so it frames the red
-  // core from most camera angles. Written alongside the laser in the same update() pass below —
+  // core from most camera angles. Written alongside the laser in the same update() pass below,
   // no extra per-frame allocation, just a few more floats into a preallocated buffer.
   const outlineGeo = segments(STEALTH_FX_MAX * 2);
   const outlinePos = outlineGeo.attributes.position.array;
