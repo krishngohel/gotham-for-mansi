@@ -10,9 +10,24 @@ import { createHalos } from './halos.js';
 import { facadeRelief, decoCrown, awnings } from './facadeDetail.js';
 import { dressStreets } from './streetDressing.js';
 import { createClimbables, addLadder } from './climbables.js';
+import { BREAKABLES, boxDistance } from './breakableSpots.js';
 
 const CAR_COLORS = [0x6d2f2f, 0x2f3f5a, 0x39473a, 0x5a5146, 0x1e2026, 0x7a6a44, 0x4a3a52];
 const NEON = { pink: PALETTE.neonPink, cyan: PALETTE.neonCyan };
+
+// Footprints of every gadget-breakable room (cracked walls, vents: src/world/breakableSpots.js),
+// padded a little. Generic street lamps skip any spot that would plant a lamp post through one of
+// these rooms (a real bug found on the Monarch booth, whose weak wall a lamp used to poke
+// straight through). Module scope, computed once: pure data, no rng involved.
+const BREAKABLE_ROOMS = BREAKABLES.filter((b) => b.room).map((b) => {
+  const r = b.room;
+  return { minX: r.x - r.w / 2, maxX: r.x + r.w / 2, minY: r.y, maxY: r.y + r.h, minZ: r.z - r.d / 2, maxZ: r.z + r.d / 2 };
+});
+const LAMP_CLEAR = 0.5;
+function clearOfBreakables(x, z) {
+  for (const b of BREAKABLE_ROOMS) if (boxDistance(b, { x, y: b.minY, z }) < LAMP_CLEAR) return false;
+  return true;
+}
 
 export function createCityContext(scene, rng, collision) {
   const materials = createCityMaterials(rng);
@@ -536,6 +551,10 @@ function streets(ctx) {
         const e = GRID.block / 2 - 0.8;
         for (const [lx, lz, nx, nz] of [[-e, -e, 0, -1], [e, -e, 1, 0], [e, e, 0, 1], [-e, e, -1, 0], [0, -e, 0, -1], [e, 0, 1, 0], [0, e, 0, 1], [-e, 0, -1, 0]]) {
           if (cz + lz > WORLD.waterZ - 4) continue;
+          // Skip a corner/edge lamp a breakable room would be built through (no rng draw here to
+          // keep in step: the lamp loop never touches ctx.rng, so skipping one can't reshuffle
+          // anything the parked-car loop below or any other rng consumer picks).
+          if (!clearOfBreakables(cx + lx, cz + lz)) continue;
           streetLamp(ctx, cx + lx, cz + lz, nx, nz);
         }
         // Parked cars along the curbs.

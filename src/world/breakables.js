@@ -74,6 +74,20 @@ function grilleTex(g, w, h) {
   g.strokeStyle = '#0b0b12';
   g.strokeRect(4, 4, w - 8, h - 8);
 }
+// Diagonal yellow/black hazard stripes: a flat PALETTE.slate railing was invisible against a dark
+// rooftop at night (found during placement review), so it gets the same "notice me, gadget spot"
+// treatment as the weak wall's chalk ring, in a pattern that survives narrow 0.15 m-thick faces.
+function railTex(g, w, h) {
+  g.fillStyle = '#1a1a1a';
+  g.fillRect(0, 0, w, h);
+  g.fillStyle = '#f2d24b';
+  const stripe = 22;
+  for (let x = -h; x < w; x += stripe * 2) {
+    g.beginPath();
+    g.moveTo(x, h); g.lineTo(x + stripe, h); g.lineTo(x + stripe + h, 0); g.lineTo(x + h, 0);
+    g.fill();
+  }
+}
 function cacheTex(g, w, h) {
   g.fillStyle = '#1d2230';
   g.fillRect(0, 0, w, h);
@@ -93,7 +107,7 @@ export function createBreakables({ scene, collision, climbables, progress, save,
     weakWall: toonMaterial({ color: 0xffffff, map: canvasTex(256, 256, (g, w, h) => bricks(g, w, h, true)) }),
     glass: toonMaterial({ color: 0xffffff, map: canvasTex(512, 128, signTex), emissive: 0x16323a }),
     vent: toonMaterial({ color: 0xffffff, map: canvasTex(128, 128, grilleTex) }),
-    railing: toonMaterial({ color: PALETTE.slate }),
+    railing: toonMaterial({ color: 0xffffff, map: canvasTex(128, 32, railTex) }),
     cache: toonMaterial({ color: 0xffffff, map: canvasTex(128, 128, cacheTex), emissive: 0x3a3000 }),
   };
   const broken = new Set(progress.gadgets.broken);
