@@ -8,6 +8,15 @@ const SHIMMY = 1.6;
 const DROP_HOLD = 0.25; // seconds `back` must be held before it drops instead of backflipping
 
 const YANK_DUR = 0.9; // length of the Ledge_Yank clip: hold the pose for the full takedown
+// The yank: a goon flies out over the edge. With enemy gravity (24 m/s^2) it is back at deck
+// height after 2 * YANK_UP / 24 s, by which time it must be past the edge plus its ground probe.
+export const YANK_UP = 4;
+const YANK_AIR = (2 * YANK_UP) / 24, YANK_CLEAR = 0.8;
+// Outward speed for a goon standing at `pos` to clear ledge `l` (nx, nz point off the edge).
+export function ledgeYankSpeed(l, pos) {
+  const inside = Math.max(0, (l.x - pos.x) * l.nx + (l.z - pos.z) * l.nz);
+  return Math.max(3, (inside + YANK_CLEAR) / YANK_AIR);
+}
 
 export function createLedgeControl(h, { collision, events }, { ledge }) {
   let l = ledge, phase = 'catch', t = 0, backT = 0, yankT = 0;
@@ -64,8 +73,11 @@ export function createLedgeControl(h, { collision, events }, { ledge }) {
         const e = h.combat.enemies.find((g) => canLedgeTakedown(g, l));
         if (e) {
           h.bat.animator.play('Ledge_Yank', { once: true, fade: 0.05 });
-          e.launch(l.nx * 3, 2, l.nz * 3);
+          // Takedown first: its KO knocks an airborne goon away from Batman (back onto the deck,
+          // since he hangs outside the edge), so the outward yank has to be applied after it.
           h.combat.takedown(e, 'ledge');
+          const out = ledgeYankSpeed(l, e.pos);
+          e.launch(l.nx * out, YANK_UP, l.nz * out);
           h.combat.consumeInput('punch');
           yankT = YANK_DUR;
           return false;
