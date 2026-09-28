@@ -26,8 +26,8 @@ export function addRim(mat, color = 0x9fc3ff, strength = 0.8, width = [0.5, 0.62
 }
 
 // Toon material that keeps a texture's shading but recolors it. Greenish texels use `a`,
-// everything else `b`; each is [shadowColor, lightColor].
-export function duotone(map, normalMap, { a, b, skin = null }) {
+// everything else `b`; each is [shadowColor, lightColor]. `lift` is the shadow floor (see addRim).
+export function duotone(map, normalMap, { a, b, skin = null }, lift = 0.32) {
   const mat = toonMaterial({ map, normalMap, normalScale: 0.6 });
   const A = a.map((c) => new THREE.Color(c)), B = b.map((c) => new THREE.Color(c));
   mat.onBeforeCompile = (shader) => {
@@ -44,7 +44,7 @@ export function duotone(map, normalMap, { a, b, skin = null }) {
 	diffuseColor.rgb *= mix(mix(uB0, uB1, k), mix(uA0, uA1, k), green) * fold;`);
   };
   mat.customProgramCacheKey = () => `duo`;
-  return addRim(mat);
+  return addRim(mat, 0x9fc3ff, 0.8, [0.5, 0.62], lift);
 }
 
 function partMeshes(outfits, name) {

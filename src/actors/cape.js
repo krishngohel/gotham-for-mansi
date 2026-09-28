@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { createCloth, hangFrom, stepCloth } from './verlet.js';
 import { toonMaterial } from '../render/toon.js';
 import { bindPosition } from './rig.js';
+import { addRim } from './outfitParts.js';
 
 
 function gridIndex(cols, rows) {
@@ -16,14 +17,17 @@ function gridIndex(cols, rows) {
 }
 
 // anchor 'shoulders' is the cape; 'waist' hangs coat tails from the hips (the Joker's).
+// The hero cape's defaults: from the third-person camera (behind the hero) the cape is most of
+// what shows, so it is cut to the shoulder line and ends at the shins, leaving the gloves, the
+// legs' outer edges and the boots visible around it, and its folds catch a cool rim light.
 export function createCape(ch, color, {
-  cols: COLS = 11, rows: ROWS = 14, topWidth = 0.5, bottomWidth = 1.3, length = 1.36, pointDrop = 0.17, anchor: mode = 'shoulders',
+  cols: COLS = 11, rows: ROWS = 14, topWidth = 0.46, bottomWidth = 1.05, length = 1.2, pointDrop = 0.15, anchor: mode = 'shoulders',
 } = {}) {
   const cloth = createCloth({ cols: COLS, rows: ROWS, topWidth, bottomWidth, length, pointDrop });
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(cloth.pos, 3));
   geo.setIndex(gridIndex(COLS, ROWS));
-  const mesh = new THREE.Mesh(geo, toonMaterial({ color, side: THREE.DoubleSide }));
+  const mesh = new THREE.Mesh(geo, addRim(toonMaterial({ color, side: THREE.DoubleSide }), 0x9fc3ff, 0.7, [0.55, 0.72], 0.32));
   mesh.frustumCulled = false;
   mesh.castShadow = true;
 
@@ -49,7 +53,8 @@ export function createCape(ch, color, {
   const setSphere = (s, v, r, push = 0) => { s.x = v.x + fwd.x * push; s.y = v.y; s.z = v.z + fwd.z * push; s.r = r; };
   const mid = (a, bb) => a.getWorldPosition(va).add(bb.getWorldPosition(vb)).multiplyScalar(0.5);
 
-  function update(dt, wind = [0.6, 0, 0.3]) {
+  // floor: ground height under the wearer (world y), which the hem may rest on but not pass.
+  function update(dt, wind = [0.6, 0, 0.3], floor = -Infinity) {
     ch.root.updateMatrixWorld(true);
     // Follow the torso, not the root: idle stances twist the shoulders well off the root's facing.
     b.ul.getWorldPosition(va);
@@ -71,12 +76,13 @@ export function createCape(ch, color, {
       anchor.addVectors(va, vb).multiplyScalar(0.5);
       anchor.y += 0.1;
       // Top edge wraps over the shoulders: well behind the neck at the center, near the shoulder tops at the ends.
+      const span = topWidth + 0.06;
       for (let c = 0; c < COLS; c++) {
         const t = c / (COLS - 1) - 0.5;
         const back = 0.17 - t * t * 0.5;
-        pins[c * 3] = anchor.x + right.x * t * 0.56 - fwd.x * back;
+        pins[c * 3] = anchor.x + right.x * t * span - fwd.x * back;
         pins[c * 3 + 1] = anchor.y - t * t * 0.3;
-        pins[c * 3 + 2] = anchor.z + right.z * t * 0.56 - fwd.z * back;
+        pins[c * 3 + 2] = anchor.z + right.z * t * span - fwd.z * back;
       }
     }
     if (!placed) { hangFrom(cloth, pins); placed = true; }
@@ -101,7 +107,7 @@ export function createCape(ch, color, {
     }
     if (dt <= 0) return;
     const steps = Math.min(4, Math.ceil(dt / (1 / 120)));
-    for (let s = 0; s < steps; s++) stepCloth(cloth, dt / steps, { wind, damping: 0.04, iterations: 8, colliders, pins });
+    for (let s = 0; s < steps; s++) stepCloth(cloth, dt / steps, { wind, damping: 0.04, iterations: 8, colliders, pins, floor });
     geo.attributes.position.needsUpdate = true;
     geo.computeVertexNormals();
   }
