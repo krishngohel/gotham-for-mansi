@@ -5,9 +5,11 @@ import { selectTarget } from './targeting.js';
 import { createCombo } from './combo.js';
 import { createDirector } from './director.js';
 import { createInputBuffer } from './inputBuffer.js';
-import { MOCAP_SPEED, MOCAP_START } from '../config/mocap.js';
+import { MOCAP_SPEED, MOCAP_START, MOCAP_BEATS } from '../config/mocap.js';
 import { rootMotionAt } from './reach.js';
-import { tiedGroup, chainOutcome } from './chains.js';
+import { CHAIN_RULES, chainForAction, chainAvailability, selectChainTargets, chainCost, tiedGroup, chainOutcome } from './chains.js';
+import { buildChainTimeline } from './chainTimeline.js';
+import { createChainControl } from './chainControl.js';
 
 const PUNCHES = ['Punch_Jab', 'Punch_Cross', 'Punch_Jab'];
 // Regular kicks alternate the front push kick and the roundhouse (the front kick alone at
@@ -25,8 +27,10 @@ const WORDS = {
 };
 // Strikes in a row on the same chain before the finisher lands.
 const CHAIN = 4;
+// Clip beats the chain timelines don't carry themselves: the mocap kicks (Kick_Front, Kick_Flying).
+const BEATS = MOCAP_BEATS;
 
-export function createCombat({ hero, follow, time, events, rng, getDifficulty, reach = {} }) {
+export function createCombat({ hero, follow, time, events, rng, getDifficulty, reach = {}, getChainDiscount = () => 0 }) {
   const combo = createCombo({ timeout: 1.5, ready: 8 });
   let difficulty = getDifficulty();
   const director = createDirector({ ...DIFFICULTY[difficulty], rng });
@@ -36,6 +40,12 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
   // Which regular kick and which beatdown strike comes next (variety only; not chain state).
   let kickIdx = 0, beatIdx = 0;
   const tmp = new THREE.Vector3(), dir = new THREE.Vector3(), chest = new THREE.Vector3();
+  const push = new THREE.Vector3();
+  // What the chain icons show; refreshed every 0.1 s of game time or when the combo changes.
+  let chainAvail = chainAvailability({ combo: 0, origin: hero.pos, enemies: [] });
+  let availT = 0, availCombo = -1;
+  // The chain in progress: its control, its targets, and whether it finished on its own.
+  let chainRun = null;
   const pick = (a) => a[Math.floor(rng.next() * a.length)];
 
   const word = (kind) => pick(WORDS[kind] ?? WORDS.ko);
@@ -648,6 +658,8 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
   function onAttackEnd(e) { director.release(e.id); }
 
   function tryStart(action, ctx) {
+    const chain = chainForAction(action);
+    if (chain) return startChain(chain, ctx);
     const inAir = hero.state === 'air' || hero.state === 'glide';
     const all = alive().filter((e) => e.state !== 'grabbed');
     const list = action === 'block' ? all : all.filter(canSee);
@@ -700,7 +712,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     return false;
   }
 
-  const ACTIONS = ['block', 'punch', 'kick', 'throw', 'cape', 'batarang', 'dodge', 'special'];
+  const ACTIONS = ['block', 'punch', 'kick', 'throw', 'cape', 'batarang', 'dodge', 'special', 'chain1', 'chain2', 'chain3'];
   const inAirNow = () => hero.state === 'air' || hero.state === 'glide';
 
   // A dive-bomb impact: knocks down every downable goon in range. Armored enemies (brutes)
@@ -736,6 +748,81 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     return true;
   }
 
+  // ---- chain takedowns ----
+
+  // The hooks a chain lands its steps through (chainControl.js), so chains share this file's hit
+  // bookkeeping: director slots, combo, impact events, hit-stop, critical and shockwave.
+  function chainApi(ctx, run) {
+    return {
+      events, time, collision: hero.collision, fx: ctx.chainFx ?? null,
+      enemies: () => enemies,
+      hold(e) { e.chainHold(); director.release(e.id); },
+      // Only a chain that plays to its end releases its targets itself.
+      release(e) { run.over = true; e.chainRelease(); },
+      stagger(e) {
+        push.set(e.pos.x - hero.pos.x, 0, e.pos.z - hero.pos.z);
+        if (push.lengthSq() > 1e-6) e.pos.addScaledVector(push.normalize(), 0.25);
+        hero.collision.resolveCylinder(e.pos, e.radius, 1.8 * e.scale);
+        e.ch.animator.play(rng.chance(0.5) ? 'Hit_Chest' : 'Hit_Head', { once: true, timeScale: 1.4, fade: 0.05 });
+        combo.hit();
+        follow.addShake(0.08);
+        e.ch.headWorld(chest, -0.3);
+        events.emit('impact', { pos: chest.clone(), move: 'chain', outcome: 'hit', target: e, crit: false });
+      },
+      finish: finishTarget,
+      tie(list) {
+        for (const e of list) { e.tie(list, CHAIN_RULES.tiedTime); director.release(e.id); combo.hit(); }
+        events.emit('chainTied', { count: list.length });
+      },
+      critical,
+      shockwave,
+      // chainControl passes a vector it reuses: the event gets its own copy.
+      word(text, pos, big = false) { events.emit('word', { text, pos: pos.clone(), big }); },
+    };
+  }
+
+  // Returns true when the press is used up: a chain started, or a hint said why not.
+  function startChain(chain, ctx) {
+    if (hero.state !== 'ground' || !hero.grounded) return false;
+    const discount = getChainDiscount();
+    const k = chain.n - 1;
+    const avail = chainAvailability({ combo: combo.value, origin: hero.pos, enemies, discount });
+    if (!avail.affordable[k]) {
+      const why = !avail.show ? 'chain-locked' : !avail.stealth && combo.value < avail.costs[k] ? 'chain-cost' : 'chain-targets';
+      events.emit('hint', { id: why });
+      return true;
+    }
+    const targets = selectChainTargets(hero.pos, inputDir(ctx), enemies, { canSee, onlyUnaware: avail.stealth });
+    if (!targets) { events.emit('hint', { id: 'chain-targets' }); return true; }
+    if (!avail.stealth) combo.take(chainCost(chain, discount));
+    const timeline = buildChainTimeline(chain.id, targets.length, BEATS);
+    // Everyone else waits: wind-ups in progress are called off and nobody starts one mid-chain.
+    for (const e of alive()) {
+      if (targets.includes(e)) continue;
+      if (e.state === 'windup') { director.release(e.id); e.glyph = null; e.state = 'engage'; }
+      director.hold(e.id, timeline.duration + 0.6);
+    }
+    const run = { ctl: null, chain: chain.id, targets, over: false };
+    run.ctl = createChainControl(hero, chainApi(ctx, run), { chain, targets, stealth: avail.stealth, timeline });
+    hero.control = run.ctl;
+    chainRun = run;
+    events.emit('chainStart', { chain: chain.id, count: targets.length, stealth: avail.stealth, ids: targets.map((e) => e.id) });
+    return true;
+  }
+
+  // Something took hero.control away from a chain before it finished (a teleport after a fall
+  // into the water, a respawn, the finale): let go of every goon still held, rather than leave
+  // them frozen until enemy.js's 5 s failsafe.
+  function checkChainDropped() {
+    if (!chainRun || hero.control === chainRun.ctl) return;
+    const run = chainRun;
+    chainRun = null;
+    if (run.over) return;
+    for (const e of run.targets) e.chainRelease();
+    hero.invulnerable = Math.min(hero.invulnerable, 0.3);
+    events.emit('chainBroken', { chain: run.chain });
+  }
+
   return {
     combo,
     director,
@@ -755,8 +842,16 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     killHero,
     get active() { return engaged().length > 0; },
     get cameraMode() { return hero.control?.camera ?? (engaged().some((e) => e.pos.distanceTo(hero.pos) < 14) ? 'combat' : null); },
+    get chains() { return chainAvail; },
     update(dt, ctx) {
+      checkChainDropped();
       combo.tick(dt);
+      availT -= dt;
+      if (availT <= 0 || combo.value !== availCombo) {
+        availT = 0.1;
+        availCombo = combo.value;
+        chainAvail = chainAvailability({ combo: combo.value, origin: hero.pos, enemies, discount: getChainDiscount() });
+      }
       chainT -= dt;
       if (chainT <= 0) { punchChain = 0; kickChain = 0; }
       const d = getDifficulty();

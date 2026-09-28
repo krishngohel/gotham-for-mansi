@@ -209,7 +209,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const fx = createFx(scene);
     const chainFx = createChainFx(scene);
     const rng = createRng(99);
-    const combat = createCombat({ hero, follow, time, events, rng, reach, getDifficulty: () => settings.difficulty });
+    const combat = createCombat({ hero, follow, time, events, rng, reach, getDifficulty: () => settings.difficulty, getChainDiscount: () => 0 });
     hero.combat = combat;
     const key = (a) => `<kbd>${bindingLabel(settings.bindings, a)}</kbd>`;
     const screen = new THREE.Vector3();
