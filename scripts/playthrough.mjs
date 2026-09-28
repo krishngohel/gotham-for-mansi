@@ -15,6 +15,12 @@ const start = process.env.START;
 await page.goto(base + (start ? `?at=${start}&god=1` : '?new=1&god=1'));
 await page.waitForFunction(() => window.__game?.state?.ready && window.__game.state.frame > 20, null, { timeout: 90000 });
 if (!start) await page.evaluate(() => { document.querySelector('.mbtn.primary').click(); document.querySelector('.suit-card.suit-m').click(); });
+await page.waitForFunction(() => window.__game?.gadgets, null, { timeout: 60000 });
+await page.evaluate(() => {
+  const G = window.__game;
+  G.__unlocked = [];
+  G.events.on('gadgetUnlocked', ({ id }) => G.__unlocked.push(id));
+});
 
 const state = () => page.evaluate(() => {
   const G = window.__game, s = G.flow.objectives.step;
@@ -55,4 +61,7 @@ const end = await state();
 console.log('ended at', JSON.stringify(end));
 console.log('comic pages captured:', shotN);
 console.log(errors.length ? 'ERRORS:\n' + errors.join('\n') : 'no console errors');
+const report = await page.evaluate(() => ({ unlocked: window.__game.__unlocked, wayne: { xp: window.__game.wayne.xp, level: window.__game.wayne.level }, gadgets: window.__game.progress.gadgets.unlocked }));
+console.log('gadgets unlocked in order:', JSON.stringify(report.unlocked));
+console.log('saved gadget unlocks:', JSON.stringify(report.gadgets), 'wayne:', JSON.stringify(report.wayne));
 await browser.close();

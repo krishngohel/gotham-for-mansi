@@ -22,6 +22,12 @@ if (!boot.error) {
   const s = await p.evaluate(() => ({ mode: window.__game.flow.mode, frame: window.__game.state.frame, fps: window.__game.state.fps }));
   console.log('play', JSON.stringify(s));
   await p.screenshot({ path: `${out}/play.png` });
+  await p.keyboard.down('Tab');
+  await p.waitForTimeout(600);
+  const wheel = await p.evaluate(() => [window.__game.gadgets.wheelOpen, !!document.querySelector('.gwheel.show')]);
+  console.log('wheel', JSON.stringify(wheel));
+  await p.screenshot({ path: `${out}/wheel.png` });
+  await p.keyboard.up('Tab');
 }
 console.log(errors.length ? 'errors:\n' + errors.slice(0, 10).join('\n') : 'no console errors');
 await b.close();
