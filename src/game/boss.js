@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { PALETTE } from '../config/palette.js';
 import { LAYER_FX } from '../render/layers.js';
 import { ENEMY, damageToHero, DIFFICULTY } from '../combat/rules.js';
-import { createJoker, footGround } from '../actors/characters.js';
+import { createJoker, footGround, enemyPlantsFeet } from '../actors/characters.js';
 import { createCape } from '../actors/cape.js';
 import { SITES } from '../world/mapData.js';
 
@@ -29,9 +29,9 @@ const LINES = {
 
 export function createBoss({ assets, scene, rng, combat, events, hud, spawn, despawn, hero, time, getDifficulty, collision = null }) {
   const ch = createJoker(assets);
-  if (collision) ch.groundAt = footGround(collision);
+  const groundUnderFoot = collision ? footGround(collision) : null;
   scene.add(ch.root);
-  const coat = createCape(ch, PALETTE.jokerPurple, { cols: 7, rows: 7, topWidth: 0.42, bottomWidth: 0.62, length: 0.9, pointDrop: 0.08, anchor: 'waist' });
+  const coat = createCape(ch, PALETTE.jokerPurple, { cols: 7, rows: 7, topWidth: 0.42, bottomWidth: 0.62, length: 0.9, pointDrop: 0.08, anchor: 'waist', look: 'coat' });
   scene.add(coat.mesh);
   ch.root.visible = coat.mesh.visible = false;
   const pos = ch.root.position;
@@ -313,6 +313,8 @@ export function createBoss({ assets, scene, rng, combat, events, hud, spawn, des
 
   // Phase 2/3 movement and attacks. Called through combat.update as an enemy.
   joker.update = (dt, ectx) => {
+    // Per-foot ground only while he is up and on the ground (not the balcony leap, not floored).
+    ch.groundAt = groundUnderFoot && enemyPlantsFeet(joker) && joker.state !== 'drop' ? groundUnderFoot : null;
     if (joker.countered) {
       joker.counterT += dt;
       if (joker.counterT < 1.2) { ch.animator.update(dt * 0.2); return; }

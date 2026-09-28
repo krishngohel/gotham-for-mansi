@@ -1,6 +1,6 @@
 // Joker goon AI: idle, alert, circle the hero, wind up (glyph), attack, react to hits.
 import * as THREE from 'three';
-import { createGoon, footGround } from './characters.js';
+import { createGoon, footGround, enemyPlantsFeet } from './characters.js';
 import { ENEMY } from '../combat/rules.js';
 
 const IDLE_POSES = ['Idle_Talking_Loop', 'Idle_TalkingPhone_Loop', 'Idle_FoldArms_Loop', 'Idle_Loop'];
@@ -8,7 +8,7 @@ const GRUNT_ATTACKS = ['Punch_Cross', 'Punch_Jab', 'Melee_Hook'];
 
 export function createEnemy({ id, type, assets, scene, collision, rng }) {
   const ch = createGoon(assets, { type, rng });
-  ch.groundAt = footGround(collision);
+  const groundUnderFoot = footGround(collision);
   scene.add(ch.root);
   const def = ENEMY[type];
   const scale = def.scale;
@@ -140,6 +140,7 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
 
   e.update = (dt, ctx) => {
     const { hero, others } = ctx;
+    ch.groundAt = enemyPlantsFeet(e) ? groundUnderFoot : null;
     // Frozen by a counter until its blow lands (with a failsafe).
     if (e.countered) {
       e.counterT += dt;

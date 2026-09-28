@@ -3,6 +3,7 @@ import { createCloth, hangFrom, stepCloth } from './verlet.js';
 import { toonMaterial } from '../render/toon.js';
 import { bindPosition } from './rig.js';
 import { addRim } from './outfitParts.js';
+import { PALETTE } from '../config/palette.js';
 
 
 function gridIndex(cols, rows) {
@@ -16,18 +17,44 @@ function gridIndex(cols, rows) {
   return idx;
 }
 
+// The hero cape's cloth. From the third-person camera (behind the hero) the cape is most of what
+// shows, so it has to read on its own without glowing: the outer face is the cowl black lifted a
+// step toward the city's slate (still the darkest thing on him after the cowl, gloves and boots),
+// its shadow floor is raised so it never drops to solid black, a cool rim runs along the folds
+// where the cloth turns from the camera, and the inner face is a lighter lining that shows where
+// the hem curls. Which winding faces the body is found from the cloth's normals each frame.
+function capeMaterial(color) {
+  const outer = new THREE.Color(color).lerp(new THREE.Color(PALETTE.slate), 0.3);
+  const lining = new THREE.Color(color).lerp(new THREE.Color(PALETTE.slate), 0.6);
+  const mat = toonMaterial({ color: outer, side: THREE.DoubleSide });
+  const frontIsInner = { value: 0 };
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uLining = { value: lining };
+    shader.uniforms.uFrontIsInner = frontIsInner;
+    shader.fragmentShader = 'uniform vec3 uLining;\nuniform float uFrontIsInner;\n' + shader.fragmentShader.replace('#include <color_fragment>', `
+	#include <color_fragment>
+	if ((uFrontIsInner > 0.5) == gl_FrontFacing) diffuseColor.rgb = uLining;`);
+  };
+  mat.customProgramCacheKey = () => 'cape-lining';
+  addRim(mat, 0x9fc3ff, 1.0, [0.42, 0.62], 0.5);
+  mat.userData.frontIsInner = frontIsInner;
+  return mat;
+}
+
 // anchor 'shoulders' is the cape; 'waist' hangs coat tails from the hips (the Joker's).
-// The hero cape's defaults: from the third-person camera (behind the hero) the cape is most of
-// what shows, so it is cut to the shoulder line and ends at the shins, leaving the gloves, the
-// legs' outer edges and the boots visible around it, and its folds catch a cool rim light.
+// The hero cape's defaults: it is cut to the shoulder line and ends at the shins, leaving the
+// gloves, the legs' outer edges and the boots visible around it from behind. look 'cape' is the
+// hero material above; 'coat' a plain toon cloth with the usual rim (the Joker's tails).
 export function createCape(ch, color, {
-  cols: COLS = 11, rows: ROWS = 14, topWidth = 0.46, bottomWidth = 1.05, length = 1.2, pointDrop = 0.15, anchor: mode = 'shoulders',
+  cols: COLS = 11, rows: ROWS = 14, topWidth = 0.46, bottomWidth = 1.05, length = 1.2, pointDrop = 0.15, anchor: mode = 'shoulders', look = 'cape',
 } = {}) {
   const cloth = createCloth({ cols: COLS, rows: ROWS, topWidth, bottomWidth, length, pointDrop });
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(cloth.pos, 3));
   geo.setIndex(gridIndex(COLS, ROWS));
-  const mesh = new THREE.Mesh(geo, addRim(toonMaterial({ color, side: THREE.DoubleSide }), 0x9fc3ff, 0.7, [0.55, 0.72], 0.32));
+  const mesh = new THREE.Mesh(geo, look === 'cape' ? capeMaterial(color) : addRim(toonMaterial({ color, side: THREE.DoubleSide })));
+  const frontIsInner = mesh.material.userData.frontIsInner ?? null;
+  const midNormal = new THREE.Vector3();
   mesh.frustumCulled = false;
   mesh.castShadow = true;
 
@@ -53,8 +80,10 @@ export function createCape(ch, color, {
   const setSphere = (s, v, r, push = 0) => { s.x = v.x + fwd.x * push; s.y = v.y; s.z = v.z + fwd.z * push; s.r = r; };
   const mid = (a, bb) => a.getWorldPosition(va).add(bb.getWorldPosition(vb)).multiplyScalar(0.5);
 
-  // floor: ground height under the wearer (world y), which the hem may rest on but not pass.
-  function update(dt, wind = [0.6, 0, 0.3], floor = -Infinity) {
+  // floorAt(x, z): ground height under a cloth point (world y, -Infinity for none), which the hem
+  // may rest on but not pass; null lets the cloth fall free.
+  const floors = new Float32Array(cloth.n);
+  function update(dt, wind = [0.6, 0, 0.3], floorAt = null) {
     ch.root.updateMatrixWorld(true);
     // Follow the torso, not the root: idle stances twist the shoulders well off the root's facing.
     b.ul.getWorldPosition(va);
@@ -106,10 +135,17 @@ export function createCape(ch, color, {
       }
     }
     if (dt <= 0) return;
+    // Ground under each point, sampled once per frame (a hair above it, clear of the depth test).
+    if (floorAt) for (let i = 0; i < cloth.n; i++) floors[i] = floorAt(cloth.pos[i * 3], cloth.pos[i * 3 + 2]) + 0.01;
     const steps = Math.min(4, Math.ceil(dt / (1 / 120)));
-    for (let s = 0; s < steps; s++) stepCloth(cloth, dt / steps, { wind, damping: 0.04, iterations: 8, colliders, pins, floor });
+    for (let s = 0; s < steps; s++) stepCloth(cloth, dt / steps, { wind, damping: 0.04, iterations: 8, colliders, pins, floor: floorAt ? floors : null });
     geo.attributes.position.needsUpdate = true;
     geo.computeVertexNormals();
+    // Lining: the winding whose normal points at the wearer's back is the inner face.
+    if (frontIsInner) {
+      midNormal.fromBufferAttribute(geo.attributes.normal, ((ROWS >> 1) * COLS) + (COLS >> 1));
+      frontIsInner.value = midNormal.x * fwd.x + midNormal.z * fwd.z > 0 ? 1 : 0;
+    }
   }
 
   return {

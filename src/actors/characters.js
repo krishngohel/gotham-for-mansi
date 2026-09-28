@@ -126,9 +126,9 @@ function scanFootVerts(mesh) {
 }
 
 function createSoleProbe(root) {
-  let feet = null; // [{ side, verts: [{ mesh, index }], mats }]
-  const v = new THREE.Vector3(), w = new THREE.Vector3(), sum = new THREE.Vector3();
-  const bind = new THREE.Vector3();
+  let feet = null; // per side: flat vertex table plus the bone matrices it uses
+  const v = new THREE.Vector3(), w = new THREE.Vector3();
+  const rootInv = new THREE.Matrix4();
   const out = [{ side: 'l', x: 0, y: 0, z: 0 }, { side: 'r', x: 0, y: 0, z: 0 }];
 
   function gather() {
@@ -141,37 +141,36 @@ function createSoleProbe(root) {
       meshes.push({ mesh: o, found });
       for (const side of ['l', 'r']) for (const { y } of found[side]) lowest[side] = Math.min(lowest[side], y);
     });
+    const bind = new THREE.Vector3();
     feet = ['l', 'r'].map((side) => {
-      const verts = [];
-      for (const { mesh, found } of meshes) for (const { index, y } of found[side]) if (y < lowest[side] + SOLE_BAND) verts.push({ mesh, index });
-      // Every (skeleton, bone) pair these vertices use, with a matrix slot refreshed per frame.
-      const mats = new Map();
-      for (const { mesh, index } of verts) {
-        let m = mats.get(mesh.skeleton);
-        if (!m) { m = new Map(); mats.set(mesh.skeleton, m); }
-        const { skinIndex, skinWeight } = mesh.geometry.attributes;
-        for (let c = 0; c < 4; c++) if (skinWeight.getComponent(index, c) > 0) m.set(skinIndex.getComponent(index, c), new THREE.Matrix4());
+      // Flat tables, filled once: bind-pose position (in the wearer's model space), and for each
+      // of the four influences a weight and an index into this foot's list of bone matrices.
+      const skeletons = [], boneIds = [], mats = [];
+      const slot = (skeleton, b) => {
+        for (let k = 0; k < mats.length; k++) if (skeletons[k] === skeleton && boneIds[k] === b) return k;
+        skeletons.push(skeleton); boneIds.push(b); mats.push(new THREE.Matrix4());
+        return mats.length - 1;
+      };
+      const pos = [], wts = [], ids = [];
+      for (const { mesh, found } of meshes) {
+        const { position, skinIndex, skinWeight } = mesh.geometry.attributes;
+        for (const { index, y } of found[side]) {
+          if (y >= lowest[side] + SOLE_BAND) continue;
+          bind.fromBufferAttribute(position, index).applyMatrix4(mesh.bindMatrix);
+          pos.push(bind.x, bind.y, bind.z);
+          for (let c = 0; c < 4; c++) {
+            const wt = skinWeight.getComponent(index, c);
+            wts.push(wt);
+            ids.push(wt > 0 ? slot(mesh.skeleton, skinIndex.getComponent(index, c)) : 0);
+          }
+        }
       }
-      return { side, verts, mats };
+      return { side, n: pos.length / 3, pos: Float32Array.from(pos), wts: Float32Array.from(wts), ids: Uint16Array.from(ids), skeletons, boneIds, mats };
     });
   }
 
-  // World-space skinning of one vertex, in the wearer's root space.
-  function skinned(mesh, i, target, mats) {
-    const { position, skinIndex, skinWeight } = mesh.geometry.attributes;
-    bind.fromBufferAttribute(position, i).applyMatrix4(mesh.bindMatrix);
-    sum.set(0, 0, 0);
-    for (let c = 0; c < 4; c++) {
-      const wt = skinWeight.getComponent(i, c);
-      if (wt === 0) continue;
-      sum.addScaledVector(w.copy(bind).applyMatrix4(mats.get(skinIndex.getComponent(i, c))), wt);
-    }
-    // bones[].matrixWorld is world space already: back into root space for the caller.
-    return root.worldToLocal(target.copy(sum));
-  }
-
   // Lowest sole point of each foot in root space (x, z for the ground lookup; y relative to the
-  // root's ground plane). Feet with nothing to measure are skipped.
+  // root's ground plane). Feet with nothing to measure are skipped. No allocation per call.
   const result = [];
   return {
     // Called once the outfit is worn; measure() does it on first use otherwise.
@@ -179,14 +178,25 @@ function createSoleProbe(root) {
     measure() {
       if (!feet) gather();
       result.length = 0;
+      rootInv.copy(root.matrixWorld).invert();
       for (let f = 0; f < 2; f++) {
         const foot = feet[f];
-        if (!foot.verts.length) continue;
-        for (const [skeleton, m] of foot.mats) for (const [b, mat] of m) mat.multiplyMatrices(skeleton.bones[b].matrixWorld, skeleton.boneInverses[b]);
+        if (!foot.n) continue;
+        const { pos, wts, ids, skeletons, boneIds, mats } = foot;
+        // bones[].matrixWorld * boneInverse: the skinning matrix of each bone this foot uses.
+        for (let k = 0; k < mats.length; k++) mats[k].multiplyMatrices(skeletons[k].bones[boneIds[k]].matrixWorld, skeletons[k].boneInverses[boneIds[k]]);
         const o = out[f];
         o.y = Infinity;
-        for (const { mesh, index } of foot.verts) {
-          skinned(mesh, index, v, foot.mats.get(mesh.skeleton));
+        for (let i = 0; i < foot.n; i++) {
+          v.set(0, 0, 0);
+          for (let c = 0; c < 4; c++) {
+            const wt = wts[i * 4 + c];
+            if (wt === 0) continue;
+            w.fromArray(pos, i * 3).applyMatrix4(mats[ids[i * 4 + c]]);
+            v.addScaledVector(w, wt);
+          }
+          // Skinned in world space: back into root space.
+          v.applyMatrix4(rootInv);
           if (v.y < o.y) { o.y = v.y; o.x = v.x; o.z = v.z; }
         }
         result.push(o);
@@ -231,6 +241,14 @@ function rigidMesh(geometry, material, pos, rotation = new THREE.Euler()) {
 // or step lifts the foot that is over it and nothing else), ignoring anything more than a step
 // above the character's own ground.
 export const footGround = (collision) => (x, z, rootY) => collision.groundBelow(x, rootY + 0.35, z, 0.02);
+
+// Whether a character should sample the ground under each foot this frame. Off whenever the root
+// is not resting on the ground it stands on: a ledge climb-up or ladder top-out carries the root
+// up past the roof top with the toes a hand span from the wall, a zipline ends over a parapet, a
+// launched or downed goon is not standing at all. In those states the lift keys on the root's own
+// ground only, so the model cannot pop up onto a surface it is merely passing.
+export const heroPlantsFeet = (h) => !h.control && !!h.grounded;
+export const enemyPlantsFeet = (e) => !e.air && !e.down && !!e.alive;
 
 // The heroes' costume materials get a higher shadow floor than the rest of the cast, so the grey
 // suit, gold belt and gloves keep their colour on the unlit side at gameplay distance instead of
