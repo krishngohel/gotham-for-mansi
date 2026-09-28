@@ -40,7 +40,7 @@ const RAW = [
   {
     id: 'signalToSea', name: 'Signal to Sea', kind: 'rings',
     blurb: 'Leap off the GCPD roof and glide south to the container yard.',
-    start: { x: 14, y: 42, z: 19, yaw: 0 }, limit: 20, medals: { gold: 8.1, silver: 9.4, bronze: 11.0 },
+    start: { x: 14, y: 42, z: 19, yaw: 0 }, limit: 20, medals: { gold: 7.5, silver: 8.5, bronze: 10.5 },
     // Ring 0 clears the low roof-edge rail (the launch pose is right at the parapet); the rest
     // of the drop makes up the altitude on the next leg.
     rings: [ring(28, 43, 45), ring(30, 31, 80), ring(30, 25, 115), ring(26, 19, 145), ring(12, 12, 172, 5)],
@@ -48,7 +48,7 @@ const RAW = [
   {
     id: 'neonSlalom', name: 'Neon Slalom', kind: 'rings',
     blurb: 'Weave between the signs of Neon Row, low and fast.',
-    start: { x: 163, y: 30, z: 100, yaw: Math.PI }, limit: 35, medals: { gold: 14.6, silver: 16.9, bronze: 19.8 },
+    start: { x: 163, y: 30, z: 100, yaw: Math.PI }, limit: 35, medals: { gold: 13, silver: 15.5, bronze: 19 },
     // Ring 0 clears the roof-edge rail at the Neon Row launch point.
     rings: [ring(150, 32, 85, 3.5), ring(145, 22.5, 60, 3.5), ring(155, 18.5, 35, 3.5), ring(145, 14.5, 10, 3.5), ring(155, 10.5, -15, 3.5), ring(145, 7, -40, 3.5), ring(150, 4.9, -65, 4)],
   },
@@ -58,7 +58,7 @@ const RAW = [
     // Start sits close to the tower's south roof edge, but well clear of the west edge too (a
     // launch pose right at a corner leaves no room to walk before the jump); ring 0 sits almost
     // level with the launch so the dive clears the roof's own guard rail.
-    start: { x: -79, y: 58, z: -141, yaw: -Math.PI / 2 }, limit: 50, medals: { gold: 19.0, silver: 22.0, bronze: 25.8 },
+    start: { x: -79, y: 58, z: -141, yaw: -Math.PI / 2 }, limit: 50, medals: { gold: 16.5, silver: 20, bronze: 24.5 },
     // Rings 4 to 6 sit higher than first drawn: the loop back from the ridge turns sharply twice
     // in a row, and the extra altitude gives a glide enough room to correct through both turns
     // instead of sinking into the street before it lines up.
@@ -89,7 +89,7 @@ const RAW = [
   {
     id: 'birthdayBash', name: "Joker's Birthday Bash", kind: 'arena',
     blurb: 'Three waves on the Monarch roof. Mix your moves, keep the combo, do not get hit.',
-    start: { x: 190, y: SITES.monarchRoof.y, z: -48, yaw: Math.atan2(-10, -12) }, medals: { gold: 2950, silver: 2000, bronze: 1150 },
+    start: { x: 190, y: SITES.monarchRoof.y, z: -48, yaw: Math.atan2(-10, -12) }, medals: { gold: 3300, silver: 2250, bronze: 1300 },
     // The Monarch roof has a duct unit close on the standard heading; a shorter side offset
     // clears it. See pillarPos below.
     pillarSide: 1.5,
