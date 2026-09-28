@@ -6,18 +6,21 @@ import MANSI from '../../mansi.config.js';
 import { letterPoints, birthdayLine } from '../skyLetters.js';
 
 const R = 6, DELAY = 0.35;
+// Big, bold sky lettering: a wide glyph cell so the banner fills the middle of the screen, placed
+// far enough ahead that the perspective across its width stays calm.
+const LETTER_CELL = 0.8, LETTER_FWD = 34, LETTER_UP = 15, LETTER_PITCH = -0.13;
 
 export function createPopperHandler() {
-  const letters = letterPoints(birthdayLine(MANSI.name), { cell: 0.5 }).points;
+  const letters = letterPoints(birthdayLine(MANSI.name), { cell: LETTER_CELL }).points;
   const at = new THREE.Vector3(), anchor = new THREE.Vector3(), fwd = new THREE.Vector3(), right = new THREE.Vector3();
   let pending = -1;
 
   function pop(sys) {
     const { api, hero } = sys;
     sys.gfx.confetti.burst(at, 320);
-    anchor.copy(hero.pos).addScaledVector(fwd, 30);
-    anchor.y = hero.pos.y + 18;
-    sys.gfx.confetti.letters(at, anchor, right, letters);
+    anchor.copy(hero.pos).addScaledVector(fwd, LETTER_FWD);
+    anchor.y = hero.pos.y + LETTER_UP;
+    sys.gfx.confetti.letters(at, anchor, right, letters, LETTER_CELL);
     let n = 0;
     for (const e of sys.combat.enemies) {
       if (!e.alive || e.def.boss || e.down || Math.hypot(e.pos.x - at.x, e.pos.z - at.z) > R || Math.abs(e.pos.y - at.y) > 3) continue;
@@ -25,8 +28,9 @@ export function createPopperHandler() {
       if (e.dance(3)) api.director.release(e.id);
       n += 1;
     }
-    // Tilt the view up so the lettering clears rooftops without running off the top of the frame.
-    sys.follow.state.pitch = Math.min(sys.follow.state.pitch, -0.15);
+    // Tilt the view up so the lettering clears rooftops and the objective card without running
+    // off the top of the frame.
+    sys.follow.state.pitch = Math.min(sys.follow.state.pitch, LETTER_PITCH);
     sys.fx.impact(at, 1.4);
     sys.events.emit('popper', { pos: at.clone(), count: n });
     sys.events.emit('word', { text: 'POP! POP! POP!', pos: at.clone().setY(at.y + 1.5), big: true });

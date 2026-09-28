@@ -9,12 +9,18 @@ import { toonMaterial } from '../render/toon.js';
 import { LAYER_FX } from '../render/layers.js';
 import { PALETTE } from '../config/palette.js';
 
-export const GFX_LIMITS = { gel: 3, puffs: 14, ice: 6, iceShots: 2, confetti: 900, trail: 32, debris: 40 };
+export const GFX_LIMITS = { gel: 3, puffs: 14, ice: 6, iceShots: 2, confetti: 900, skyLetters: 3000, trail: 32, debris: 40 };
 const CONFETTI = [PALETTE.signal, PALETTE.balloon, PALETTE.detective, PALETTE.jokerGreen, PALETTE.jokerPurple, PALETTE.paper];
-// A burst piece reads as a fleck at fight range (6-10 m); the sky-lettering multiplier keeps
-// "HAPPY BIRTHDAY" legible from the ground even though it shares the same Points/material.
+// Warm, bright party colours for the sky lettering (weighted toward signal yellow and paper
+// white so the banner pops off a night sky), with a little joker green/purple for variety. The
+// burst stays the full multicolour CONFETTI palette above.
+const LETTER_COLORS = [PALETTE.signal, PALETTE.signal, PALETTE.paper, PALETTE.paper, PALETTE.balloon, PALETTE.jokerGreen, PALETTE.jokerPurple];
 const CONFETTI_SIZE = 0.16;
-const CONFETTI_LETTER_MULT = 3;
+// The sky lettering is its own pool (GFX_LIMITS.skyLetters), not the burst's: SKY_LETTER_SUB x
+// SKY_LETTER_SUB jittered flecks per lit glyph cell so the stroke reads solid, not dotted, at a
+// bigger, additively-blended point size (SKY_LETTER_SIZE) so it glows against the night sky.
+const SKY_LETTER_SIZE = 0.6;
+const SKY_LETTER_SUB = 3;
 const UP = new THREE.Vector3(0, 1, 0);
 
 let smokeTex = null;
@@ -50,9 +56,8 @@ function tinyTexture() {
   return tinyTex;
 }
 
-// Confetti points all share one PointsMaterial (the burst and the sky-lettering both draw from
-// the same pool), so a per-vertex "aSizeMul" attribute lets each particle scale the shared base
-// size independently: 1x for a burst fleck, CONFETTI_LETTER_MULT for a held letter pixel.
+// Burst confetti points share one PointsMaterial, with a per-vertex "aSizeMul" attribute (kept
+// for parity with the warm copy below; every burst fleck uses 1x today).
 function confettiMaterial() {
   const mat = new THREE.PointsMaterial({ size: CONFETTI_SIZE, vertexColors: true, sizeAttenuation: true });
   mat.onBeforeCompile = (shader) => {
@@ -64,6 +69,16 @@ function confettiMaterial() {
   // this the warm copy and the live copy could end up sharing a program only by coincidence.
   mat.customProgramCacheKey = () => 'confetti-size';
   return mat;
+}
+
+// The sky lettering's own material: bigger points, additively blended for a slight glow against
+// the night sky. A separate pool (see createGadgetFx) so it never competes with burst flecks for
+// room, and no per-vertex size trick is needed since every letter fleck is the same size.
+function skyLetterMaterial() {
+  return new THREE.PointsMaterial({
+    size: SKY_LETTER_SIZE, vertexColors: true, sizeAttenuation: true,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending,
+  });
 }
 
 // The trail is a camera-facing ribbon (a triangle strip of quads), not a 1px Line: the shared
@@ -117,6 +132,7 @@ export function gadgetMaterials() {
     ice,
     smoke: new THREE.SpriteMaterial({ map: smokeTexture(), transparent: true, depthWrite: false }),
     confetti: confettiMaterial(),
+    skyLetter: skyLetterMaterial(),
     line: new THREE.LineBasicMaterial({ color: PALETTE.ink }),
     trail: trailMaterial(),
     debris: toonMaterial({ color: 0xffffff }),
@@ -203,11 +219,16 @@ export function createGadgetWarm() {
   pg.setAttribute('aSizeMul', new THREE.BufferAttribute(new Float32Array(3).fill(1), 1));
   const confetti = new THREE.Points(pg, m.confetti);
   confetti.layers.set(LAYER_FX);
+  const lpg = new THREE.BufferGeometry();
+  lpg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(9), 3));
+  lpg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(9).fill(1), 3));
+  const skyLetterPts = new THREE.Points(lpg, m.skyLetter);
+  skyLetterPts.layers.set(LAYER_FX);
   const debris = new THREE.InstancedMesh(g.debris, m.debris, 1);
   debris.setColorAt(0, new THREE.Color(1, 1, 1));
   const texturedInst = new THREE.InstancedMesh(g.box, m.textured, 1);
   group.add(
-    new THREE.Mesh(g.gel, m.gel), new THREE.Mesh(g.ice, m.ice), new THREE.Mesh(g.shot, m.ice), puff, confetti,
+    new THREE.Mesh(g.gel, m.gel), new THREE.Mesh(g.ice, m.ice), new THREE.Mesh(g.shot, m.ice), puff, confetti, skyLetterPts,
     lineOf(2, m.line), setTrailTaper(ribbonOf(GFX_LIMITS.trail, m.trail), GFX_LIMITS.trail), debris, new THREE.Mesh(g.box, m.textured), texturedInst,
   );
   return group;
@@ -404,10 +425,11 @@ export function createGadgetFx(scene) {
     }
   }
 
-  // ---- confetti: one Points cloud. Each particle is parked (mode 0), flying (1), homing to a
-  // letter cell (2), holding the letter (3) or fluttering down (4). ----
+  // ---- confetti burst: one Points cloud for the bomb flecks. Each particle is parked (mode 0)
+  // or flying (mode 1) under gravity until its life runs out. The sky lettering has its own pool
+  // below, not this one. ----
   const N = GFX_LIMITS.confetti;
-  const cpos = new Float32Array(N * 3), ccol = new Float32Array(N * 3), cvel = new Float32Array(N * 3), cgoal = new Float32Array(N * 3);
+  const cpos = new Float32Array(N * 3), ccol = new Float32Array(N * 3), cvel = new Float32Array(N * 3);
   const cmode = new Uint8Array(N), clife = new Float32Array(N), csize = new Float32Array(N).fill(1);
   for (let i = 0; i < N; i++) cpos[i * 3 + 1] = -1000;
   const cgeo = new THREE.BufferGeometry();
@@ -427,6 +449,32 @@ export function createGadgetFx(scene) {
     col.setHex(CONFETTI[(Math.random() * CONFETTI.length) | 0]);
     ccol[i * 3] = col.r; ccol[i * 3 + 1] = col.g; ccol[i * 3 + 2] = col.b;
   };
+
+  // ---- sky lettering: a second, dedicated Points pool (GFX_LIMITS.skyLetters), preallocated
+  // once here and never resized or reallocated per frame. Every lit glyph cell (skyLetters.js)
+  // gets a SKY_LETTER_SUB x SKY_LETTER_SUB jittered sub-grid of flecks, so neighbouring flecks
+  // overlap into a solid stroke instead of a dotted outline. Same fly-in/hold/fade life cycle as
+  // the old shared design: 2 homes in from the throw point, 3 holds in place, 4 flutters down.
+  const LN = GFX_LIMITS.skyLetters;
+  const lpos = new Float32Array(LN * 3), lcol = new Float32Array(LN * 3), lvel = new Float32Array(LN * 3), lgoal = new Float32Array(LN * 3);
+  const lmode = new Uint8Array(LN), llife = new Float32Array(LN);
+  for (let i = 0; i < LN; i++) lpos[i * 3 + 1] = -1000;
+  const lgeo = new THREE.BufferGeometry();
+  const lposAttr = new THREE.BufferAttribute(lpos, 3).setUsage(THREE.DynamicDrawUsage);
+  const lcolAttr = new THREE.BufferAttribute(lcol, 3).setUsage(THREE.DynamicDrawUsage);
+  lgeo.setAttribute('position', lposAttr);
+  lgeo.setAttribute('color', lcolAttr);
+  const letterPts = new THREE.Points(lgeo, m.skyLetter);
+  letterPts.layers.set(LAYER_FX);
+  letterPts.frustumCulled = false;
+  // The banner reads as high in the sky, so it draws over nearby rooftop silhouettes instead of
+  // being clipped by whatever happens to be closer to the camera (depthTest is off on the
+  // material above; renderOrder keeps it compositing after the rest of the scene).
+  letterPts.renderOrder = 10;
+  scene.add(letterPts);
+  let lnext = 0, llive = 0;
+  const ltake = () => { const i = lnext; lnext = (lnext + 1) % LN; if (!lmode[i]) llive += 1; return i; };
+
   const confetti = {
     burst(center, count) {
       for (let k = 0; k < count; k++) {
@@ -442,54 +490,75 @@ export function createGadgetFx(scene) {
       ccolAttr.needsUpdate = true;
       csizeAttr.needsUpdate = true;
     },
-    // Confetti flies from `from` to spell `pts` (skyLetters.js) on an upright plane through
-    // `anchor`, running along the horizontal unit vector `right`; holds 5 s, then flutters down.
-    // Sized up (CONFETTI_LETTER_MULT) so the letters stay legible from the ground even though
-    // they share the burst's smaller base point size.
-    letters(from, anchor, right, pts) {
+    // Confetti flies from `from` to spell `pts` (skyLetters.js, laid out `cell` metres per glyph
+    // cell) on an upright plane through `anchor`, running along the horizontal unit vector
+    // `right`; holds, then flutters down. Writes into the dedicated sky-lettering pool above, so
+    // it never competes with burst flecks for room.
+    letters(from, anchor, right, pts, cell = 0.5) {
+      const spacing = cell / SKY_LETTER_SUB, jitter = spacing * 0.35, half = (SKY_LETTER_SUB - 1) / 2;
       for (const p of pts) {
-        const i = take(), j = i * 3;
-        cpos[j] = from.x + Math.random() - 0.5; cpos[j + 1] = from.y + 0.5; cpos[j + 2] = from.z + Math.random() - 0.5;
-        cgoal[j] = anchor.x + right.x * p.x; cgoal[j + 1] = anchor.y + p.y; cgoal[j + 2] = anchor.z + right.z * p.x;
-        cmode[i] = 2;
-        clife[i] = 1.1 + Math.random() * 0.5;
-        csize[i] = CONFETTI_LETTER_MULT;
-        paint(i);
+        for (let sy = 0; sy < SKY_LETTER_SUB; sy++) {
+          for (let sx = 0; sx < SKY_LETTER_SUB; sx++) {
+            const px = p.x + (sx - half) * spacing + (Math.random() - 0.5) * jitter;
+            const py = p.y + (sy - half) * spacing + (Math.random() - 0.5) * jitter;
+            const i = ltake(), j = i * 3;
+            lpos[j] = from.x + Math.random() - 0.5; lpos[j + 1] = from.y + 0.5; lpos[j + 2] = from.z + Math.random() - 0.5;
+            lgoal[j] = anchor.x + right.x * px; lgoal[j + 1] = anchor.y + py; lgoal[j + 2] = anchor.z + right.z * px;
+            lmode[i] = 2;
+            llife[i] = 1.1 + Math.random() * 0.5;
+            col.setHex(LETTER_COLORS[(Math.random() * LETTER_COLORS.length) | 0]);
+            lcol[j] = col.r; lcol[j + 1] = col.g; lcol[j + 2] = col.b;
+          }
+        }
       }
-      ccolAttr.needsUpdate = true;
-      csizeAttr.needsUpdate = true;
+      lcolAttr.needsUpdate = true;
     },
     get live() { return clive; },
+    get liveLetters() { return llive; },
   };
   function updateConfetti(dt) {
     if (!clive) return;
-    const damp = Math.max(0, 1 - dt * 1.6), home = 1 - Math.exp(-dt * 5);
+    const damp = Math.max(0, 1 - dt * 1.6);
     for (let i = 0; i < N; i++) {
-      const md = cmode[i];
-      if (!md) continue;
+      if (!cmode[i]) continue;
       const j = i * 3;
       clife[i] -= dt;
-      if (md === 1 || md === 4) {
-        cvel[j + 1] -= (md === 1 ? 9 : 2) * dt;
-        if (md === 4) cvel[j + 1] = Math.max(cvel[j + 1], -2.2);
-        cvel[j] *= damp; cvel[j + 2] *= damp;
-        cpos[j] += cvel[j] * dt + (md === 4 ? Math.sin(clife[i] * 6 + i) * 0.6 * dt : 0);
-        cpos[j + 1] += cvel[j + 1] * dt;
-        cpos[j + 2] += cvel[j + 2] * dt;
-        if (clife[i] <= 0) { cmode[i] = 0; cpos[j + 1] = -1000; clive -= 1; }
-      } else if (md === 2) {
-        cpos[j] += (cgoal[j] - cpos[j]) * home; cpos[j + 1] += (cgoal[j + 1] - cpos[j + 1]) * home; cpos[j + 2] += (cgoal[j + 2] - cpos[j + 2]) * home;
-        if (clife[i] <= 0) { cmode[i] = 3; clife[i] = 5; cpos[j] = cgoal[j]; cpos[j + 1] = cgoal[j + 1]; cpos[j + 2] = cgoal[j + 2]; }
-      } else if (md === 3) {
-        cpos[j + 1] = cgoal[j + 1] + Math.sin(clife[i] * 3 + i) * 0.04;
-        if (clife[i] <= 0) {
-          cmode[i] = 4;
-          clife[i] = 3 + Math.random();
-          cvel[j] = (Math.random() - 0.5) * 0.6; cvel[j + 1] = -0.5; cvel[j + 2] = (Math.random() - 0.5) * 0.6;
-        }
-      }
+      cvel[j + 1] -= 9 * dt;
+      cvel[j] *= damp; cvel[j + 2] *= damp;
+      cpos[j] += cvel[j] * dt;
+      cpos[j + 1] += cvel[j + 1] * dt;
+      cpos[j + 2] += cvel[j + 2] * dt;
+      if (clife[i] <= 0) { cmode[i] = 0; cpos[j + 1] = -1000; clive -= 1; }
     }
     cposAttr.needsUpdate = true;
+  }
+  function updateLetters(dt) {
+    if (!llive) return;
+    const home = 1 - Math.exp(-dt * 5);
+    for (let i = 0; i < LN; i++) {
+      const md = lmode[i];
+      if (!md) continue;
+      const j = i * 3;
+      llife[i] -= dt;
+      if (md === 2) {
+        lpos[j] += (lgoal[j] - lpos[j]) * home; lpos[j + 1] += (lgoal[j + 1] - lpos[j + 1]) * home; lpos[j + 2] += (lgoal[j + 2] - lpos[j + 2]) * home;
+        if (llife[i] <= 0) { lmode[i] = 3; llife[i] = 5; lpos[j] = lgoal[j]; lpos[j + 1] = lgoal[j + 1]; lpos[j + 2] = lgoal[j + 2]; }
+      } else if (md === 3) {
+        lpos[j + 1] = lgoal[j + 1] + Math.sin(llife[i] * 3 + i) * 0.04;
+        if (llife[i] <= 0) {
+          lmode[i] = 4;
+          llife[i] = 3 + Math.random();
+          lvel[j] = (Math.random() - 0.5) * 0.6; lvel[j + 1] = -0.5; lvel[j + 2] = (Math.random() - 0.5) * 0.6;
+        }
+      } else if (md === 4) {
+        lvel[j + 1] = Math.max(lvel[j + 1] - 2 * dt, -2.2);
+        lpos[j] += lvel[j] * dt + Math.sin(llife[i] * 6 + i) * 0.6 * dt;
+        lpos[j + 1] += lvel[j + 1] * dt;
+        lpos[j + 2] += lvel[j + 2] * dt;
+        if (llife[i] <= 0) { lmode[i] = 0; lpos[j + 1] = -1000; llive -= 1; }
+      }
+    }
+    lposAttr.needsUpdate = true;
   }
 
   // ---- lines (launcher, batclaw) and the remote batarang trail ----
@@ -554,6 +623,7 @@ export function createGadgetFx(scene) {
       updateSmoke(dt);
       updateIce(dt);
       updateConfetti(dt);
+      updateLetters(dt);
       updateDebris(dt);
     },
   };
