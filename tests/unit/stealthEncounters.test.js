@@ -3,6 +3,7 @@ import { createEncounters } from '../../src/game/encounters.js';
 import { createEvents } from '../../src/core/events.js';
 import { stealthFight } from '../../src/stealth/stealthRooms.js';
 import { SITES } from '../../src/world/mapData.js';
+import { FIGHTS } from '../../src/game/fights.js';
 
 function setup() {
   const events = createEvents();
@@ -66,6 +67,43 @@ describe('stealth encounters', () => {
     for (const e of spawned) e.alive = false;
     enc.update(0.016, heroAt(far));
     expect(done).toEqual(['monarchBalcony']);
+  });
+  it('a fight won straight into a room keeps its bodies (and in combat) until cleanupBodies', () => {
+    const events = createEvents();
+    const spawned = [];
+    const spawn = (type, p) => {
+      const e = { type, pos: { ...p }, alive: true, aware: false, gone: false, wake() { this.aware = true; } };
+      spawned.push(e);
+      return e;
+    };
+    const combat = { list: [], setEnemies(l) { this.list = l; } };
+    const enc = createEncounters({ spawn, despawn: (e) => { e.gone = true; }, combat, events, collision: { groundBelow: (x, y) => y - 3 }, stealth: { begin() {}, end() {} } });
+    // flow.js: the last KO's fightDone enters the next step, which begins the room in the same frame.
+    events.on('fightDone', () => enc.begin('monarchBalcony', stealthFight('monarchBalcony')));
+    enc.begin('monarch');
+    const n3 = [...spawned];
+    enc.update(0.016, heroAt(SITES[FIGHTS.monarch.site]));
+    for (let w = 0; w < FIGHTS.monarch.waves.length; w++) {
+      for (const e of enc.enemies) e.alive = false;
+      enc.update(0.016, heroAt(SITES[FIGHTS.monarch.site]));
+      enc.update(1.5, heroAt(SITES[FIGHTS.monarch.site]));
+    }
+    expect(enc.id).toBe('monarchBalcony');
+    const fallen = spawned.filter((e) => !e.alive);
+    expect(fallen.length).toBeGreaterThanOrEqual(n3.length);
+    expect(fallen.every((e) => !e.gone)).toBe(true);
+    for (const e of fallen) expect(combat.list).toContain(e);
+    // A room goon taken down before the fight before's 5 s timer runs out stays down where it fell.
+    const room = enc.enemies;
+    enc.update(0.016, heroAt(SITES.monarchBalcony));
+    room[0].alive = false;
+    enc.update(0.016, heroAt(SITES.monarchBalcony));
+    enc.cleanupBodies();
+    expect(fallen.every((e) => e.gone)).toBe(true);
+    expect(room[0].gone).toBe(false);
+    // A restart mid-room still clears the room's own bodies.
+    enc.restart();
+    expect(room.every((e) => e.gone)).toBe(true);
   });
   it('story fights still wake everyone and never touch the stealth runtime', () => {
     const { enc, spawned, stealth } = setup();

@@ -12,6 +12,10 @@ export function createEncounters({ spawn, despawn, combat, events, collision, st
   let wave = 0;
   let live = [];
   let dead = [];
+  // Bodies of a fight already won, still in the scene: a finishing blow's slow-motion shot may be
+  // flying one of them when the next fight begins straight away (n3 into the balcony room, a3 into
+  // the catwalks). cleanupBodies() removes them on its normal timer, not begin().
+  let lingering = [];
   let triggered = false;
   let nextWaveT = 0;
 
@@ -24,16 +28,22 @@ export function createEncounters({ spawn, despawn, combat, events, collision, st
       return spawn(type, { x, y: y > -Infinity ? y : wy ?? site.y, z }, site);
     });
     live.push(...made);
-    combat.setEnemies([...live]);
+    publish();
     if (awake) for (const e of made) e.wake();
     return made;
   }
 
-  function clear() {
+  // Combat updates (and draws) every goon in its list, so bodies stay in it until despawned.
+  function publish() { combat.setEnemies([...live, ...dead, ...lingering]); }
+
+  // `keepWon`: the fight before was already won (fight is null), so its bodies linger instead.
+  function clear({ keepWon = false } = {}) {
     stealth?.end();
+    if (keepWon && !fight) { lingering.push(...dead); dead = []; }
     for (const e of [...live, ...dead]) despawn(e);
     live = []; dead = [];
-    combat.setEnemies([]);
+    if (!keepWon) { for (const e of lingering) despawn(e); lingering = []; }
+    publish();
   }
 
   return {
@@ -43,7 +53,7 @@ export function createEncounters({ spawn, despawn, combat, events, collision, st
     // Sets up a fight: goons wait at their spots until the hero shows up. `fightDef` defaults to
     // the story fight of that id; side content passes its own ({ site: key or {x,y,z}, radius, waves }).
     begin(fightId, fightDef = FIGHTS[fightId]) {
-      clear();
+      clear({ keepWon: true });
       id = fightId;
       def = fightDef;
       fight = fightDef;
@@ -79,7 +89,7 @@ export function createEncounters({ spawn, despawn, combat, events, collision, st
       for (const e of live) if (!e.alive) dead.push(e);
       const before = live.length;
       live = live.filter((e) => e.alive);
-      if (live.length !== before) combat.setEnemies([...live, ...dead]);
+      if (live.length !== before) publish();
       if (live.length === 0) {
         if (wave + 1 < fight.waves.length) {
           nextWaveT += dt;
@@ -87,7 +97,6 @@ export function createEncounters({ spawn, despawn, combat, events, collision, st
             nextWaveT = 0;
             wave += 1;
             const made = placeWave(wave, true);
-            combat.setEnemies([...live, ...dead]);
             events.emit('wave', { id, wave, count: made.length });
           }
         } else {
@@ -101,6 +110,12 @@ export function createEncounters({ spawn, despawn, combat, events, collision, st
         }
       }
     },
-    cleanupBodies() { for (const e of dead) despawn(e); dead = []; },
+    // Removes the bodies of fights already won. A fight still running keeps its own bodies, so the
+    // 5 s timer from the fight before cannot take away a room goon knocked out in the first 5 s.
+    cleanupBodies() {
+      for (const e of lingering) despawn(e);
+      lingering = [];
+      if (!fight) { for (const e of dead) despawn(e); dead = []; }
+    },
   };
 }
