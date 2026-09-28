@@ -2,47 +2,7 @@
 // Same approach as src/actors/kicks.js: bone axes are discovered numerically so the
 // clips don't depend on the rig's conventions.
 import * as THREE from 'three';
-
-function samplePose(model, clip, t = 0) {
-  const mixer = new THREE.AnimationMixer(model);
-  const action = mixer.clipAction(clip);
-  action.play();
-  mixer.setTime(t);
-  model.updateMatrixWorld(true);
-  const pose = new Map();
-  model.traverse((o) => { if (o.isBone) pose.set(o.name, o.quaternion.clone()); });
-  return { pose, dispose: () => { action.stop(); mixer.uncacheRoot(model); } };
-}
-
-// Local axis (and sign) that swings `bone` so that `child` moves toward `dir` (model space).
-function axisToward(model, bone, child, dir) {
-  const base = model.worldToLocal(child.getWorldPosition(new THREE.Vector3()));
-  const q0 = bone.quaternion.clone();
-  let best = null, bestGain = -Infinity;
-  for (const axis of [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)]) {
-    for (const sign of [1, -1]) {
-      bone.quaternion.copy(q0).multiply(new THREE.Quaternion().setFromAxisAngle(axis, 0.3 * sign));
-      model.updateMatrixWorld(true);
-      const p = model.worldToLocal(child.getWorldPosition(new THREE.Vector3()));
-      const gain = p.sub(base).dot(dir);
-      if (gain > bestGain) { bestGain = gain; best = axis.clone().multiplyScalar(sign); }
-    }
-  }
-  bone.quaternion.copy(q0);
-  model.updateMatrixWorld(true);
-  return best;
-}
-
-function track(name, rest, axis, keys) {
-  const times = [], values = [];
-  const q = new THREE.Quaternion();
-  for (const [t, angle] of keys) {
-    q.copy(rest).multiply(new THREE.Quaternion().setFromAxisAngle(axis, angle));
-    times.push(t);
-    values.push(q.x, q.y, q.z, q.w);
-  }
-  return new THREE.QuaternionKeyframeTrack(`${name}.quaternion`, times, values);
-}
+import { samplePose, axisToward, track } from './rigTools.js';
 
 export function buildClimbClips(model, clips, fwd = 1) {
   const idle = clips.get('Idle_Loop');
@@ -65,13 +25,14 @@ export function buildClimbClips(model, clips, fwd = 1) {
   const r = (n) => pose.get(n);
   const T = (n, a, k) => track(n, r(n), ax[a], k);
   const clip = (name, dur, tracks) => new THREE.AnimationClip(name, dur, tracks);
-  // elbowR's axis needs an offset: on this rig, angle 0 (the idle rest bend, meant for a
-  // hanging arm) is nowhere near straight once armUpR has swung the upper arm overhead.
-  // -0.76 rad is the constant that keeps lowerarm_r in line with upperarm_r at any armUpR
-  // angle (verified numerically), so every elbowR keyframe below is the original design
-  // value (0 = straight-ish, higher = bent for a pulling grip) shifted by -0.76 to recenter
-  // on that true "straight" pose. elbowL didn't need this: its rest bend already reads close
-  // to straight when the arm is raised, so those keyframes are unshifted.
+  // elbowR's angle 0 is the Idle_Loop rest pose, where the right elbow already sits bent by
+  // about 0.76 rad; -0.76 straightens it out. Colinearity of forearm and upper arm depends only
+  // on lowerarm_r's own local rotation, so this offset is independent of armUpR -- that's why
+  // the same constant straightens the arm at every armUpR angle (verified numerically against
+  // the rig). Every elbowR keyframe below is the original design value (0 = straight-ish,
+  // higher = bent for a pulling grip) shifted by -0.76 to recenter on that true "straight" pose.
+  // elbowL didn't need this: its rest bend already reads close to straight when the arm is
+  // raised, so those keyframes are unshifted.
 
   // Hand over hand: opposite arm and leg reach together. 1 s = two rungs.
   const climb = clip('Ladder_Climb', 1, [
