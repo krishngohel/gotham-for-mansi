@@ -216,7 +216,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
 
     // ---- HUD reactions ----
     events.on('impact', ({ pos, outcome }) => fx.impact(pos, outcome === 'hit' ? 0.7 : 1.1));
-    events.on('word', ({ text, pos }) => { const p = toScreen(pos); if (!p.behind) hud.sfx(text, p.x, p.y); });
+    events.on('word', ({ text, pos, big }) => { const p = toScreen(pos); if (!p.behind) hud.sfx(text, p.x, p.y, big); });
+    events.on('critical', () => hud.critical());
     events.on('heroHurt', ({ damage }) => { hud.damage(damage); hud.setHealth(hero.health / hero.maxHealth); });
     const HINTS = {
       parried: () => `Knife goons parry punches. ${key('kick')} kick or ${key('cape')} cape-stun them first.`,
@@ -231,9 +232,9 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     events.on('blocked', ({ outcome, target }) => hud.hint((target?.type === 'joker' ? HINTS.joker : HINTS[outcome])(), 3500));
     events.on('hint', ({ id }) => HINTS[id] && hud.hint(HINTS[id](), 3000));
     events.on('bossStaggered', () => hud.hint(HINTS.finish(), 3500));
-    const PROMPT_DONE = { glideStart: 'glide', grapple: 'grapple', grappleBoost: 'grappleBoost', counter: 'counter', cape: 'cape', batarangThrow: 'batarang', dodge: 'dodge', special: 'special', jumpKick: 'kick' };
+    const PROMPT_DONE = { throwRelease: 'throw', slam: 'slam', glideStart: 'glide', grapple: 'grapple', grappleBoost: 'grappleBoost', counter: 'counter', cape: 'cape', batarangThrow: 'batarang', dodge: 'dodge', special: 'special', jumpKick: 'kick' };
     for (const [ev, id] of Object.entries(PROMPT_DONE)) events.on(ev, () => prompts.done(id));
-    events.on('swing', ({ kind }) => prompts.done(kind === 'kick' ? 'kick' : 'punch'));
+    events.on('swing', ({ kind, finisher }) => { prompts.done(kind === 'kick' ? 'kick' : 'punch'); if (finisher) prompts.done('finisher'); });
     events.on('step', ({ step }) => { if (step.id === 'toDocks') setTimeout(() => prompts.show(['detective', 'balloons']), 30000); });
 
     const sound = wireAudio({ audio, events, hero, combat, flow, settings, voice });

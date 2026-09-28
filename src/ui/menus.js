@@ -5,7 +5,7 @@ import MANSI from '../mansi.config.js';
 
 const PAD_LAYOUT = [
   ['Move / camera', 'Left stick / right stick'], ['Jump, glide', 'A'], ['Punch', 'X'], ['Kick', 'B'], ['Block, counter', 'Y'],
-  ['Grapple', 'LB'], ['Cape stun', 'RB'], ['Dodge', 'LT'], ['Batarang', 'RT'], ['Sprint', 'L3'], ['Special takedown', 'R3'],
+  ['Grab and throw', 'D-pad right'], ['Grapple', 'LB'], ['Cape stun', 'RB'], ['Dodge', 'LT'], ['Batarang', 'RT'], ['Sprint', 'L3'], ['Special takedown', 'R3'],
   ['Detective vision', 'View'], ['Pause', 'Menu'],
 ];
 
@@ -181,6 +181,7 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
       body.appendChild(toggle('Invert Y', settings.invertY, (v) => { settings.invertY = v; }));
       body.appendChild(slider('Field of view', settings.fov, 50, 90, 1, (v) => { settings.fov = v; }, (v) => `${v}°`));
       body.appendChild(toggle('Camera shake', settings.cameraShake, (v) => { settings.cameraShake = v; }));
+      body.appendChild(toggle('Action camera on critical hits', settings.actionCam, (v) => { settings.actionCam = v; }));
     } else if (tab === 'video') {
       body.appendChild(choice('Quality', settings.quality, [['high', 'High'], ['low', 'Low']], (v) => { settings.quality = v; }));
       body.appendChild(el('p', 'note', 'Quality changes apply the next time the game loads.'));

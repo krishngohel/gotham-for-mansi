@@ -3,7 +3,7 @@
 
 const PAD_BUTTONS = {
   jump: [0], kick: [1], punch: [2], block: [3], grapple: [4], cape: [5], dodge: [6], batarang: [7],
-  detective: [8], pause: [9], sprint: [10], special: [11], help: [13],
+  detective: [8], pause: [9], sprint: [10], special: [11], help: [13], throw: [15],
 };
 const DEADZONE = 0.18;
 

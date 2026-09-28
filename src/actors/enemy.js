@@ -21,6 +21,7 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
     attackKind: null, windupDur: 0.6, hitDone: false,
     lungeFrom: new THREE.Vector3(), lungeTo: new THREE.Vector3(), chargeDir: new THREE.Vector3(),
     knock: new THREE.Vector3(),
+    vel: new THREE.Vector3(), air: false, airFrom: 0, thrown: false,
     idlePose: rng.pick(IDLE_POSES),
     glyph: null,
     radius: 0.42 * scale,
@@ -70,8 +71,18 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
     faceHero(hero, 0, 0);
   };
 
+  // Sends the goon flying (knockdown launches, throws, juggles).
+  e.launch = (vx, vy, vz, { thrown = false } = {}) => {
+    if (!e.air) e.airFrom = pos.y;
+    e.air = true;
+    e.thrown = thrown;
+    e.vel.set(vx, vy, vz);
+    e.knock.set(0, 0, 0);
+  };
+
   // Called by the combat system with the result of resolveHit.
-  e.applyHit = (result, from, { power = 1 } = {}) => {
+  // launch: vertical launch speed for knockdowns/KOs (0 = slide along the ground).
+  e.applyHit = (result, from, { power = 1, launch = 0 } = {}) => {
     if (!e.alive) return;
     const wasWindup = e.state === 'windup' || e.state === 'attack';
     e.glyph = null;
@@ -80,6 +91,8 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
       case 'hit':
         setState('hit');
         e.knock.copy(tmp).multiplyScalar(2.2 * power);
+        if (e.air) { e.vel.y = Math.max(e.vel.y, 4.5); e.vel.x = tmp.x * 2; e.vel.z = tmp.z * 2; }
+        else if (launch) e.launch(tmp.x * 2.5 * power, launch, tmp.z * 2.5 * power);
         play(rng.chance(0.5) ? 'Hit_Chest' : 'Hit_Head', { once: true, timeScale: 1.4, fade: 0.05 });
         if (result.stun) { e.stunned = true; e.stunT = result.stun; }
         break;
@@ -88,6 +101,7 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
         e.down = true;
         e.downT = 2.6;
         e.knock.copy(tmp).multiplyScalar(4.5 * power);
+        if (launch || e.air) e.launch(tmp.x * 4.5 * power, Math.max(launch, e.air ? 5 : 0), tmp.z * 4.5 * power);
         play('Hit_Knockback', { once: true, timeScale: 1.2, fade: 0.05 });
         break;
       case 'ko':
@@ -95,6 +109,7 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
         e.alive = false;
         e.down = true;
         e.knock.copy(tmp).multiplyScalar(3.5 * power);
+        if (launch || e.air) e.launch(tmp.x * 4 * power, Math.max(launch, e.air ? 4 : 0), tmp.z * 4 * power);
         play(rng.chance(0.5) ? 'Death01' : 'Hit_Knockback', { once: true, timeScale: 1.1, fade: 0.05 });
         break;
       case 'stun':
@@ -128,6 +143,7 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
     let speed = 0;
     let moveX = 0, moveZ = 0;
 
+    if (e.state === 'grabbed') { ch.animator.update(dt); return; }
     switch (e.state) {
       case 'idle':
         play(e.idlePose, { fade: 0.3 });
@@ -210,6 +226,30 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
         break;
     }
 
+    if (e.air) {
+      // Ballistic flight: gravity, walls, landing. Thrown goons bowl over whoever they hit.
+      e.vel.y -= 24 * dt;
+      pos.addScaledVector(e.vel, dt);
+      const r = collision.resolveCylinder(pos, e.radius, 1.8 * scale, { stepUp: 0.45 });
+      if (r.grounded && e.vel.y > 0) pos.y = Math.max(pos.y, r.groundY);
+      if (r.hitWall) { e.vel.x *= -0.25; e.vel.z *= -0.25; }
+      if (e.thrown) ctx.onThrownFly?.(e);
+      const ground = collision.groundBelow(pos.x, pos.y + 0.4, pos.z, 0.3);
+      if (e.vel.y <= 0 && ground > -Infinity && pos.y <= ground) {
+        pos.y = ground;
+        const drop = e.airFrom - ground;
+        e.air = false;
+        e.thrown = false;
+        e.vel.set(0, 0, 0);
+        ctx.onLanded?.(e, drop);
+        if (e.alive && e.state !== 'ko') { e.down = true; e.downT = Math.max(e.downT, 1.6); setState('down'); }
+      } else if (ground === -Infinity && pos.y < -5) {
+        pos.y = -5; e.air = false; e.alive = false; e.state = 'ko';
+      }
+      ch.animator.update(dt);
+      return;
+    }
+
     // Knockback slide.
     if (e.knock.lengthSq() > 0.0001) {
       pos.addScaledVector(e.knock, dt);
@@ -228,7 +268,9 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
       if (dist < 0.9 && e.state !== 'attack') { pos.x -= (dx / (dist || 1)) * (0.9 - dist); pos.z -= (dz / (dist || 1)) * (0.9 - dist); }
     }
     const r = collision.resolveCylinder(pos, e.radius, 1.8 * scale);
-    if (r.groundY > -Infinity) pos.y = r.groundY;
+    // Walked or slid off an edge: fall instead of teleporting down.
+    if (r.groundY < pos.y - 0.6) e.launch(e.knock.x * 0.5, 0, e.knock.z * 0.5);
+    else if (r.groundY > -Infinity) pos.y = r.groundY;
     ch.animator.update(dt);
   };
 

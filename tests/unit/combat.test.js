@@ -153,3 +153,27 @@ describe('director', () => {
     expect(d.tick(0.1, [{ id: 'a', ready: false }])).toEqual([]);
   });
 });
+
+describe('new moves', () => {
+  it('heavy and spin kick finishers knock down and hit hard', () => {
+    const g = foe('grunt');
+    expect(resolveHit('heavy', g).outcome).toBe('knockdown');
+    expect(g.health).toBe(ENEMY.grunt.health - 2);
+    const g2 = foe('grunt');
+    expect(resolveHit('spinKick', g2).outcome).toBe('knockdown');
+    expect(g2.health).toBe(ENEMY.grunt.health - 3);
+  });
+  it('spin kicks break a knife guard, heavy punches do not', () => {
+    expect(resolveHit('heavy', foe('knife')).outcome).toBe('parried');
+    expect(resolveHit('spinKick', foe('knife')).outcome).not.toBe('parried');
+  });
+  it('slam knocks everyone down and throws cannot pick up a brute', () => {
+    expect(resolveHit('slam', foe('grunt')).outcome).toBe('knockdown');
+    expect(resolveHit('throw', foe('brute')).outcome).toBe('immune');
+    expect(resolveHit('throw', foe('knife')).outcome).toBe('knockdown');
+    expect(resolveHit('thrownInto', foe('grunt')).outcome).toBe('knockdown');
+  });
+  it('the Joker cannot be thrown', () => {
+    expect(resolveHit('throw', foe('joker', { health: 30 })).outcome).toBe('immune');
+  });
+});

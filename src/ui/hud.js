@@ -26,7 +26,8 @@ export function createHud(root) {
     <div class="hud-card"><div class="card-title"></div><div class="card-text"></div></div>
     <div class="hud-boss"><div class="boss-name">THE JOKER</div><div class="boss-track"><div class="boss-fill"></div></div></div>
     <div class="hud-speech"></div>
-    <div class="hud-flash"></div>`;
+    <div class="hud-flash"></div>
+    <div class="hud-speed"></div>`;
   root.appendChild(el);
   const combo = el.querySelector('.hud-combo');
   const comboN = combo.querySelector('.n');
@@ -37,6 +38,7 @@ export function createHud(root) {
   const glyphs = new Map();
   const hintEl = el.querySelector('.hud-hint');
   const flashEl = el.querySelector('.hud-flash');
+  const speedEl = el.querySelector('.hud-speed');
   let hintTimer = null;
   const cardEl = el.querySelector('.hud-card');
   const bossEl = el.querySelector('.hud-boss');
@@ -116,9 +118,15 @@ export function createHud(root) {
       speechEl.style.top = `${y}px`;
       speechEl.style.visibility = visible ? 'visible' : 'hidden';
     },
-    sfx(word, x, y) {
+    // Comic speed lines burst on a critical hit.
+    critical() {
+      speedEl.classList.remove('on');
+      void speedEl.offsetWidth;
+      speedEl.classList.add('on');
+    },
+    sfx(word, x, y, big = false) {
       const s = document.createElement('div');
-      s.className = 'sfx';
+      s.className = big ? 'sfx big' : 'sfx';
       s.textContent = word;
       s.style.left = `${x}px`;
       s.style.top = `${y}px`;

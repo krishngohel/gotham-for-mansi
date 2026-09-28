@@ -26,6 +26,11 @@ export function wireAudio({ audio, events, hero, combat, flow, voice = null, set
   on('batarangHit', () => audio.play('batarangHit'));
   on('dodge', () => audio.play('roll'));
   on('special', () => audio.play('takedown'));
+  on('critical', () => { audio.play('heavy', { gain: 1.1, pitch: 0.8 }); audio.play('takedown', { gain: 0.6 }); });
+  on('grab', () => audio.play('cape', { pitch: 0.8 }));
+  on('throwRelease', () => audio.play('whoosh', { gain: 0.9, pitch: 0.7 }));
+  on('slamStart', () => audio.play('whoosh', { gain: 0.7, pitch: 0.6 }));
+  on('slam', () => { audio.play('land'); audio.play('heavy', { pitch: 0.7 }); });
   on('counter', () => audio.play('counter'));
   on('impact', ({ move, outcome }) => {
     if (outcome === 'parried' || outcome === 'immune') { audio.play('block', { pitch: outcome === 'immune' ? 0.7 : 1.1 }); return; }

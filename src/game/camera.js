@@ -13,7 +13,7 @@ const MODES = {
 export function createFollowCamera(camera, collision) {
   const s = {
     yaw: 0, pitch: 0.22, dist: 4.2, height: 1.55, side: 0.55, fovKick: 0,
-    pivot: new THREE.Vector3(), shake: 0, baseFov: 60, sensitivity: 1, invertY: false, shakeEnabled: true,
+    pivot: new THREE.Vector3(), shake: 0, baseFov: 60, sensitivity: 1, invertY: false, shakeEnabled: true, actionEnabled: true,
     mode: 'ground',
   };
   const tmp = new THREE.Vector3();
@@ -21,17 +21,36 @@ export function createFollowCamera(camera, collision) {
   const lookAt = new THREE.Vector3();
   const dir = new THREE.Vector3();
   let first = true;
+  const action = { active: false, t: 0, dur: 1, focus: new THREE.Vector3(), pos: new THREE.Vector3(), roll: 0 };
+  const blendPos = new THREE.Vector3(), blendLook = new THREE.Vector3(), toAction = new THREE.Vector3();
 
   return {
     state: s,
-    configure({ fov, sensitivity, invertY, cameraShake }) {
-      s.baseFov = fov; s.sensitivity = sensitivity; s.invertY = invertY; s.shakeEnabled = cameraShake;
+    configure({ fov, sensitivity, invertY, cameraShake, actionCam = true }) {
+      s.baseFov = fov; s.sensitivity = sensitivity; s.invertY = invertY; s.shakeEnabled = cameraShake; s.actionEnabled = actionCam;
     },
     addShake(amount) { if (s.shakeEnabled) s.shake = Math.max(s.shake, amount); },
     forward(out = new THREE.Vector3()) { return out.set(Math.sin(s.yaw), 0, Math.cos(s.yaw)); },
     right(out = new THREE.Vector3()) { return out.set(-Math.cos(s.yaw), 0, Math.sin(s.yaw)); },
     lookDir(out = new THREE.Vector3()) { return camera.getWorldDirection(out); },
     snapBehind(yaw, pitch = 0.22) { s.yaw = yaw; s.pitch = pitch; first = true; },
+    // Action shot for critical hits: the camera swings low and to the side of the blow,
+    // tilts like a comic panel, then eases back. Player control of the orbit is untouched.
+    actionShot(focus, attacker, duration = 0.9) {
+      if (!s.actionEnabled) return;
+      const dx = focus.x - attacker.x, dz = focus.z - attacker.z;
+      const len = Math.hypot(dx, dz) || 1;
+      // Pick the side of the attack line that's closer to where the camera already is.
+      const px = -dz / len, pz = dx / len;
+      const side = (camera.position.x - focus.x) * px + (camera.position.z - focus.z) * pz >= 0 ? 1 : -1;
+      action.t = 0;
+      action.dur = duration;
+      action.focus.copy(focus).lerp(attacker, 0.35);
+      action.focus.y = focus.y - 0.2;
+      action.pos.set(action.focus.x + px * side * 3.2 - (dx / len) * 1.2, focus.y - 0.55, action.focus.z + pz * side * 3.2 - (dz / len) * 1.2);
+      action.roll = side * 0.16;
+      action.active = true;
+    },
     update(dt, focus, look, mode = 'ground', speed = 0) {
       const m = MODES[mode] ?? MODES.ground;
       s.mode = mode;
@@ -78,6 +97,32 @@ export function createFollowCamera(camera, collision) {
       }
       // Looking up tilts the view toward the rooftops instead of only lowering the camera.
       lookAt.y += Math.max(0, -s.pitch - 0.1) * 9;
+      camera.up.set(0, 1, 0);
+      if (action.active) {
+        action.t += dt;
+        const k = action.t / action.dur;
+        if (k >= 1) action.active = false;
+        else {
+          // Snap in fast, hold, ease out.
+          const w = k < 0.12 ? k / 0.12 : k > 0.7 ? 1 - (k - 0.7) / 0.3 : 1;
+          const e = w * w * (3 - 2 * w);
+          // Keep the action camera out of walls too.
+          toAction.subVectors(action.pos, action.focus);
+          const dist = toAction.length();
+          toAction.divideScalar(dist || 1);
+          const wall = collision.raycast(action.focus, toAction, dist);
+          const d = wall ? Math.max(0.8, wall.t - 0.3) : dist;
+          blendPos.copy(action.focus).addScaledVector(toAction, d);
+          blendPos.addScaledVector(toAction, k * 0.6);
+          camera.position.lerp(blendPos, e);
+          blendLook.copy(lookAt).lerp(action.focus, e);
+          camera.lookAt(blendLook);
+          camera.rotateZ(action.roll * e);
+          const fov = s.baseFov + s.fovKick - 12 * e;
+          if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = fov; camera.updateProjectionMatrix(); }
+          return;
+        }
+      }
       camera.lookAt(lookAt);
       const fov = s.baseFov + s.fovKick;
       if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = fov; camera.updateProjectionMatrix(); }

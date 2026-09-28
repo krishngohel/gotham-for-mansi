@@ -24,6 +24,12 @@ export const MOVES = {
   cape: { damage: 0, stun: 1.5, stunOnly: true },
   batarang: { damage: 0, stun: 1.2, stunOnly: true },
   special: { ko: true },
+  // Finishers and new attacks.
+  heavy: { damage: 2, knockdown: true },
+  spinKick: { damage: 3, knockdown: true, breaksGuard: true },
+  slam: { damage: 2, knockdown: true, breaksGuard: true },
+  throw: { damage: 1, knockdown: true, breaksGuard: true, noHeavy: true },
+  thrownInto: { damage: 1, knockdown: true, breaksGuard: true },
 };
 
 // How much of each attack a raised guard absorbs.
@@ -47,6 +53,8 @@ export function resolveHit(move, enemy) {
     return { outcome: 'ko', damage: 0, stun: 0 };
   }
   if (m.stunOnly) return { outcome: 'stun', damage: 0, stun: m.stun };
+  // Nobody picks up a brute, or the Joker.
+  if (m.noHeavy && (def.armored || def.boss)) return { outcome: 'immune', damage: 0, stun: 0 };
   if (def.armored && !enemy.stunned) return { outcome: 'immune', damage: 0, stun: 0 };
   if (def.parry && !enemy.stunned) {
     if (!m.breaksGuard) return { outcome: 'parried', damage: 0, stun: 0 };
