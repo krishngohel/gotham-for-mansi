@@ -5,6 +5,8 @@ import { PALETTE } from '../config/palette.js';
 import { LAYER_FX } from '../render/layers.js';
 import { createBat } from './characters.js';
 import { createCape } from './cape.js';
+import { ladderGrab, ladderTopGrab } from '../world/climbables.js';
+import { createLadderControl } from './traverse/ladder.js';
 
 const GRAVITY = 26;
 const JUMP_V = 9.4;
@@ -16,7 +18,7 @@ const GLIDE_G = 20;       // how hard gravity pulls along a dive
 const GLIDE_MAX = 48;     // m/s
 const GLIDE_CRUISE = 17;  // m/s
 
-export function createHero({ assets, suit, scene, collision, events }) {
+export function createHero({ assets, suit, scene, collision, events, climbables = { ladders: [], ziplines: [] } }) {
   const bat = createBat(assets, ['m', 'f', 'gold'].includes(suit) ? suit : 'm');
   scene.add(bat.root);
   const cape = createCape(bat, bat.colors.cape);
@@ -216,6 +218,17 @@ export function createHero({ assets, suit, scene, collision, events }) {
 
     const vy = vel.y;
     const r = integrate(dt);
+    // Ladders: walk into the foot, walk off the top toward one, or drift into one falling.
+    if (!h.control && h.lastClimbT > 0.4 && climbables.ladders.length) {
+      let g = null, fromTop = false;
+      if (h.state === 'ground' && mag > 0.3) {
+        g = ladderGrab(climbables.ladders, pos, { facingX: wish.x, facingZ: wish.z });
+        if (!g) { const top = ladderTopGrab(climbables.ladders, pos, wish.x, wish.z); if (top) { g = { ladder: top, y: top.top - 1 }; fromTop = true; } }
+      } else if ((h.state === 'air' || h.state === 'glide') && vel.y < 0) {
+        g = ladderGrab(climbables.ladders, pos, { reach: 0.55 });
+      }
+      if (g) { h.control = createLadderControl(h, { collision, events }, { ...g, fromTop }); return; }
+    }
     const wasGrounded = h.grounded;
     if (r.grounded && vy <= 0.01) {
       if (h.state === 'air' || h.state === 'glide') land(vy);
@@ -355,6 +368,7 @@ export function createHero({ assets, suit, scene, collision, events }) {
   };
 
   h.cameraMode = () => {
+    if (h.control?.camera) return h.control.camera;
     if (h.control?.name === 'grapple') return 'zip';
     if (h.state === 'glide') return 'glide';
     if (h.speed > 8.5 && h.state === 'ground') return 'sprint';

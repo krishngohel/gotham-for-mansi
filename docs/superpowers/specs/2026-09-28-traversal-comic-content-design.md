@@ -100,8 +100,10 @@ actions in this spec are Crouch (D2) and Photo mode (C3).
 
 ### B1. Ladders
 - **Where:** every fire escape gets a drop ladder from the street to the first landing and a roof
-  ladder from the top landing. Fire-escape landings become solid platforms, and their stairs become
-  step boxes you can walk. The ladders on water towers and dock cranes become climbable.
+  ladder from the top landing. Fire-escape landings become solid platforms; landings between them
+  are connected by short ladders at alternating ends instead of walkable stair step boxes (a
+  45-degree stair of step boxes jittered underfoot and blocked the landing, so the visual stairs
+  stay as scenery). The ladders on water towers and dock cranes become climbable.
 - **Getting on:** walk into the bottom of a ladder facing it, or walk off the top toward it. You
   also catch a ladder if you drift into it while falling.
 - **Controls:**

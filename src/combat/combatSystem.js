@@ -497,6 +497,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
     combo.damaged();
     punchChain = kickChain = 0;
     follow.addShake(blocking ? 0.08 : 0.2);
+    if (hero.control?.knockOff) { hero.control.knockOff(); hero.control = null; }
     events.emit('heroHurt', { kind, blocking, damage: dmg, from: e });
     if (hero.health <= 0) { killHero(); return; }
     if (blocking) { hero.control = stagger('Idle_Shield_Break', 0.28, 'blockStagger'); return; }
@@ -604,7 +605,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
       const ready = [];
       for (const e of enemies) {
         e.update(dt, ectx);
-        if (e.aware) ready.push({ id: e.id, ready: e.ready(hero) && !hero.dead });
+        if (e.aware) ready.push({ id: e.id, ready: e.ready(hero) && !hero.dead && hero.control?.name !== 'ladder' && hero.control?.name !== 'ledge' });
       }
       for (const id of director.tick(dt, ready)) {
         const e = enemies.find((x) => x.id === id);

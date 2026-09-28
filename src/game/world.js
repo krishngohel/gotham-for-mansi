@@ -90,6 +90,7 @@ export function createWorld(scene, quality) {
   return {
     collision,
     grapplePoints: ctx.grapple,
+    climbables: ctx.climbables,
     roofs: ctx.roofs,
     halos: ctx.halos,
     sky,

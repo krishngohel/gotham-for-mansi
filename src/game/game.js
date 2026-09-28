@@ -153,7 +153,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   }
 
   function buildRun(suit) {
-    const hero = createHero({ assets, suit, scene, collision: world.collision, events });
+    const hero = createHero({ assets, suit, scene, collision: world.collision, events, climbables: world.climbables });
     hero.teleport(SITES.start, Math.PI * 1.2);
     if (settings.difficulty === 'story') { hero.maxHealth = 150; hero.health = 150; }
     const follow = createFollowCamera(camera, world.collision);
@@ -345,7 +345,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       ]);
       for (const e of combat.enemies) e.wake();
     }
-    Object.assign(window.__game, api, { teleport: (site) => {
+    Object.assign(window.__game, api, { climbables: world.climbables, teleport: (site) => {
         const p = { ...(SITES[site] ?? site) };
         const g = world.collision.groundBelow(p.x, p.y + 4, p.z, 0.3);
         if (g > -Infinity) p.y = g;
