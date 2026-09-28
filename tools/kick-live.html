@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Kick preview</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #dfe3ea; color: #223; font: 13px/1.4 system-ui, sans-serif; overflow: hidden; }
+    #gl { display: block; width: 100vw; height: 100vh; }
+    #ui { position: fixed; top: 12px; left: 12px; background: rgba(255,255,255,0.85); border: 1px solid #b8bec8; border-radius: 6px; padding: 10px 12px; display: grid; gap: 8px; min-width: 260px; }
+    #ui label { display: flex; align-items: center; gap: 8px; }
+    #ui button { padding: 4px 10px; }
+    #ui button.on { background: #223; color: #fff; }
+    #status { font-family: monospace; white-space: pre; }
+  </style>
+</head>
+<body>
+  <canvas id="gl"></canvas>
+  <div id="ui">
+    <div><b>Clip</b> <button id="mocap" class="on">Mocap roundhouse</button> <button id="keyed">Hand-keyed roundhouse</button></div>
+    <div><b>Body</b> <button id="suit-m" class="on">Batman</button> <button id="suit-f">Batwoman</button></div>
+    <label>Speed <input id="speed" type="range" min="0.25" max="1.5" step="0.05" value="1"> <span id="speedv">1.00x</span></label>
+    <label><input id="orbit" type="checkbox" checked> Slow auto-orbit (drag to look, wheel to zoom)</label>
+    <label><input id="pause" type="checkbox"> Pause</label>
+    <div id="status">loading...</div>
+  </div>
+  <script type="module" src="./kick-live.js"></script>
+</body>
+</html>

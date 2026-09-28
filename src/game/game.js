@@ -69,7 +69,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   const world = createWorld(scene, quality);
   mark('world');
   const assets = await assetsPromise;
-  for (const c of buildKickClips(SkeletonUtils.clone(assets.bodies.m), assets.clips)) assets.clips.set(c.name, c);
+  // Code-authored kicks fill in only where no mocap clip of that name was loaded.
+  for (const c of buildKickClips(SkeletonUtils.clone(assets.bodies.m), assets.clips)) if (!assets.clips.has(c.name)) assets.clips.set(c.name, c);
   for (const c of buildClimbClips(SkeletonUtils.clone(assets.bodies.m), assets.clips)) assets.clips.set(c.name, c);
   mark('clips');
   onProgress(0.9);

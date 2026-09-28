@@ -7,12 +7,15 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { loadAssets } from '../src/actors/assets.js';
 import { createBat } from '../src/actors/characters.js';
 import { buildClimbClips } from '../src/actors/climbAnims.js';
+import { MOCAP_BEATS } from '../src/config/mocap.js';
 
 const params = new URLSearchParams(location.search);
 // ?kicks=<module path relative to this page> swaps in another kicks module (e.g. a copy of an
 // older version) for before/after comparisons.
 const kicksModule = params.get('kicks') || '../src/actors/kicks.js';
-const { buildKickClips, KICK_BEATS = {} } = await import(/* @vite-ignore */ kicksModule);
+const { buildKickClips, KICK_BEATS: KEYED_BEATS = {} } = await import(/* @vite-ignore */ kicksModule);
+// Contact frames: mocap clips override the code-authored ones; <name>_keyed keeps its own.
+const KICK_BEATS = { ...KEYED_BEATS, ...MOCAP_BEATS, ...Object.fromEntries(Object.entries(KEYED_BEATS).map(([k, v]) => [k + '_keyed', v])) };
 
 const CELL = { w: 190, h: 300 };
 const gl = document.getElementById('gl');
@@ -38,7 +41,11 @@ const grid = new THREE.GridHelper(4, 16, 0x9aa1ad, 0xb4bac6);
 scene.add(grid);
 
 const assets = await loadAssets('/assets/');
-for (const c of buildKickClips(SkeletonUtils.clone(assets.bodies.m), assets.clips)) assets.clips.set(c.name, c);
+// Like game.js, mocap clips win; the code-authored version stays reachable as <name>_keyed.
+for (const c of buildKickClips(SkeletonUtils.clone(assets.bodies.m), assets.clips)) {
+  assets.clips.set(c.name + '_keyed', c);
+  if (!assets.clips.has(c.name)) assets.clips.set(c.name, c);
+}
 for (const c of buildClimbClips(SkeletonUtils.clone(assets.bodies.m), assets.clips)) assets.clips.set(c.name, c);
 
 const bats = {};

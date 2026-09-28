@@ -5,13 +5,17 @@ import { selectTarget } from './targeting.js';
 import { createCombo } from './combo.js';
 import { createDirector } from './director.js';
 import { KICK_BEATS } from '../actors/kicks.js';
+import { MOCAP_BEATS, MOCAP_SPEED } from '../config/mocap.js';
 
 const PUNCHES = ['Punch_Jab', 'Punch_Cross', 'Punch_Jab'];
 // Regular kicks cycle through these; the chain finisher is the spinning heel kick.
-const KICKS = ['Kick_Front', 'Kick_Round', 'Kick_Side'];
-// Playback speed per kick clip; damage lands on the clip's contact frame at that speed.
-const KICK_SPEED = { Kick_Front: 1.25, Kick_Round: 1.2, Kick_Side: 1.2, Kick_Spin: 1.15, Knee_Strike: 1.6 };
-const kickContact = (clip, speed) => KICK_BEATS[clip].contact / speed;
+// Mocap test: every regular kick is the retargeted roundhouse for now.
+const KICKS = ['Kick_Round'];
+// Contact frame and playback speed per kick clip; mocap clips override the code-authored
+// ones of the same name. Damage lands on the clip's contact frame at that speed.
+const BEATS = { ...KICK_BEATS, ...MOCAP_BEATS };
+const KICK_SPEED = { Kick_Front: 1.25, Kick_Round: 1.2, Kick_Side: 1.2, Kick_Spin: 1.15, Knee_Strike: 1.6, ...MOCAP_SPEED };
+const kickContact = (clip, speed) => BEATS[clip].contact / speed;
 const WORDS = {
   counter: ['KRAK!', 'WHAM!'], kick: ['THWACK!', 'WHUMP!'], ko: ['POW!', 'BLAM!', 'KAPOW!'], special: ['THWAMP!'],
   dive: ['KRUNCH!'], heavy: ['KA-BOOM!', 'WHAMMO!'], spin: ['SWOOSH-THWACK!', 'KRAKOOM!'], slam: ['BADOOM!'], throw: ['WHEEE-CRASH!', 'YOINK!'],
@@ -132,7 +136,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
     else { clip = PUNCHES[(punchChain - 1 + PUNCHES.length) % PUNCHES.length]; speed = 1.8; }
     const spin = move === 'spinKick';
     // Authored kicks land damage on their clip's contact frame; the lunge finishes before it.
-    const kickClip = KICK_BEATS[clip];
+    const kickClip = BEATS[clip];
     const impactAt = kickClip ? kickContact(clip, speed) : lunge + (move === 'heavy' ? 0.2 : beatdown ? 0.06 : 0.11);
     if (kickClip) lunge = Math.min(lunge, impactAt - 0.03);
     const end = kickClip && !beatdown ? Math.min(kickClip.duration / speed, impactAt + 0.35)
@@ -318,7 +322,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
     critical(target, { slow: 0.8, scale: 0.28 });
     return {
       name: 'special', combat: true,
-      canChain: () => hit && t > 0.6,
+      canChain: () => hit && t > contact + 0.3,
       update(dt) {
         t += dt;
         moveHero(tmp.lerpVectors(from, to, Math.min(1, t / 0.12)), from.y);
@@ -326,7 +330,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
           hit = true;
           if (target.alive) landHit('special', target, { word: word('special'), power: 2.2, stopTime: 0.15, launch: 5 });
         }
-        return t > 0.75;
+        return t > Math.max(0.75, contact + 0.45);
       },
     };
   }
@@ -342,7 +346,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
     hero.cape.setWings(false);
     hero.bat.tilt.rotation.set(0, 0, 0);
     // Play the flying kick so its extension frame arrives exactly when the flight ends.
-    hero.bat.animator.play('Kick_Flying', { once: true, timeScale: THREE.MathUtils.clamp(KICK_BEATS.Kick_Flying.contact / dur, 0.7, 2.2), fade: 0.05 });
+    hero.bat.animator.play('Kick_Flying', { once: true, timeScale: THREE.MathUtils.clamp(BEATS.Kick_Flying.contact / dur, 0.7, 2.2), fade: 0.05 });
     events.emit(kind === 'diveBomb' ? 'diveBomb' : 'jumpKick');
     return {
       name: kind, combat: true,

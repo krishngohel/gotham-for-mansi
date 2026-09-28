@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { CLIP_SET } from '../../src/config/clips.js';
+import { MOCAP_CLIPS } from '../../src/config/mocap.js';
 
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
 const LEAN = ['JOINTS_0', 'NORMAL', 'POSITION', 'TEXCOORD_0', 'WEIGHTS_0'];
@@ -12,6 +13,24 @@ describe('built assets', () => {
     const clips = doc.getRoot().listAnimations().map((a) => a.getName()).sort();
     expect(clips).toEqual([...CLIP_SET[name]].sort());
     expect(doc.getRoot().listMeshes()).toHaveLength(0);
+  });
+
+  it('anims_mocap.glb holds the listed mocap clips on the game skeleton, no meshes', async () => {
+    const doc = await io.read('public/assets/anims_mocap.glb');
+    const clips = doc.getRoot().listAnimations().map((a) => a.getName()).sort();
+    expect(clips).toEqual([...MOCAP_CLIPS].sort());
+    expect(doc.getRoot().listMeshes()).toHaveLength(0);
+    const names = new Set(doc.getRoot().listNodes().map((n) => n.getName()));
+    for (const b of ['root', 'pelvis', 'spine_01', 'Head', 'thigh_r', 'ball_l', 'hand_r']) expect(names.has(b), b).toBe(true);
+    for (const anim of doc.getRoot().listAnimations()) {
+      const paths = new Set(anim.listChannels().map((c) => c.getTargetPath()));
+      expect(paths.has('scale')).toBe(false);
+      const t = anim.listChannels()[0].getSampler().getInput();
+      const dur = t.getMax([0])[0];
+      expect(dur).toBeGreaterThan(0.3);
+      expect(dur).toBeLessThan(3);
+      for (const c of anim.listChannels()) expect(Array.from(c.getSampler().getOutput().getArray()).some(Number.isNaN)).toBe(false);
+    }
   });
 
   it.each(['hero_m', 'hero_f'])('%s.glb is skinned with 65 joints and lean attributes', async (name) => {
