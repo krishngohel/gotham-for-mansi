@@ -11,8 +11,11 @@ The work ships in three parts, in this order:
 - **Part A. Comic city.** A stronger living-graphic-novel look across the whole city.
 - **Part B. Traversal.** Ladders, ledge grab and shimmy, ziplines, wall runs and the dive bomb.
 - **Part C. Content.** Challenges, street crimes, photo mode and a progress tracker.
+- **Part D. Predator stealth.** Armed goons, vision cones, perches and silent takedowns, plus
+  two stealth rooms added to the story.
 
-Part C depends on B, because the rooftop run needs the new moves. A and B don't depend on each other.
+Parts C and D both depend on B, because the rooftop run needs the new moves and the stealth rooms
+use perches and ledges. A and B don't depend on each other.
 
 ## Part A. Comic city
 
@@ -116,7 +119,8 @@ Ledges are detected on the fly from the collision boxes. No new keys are added.
   you snap to hang.
 - **Setting:** "Auto ledge grab", on by default.
 - **Controls:**
-  - Left and right shimmy along the edge and stop at the box corners (no turning corners).
+  - Left and right shimmy along the edge. At an outside corner of the box, holding the direction
+    wraps you around it onto the next face. At an inside corner, you stop.
   - Forward or Jump pulls up.
   - Back or Sprint drops.
   - Jump while holding back kicks off into a backflip.
@@ -156,12 +160,64 @@ Ledges are detected on the fly from the collision boxes. No new keys are added.
   critical hit for the action camera.
 - **Hitting a goon directly** during the dive is an instant knockdown.
 
-### B6. Animations, prompts and controls
+### B6. Ledge and drop takedowns
+- **Ledge takedown:** while hanging below a goon who stands within 1.5 m of the edge and hasn't
+  seen you, pressing Punch pulls them over the edge. It's an instant knockout.
+- **Drop takedown:** landing on a goon from a ladder, a ledge or a glide (not a dive bomb) is an
+  instant knockdown.
+- **Look:** both use an action-camera shot.
+
+### B7. Animations, prompts and controls
 - **New clips:** authored in code in `src/actors/climbAnims.js`, the same way `kicks.js` is:
-  `Ladder_Climb` (loop), `Ladder_Idle`, `Hang_Idle`, `Shimmy` (loop), `Zip_Hang`, `WallRun_Loop`
-  and `Dive`.
+  `Ladder_Climb` (loop), `Ladder_Idle`, `Hang_Idle`, `Shimmy` (loop), `Zip_Hang`, `WallRun_Loop`,
+  `Dive`, `Crouch_Sneak`, `Takedown_Choke` and `Ledge_Yank`.
 - **Prompts:** a first-time hint for each move (stored in `progress.hints`, like the others).
 - **Updated:** the help page, the controls list and the gamepad map.
+
+## Part D. Predator stealth
+
+This builds on B, because perches and ledges are the hiding spots.
+
+### D1. Armed goons and awareness
+- **The rifle goon.** A new enemy type, `rifle`, with a CC0 rifle prop. It can't be punched safely
+  head-on: it shoots in a readable windup with a red laser, taking 25 damage each time.
+- **Patrols.** Rifle goons patrol waypoint routes.
+- **Detection.** Each goon has a vision cone: 70 degrees and 25 m, shorter in shadow and while you
+  crouch. An awareness meter above the goon fills (white, then yellow for searching, then red for
+  hostile) and shows as a glyph.
+- **Searching.** A hostile goon shouts. The others go to your last known spot, and after 8 s
+  without seeing you they go back to searching, then to patrolling.
+- **Fear.** Each takedown makes the survivors more nervous: they move faster, stick together more,
+  and call out lines ("Where is it?!"). The lines are lettered as speech balloons.
+
+### D2. Stealth moves
+- **Crouch.** Hold Dodge while standing still to crouch (a separate action, "Crouch", default
+  `KeyZ`). In a crouch you're quiet and harder to see.
+- **Silent takedown.** Reach a goon from behind while they're unaware and press Punch. It's a
+  2-second takedown that makes noise if another goon is within 6 m.
+- **Gargoyle perches.** Grapple to a gargoyle to hang out of sight above the room. Goons don't look
+  up unless they're hostile.
+- **Perch drop.** From a gargoyle, press Kick over a goon to drop-knock them out.
+- **Ledge takedown** (from B6), used from the room's walkways.
+- **Distraction.** A batarang that hits a wall makes a noise that pulls goons within 12 m to
+  investigate.
+- **Escape.** Grappling to a perch while hostile breaks line of sight. The goons lose you after 8 s.
+
+### D3. Predator rooms in the story
+Two new story steps, with checkpoints:
+
+- **"Ace Chemicals Catwalks"** comes before the cake step. Four rifle goons patrol a vat hall that
+  has 4 gargoyles, catwalk ledges and a floor vent.
+- **"Monarch Balcony"** comes before the party step. Three rifle goons and one thug guard the
+  balcony level.
+
+Both use the existing encounter module, with a `stealth: true` flag. When all the goons are down,
+the step completes. If the player gets spotted, the room turns into a fight where rifles hurt a
+lot, but it can still be won, so nobody gets stuck.
+
+### D4. Detective vision in stealth rooms
+Goons show their state colour through walls (patrolling, searching, hostile), their vision cones as
+flat shapes on the floor, and a counter of armed goons.
 
 ## Part C. Content
 
@@ -233,7 +289,7 @@ Ledges are detected on the fly from the collision boxes. No new keys are added.
   | Balloons | found out of 12, with a "where" hint for the next one | 20% |
   | Challenges | medals out of 18 (6 challenges times 3 medals) | 20% |
   | Street crimes | stopped out of 10; any past 10 still count on the stats line | 10% |
-  | Moves learned | ladder, ledge, zipline, wall run, dive bomb, throw, slam, counter | 5% |
+  | Moves learned | ladder, ledge, zipline, wall run, dive bomb, throw, slam, counter, silent takedown, perch drop | 5% |
   | Districts visited | 5 | 5% |
 
 - **Map:** a small inked city map drawn from the district layout. It shows found balloons as
@@ -259,6 +315,7 @@ Ledges are detected on the fly from the collision boxes. No new keys are added.
   - challenge timing, scoring and ranks
   - the crime scheduler rules (spacing, never during blocked modes, one at a time)
   - the district palette snap
+  - the vision-cone and awareness maths, and patrol, search and hostile state changes
   - progress percentage weights and edge cases (empty save, finished save, crimes past 10)
 - **Scripted runs** (`dev-play` on a frozen production build): one per move with screenshots. Each
   challenge is completed by a scripted run. A street crime spawns, is fought and completes. Photo
@@ -269,8 +326,8 @@ Ledges are detected on the fly from the collision boxes. No new keys are added.
 
 ## Not included
 
-Predator stealth, climbing arbitrary walls, ledge takedowns, turning corners while shimmying, and
-online leaderboards.
+- Climbing arbitrary walls, because it would undercut the grapple and glide.
+- Online leaderboards, because GitHub Pages has no server.
 
 ## Constraints carried over
 
