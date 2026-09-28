@@ -70,6 +70,13 @@ function ring(ctx, key, x, z, w, d, y, hgt, over) {
   ctx.buckets.add(key, box(w + 2 * over, hgt, t, x, y, z + d / 2 + over - t / 2));
   ctx.buckets.add(key, box(t, hgt, d, x - w / 2 - over + t / 2, y, z));
   ctx.buckets.add(key, box(t, hgt, d, x + w / 2 + over - t / 2, y, z));
+  // Comic cast shadow: a flat black band under every cornice and belt course. It hangs from the
+  // ring's underside, 0.02 m proud of the wall, so the ink reads from the street.
+  const sh = 0.35, o = 0.02, by = y - hgt / 2 - sh / 2;
+  ctx.buckets.add('painted', box(w + o * 2, sh, 0.02, x, by, z - d / 2 - o), 0x0b0b12);
+  ctx.buckets.add('painted', box(w + o * 2, sh, 0.02, x, by, z + d / 2 + o), 0x0b0b12);
+  ctx.buckets.add('painted', box(0.02, sh, d + o * 2, x - w / 2 - o, by, z), 0x0b0b12);
+  ctx.buckets.add('painted', box(0.02, sh, d + o * 2, x + w / 2 + o, by, z), 0x0b0b12);
 }
 
 // Returns the texture u offset so window-aligned relief can find the painted windows.
