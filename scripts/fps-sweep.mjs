@@ -147,19 +147,28 @@ if (!only || only === 'gadgets') {
   await skipComic(p);
   await label(p, 'warmup');
   await p.waitForTimeout(5000);
-  // Fresh goons in front of Batman on the GCPD roof, every gadget ready.
-  const fresh = (id) => p.evaluate((id) => {
-    const g = window.__game, h = g.hero.pos;
+  // The fight=test sandbox's own squad counts as this "row 0"'s goons, so the first fresh() call
+  // clears it too: a real fight never has more than a handful of goons on screen at once, and
+  // nothing despawns a KO'd fight=test goon's mesh, so leaving every row's goons in the scene
+  // piled draw calls and triangles up across the page (907K tris at g:wheel to 2.9M by g:swarm).
+  await p.evaluate(() => { window.__sweepGoons = [...window.__game.combat.enemies]; });
+  // Fresh goons in front of Batman on the GCPD roof, every gadget ready. Clears the previous
+  // row's goons first (Enemy.remove(), the same scene.remove(ch.root) game.js's despawn() does)
+  // so every row plays out against a realistic 3-to-6-goon scene, not an ever-growing crowd.
+  const fresh = (id, types = ['grunt', 'grunt', 'knife']) => p.evaluate(([id, types]) => {
+    const g = window.__game;
+    for (const e of window.__sweepGoons) e.remove();
     g.hero.teleport({ x: 6, y: 42, z: 10 }, Math.PI);
     g.follow.snapBehind(Math.PI, 0.15);
-    const list = ['grunt', 'grunt', 'knife'].map((t, i) => g.spawn(t, { x: 4 + i * 2, y: 42, z: 5 }));
-    g.combat.setEnemies([...g.combat.enemies.filter((e) => e.alive), ...list]);
+    const list = types.map((t, i) => g.spawn(t, { x: 4 + i * 2, y: 42, z: 5 }));
+    window.__sweepGoons = list;
+    g.combat.setEnemies(list);
     for (const e of list) e.wake();
     g.gadgets.equip(id);
     g.gadgets.state.tick(30);
-  }, id);
-  const row = async (id, name, act, hold = 3000) => {
-    await fresh(id);
+  }, [id, types]);
+  const row = async (id, name, act, hold = 3000, types) => {
+    await fresh(id, types);
     await p.waitForTimeout(300);
     await label(p, name);
     await act();
@@ -186,6 +195,8 @@ if (!only || only === 'gadgets') {
   await row('claw', 'g:claw', () => p.keyboard.press('KeyR'));
   await row('freeze', 'g:freeze', async () => { await p.keyboard.press('KeyR'); await p.waitForTimeout(700); await p.mouse.click(640, 360); });
   await row('popper', 'g:popper', () => p.keyboard.press('KeyR'), 7000);
+  // The Bat Swarm's own maximum (SWARM.maxTargets = 6): 4 grunts, a knife and a brute, the same
+  // squad shape a real max-size swarm takedown would face.
   await row('batarang', 'g:swarm', async () => {
     await p.evaluate(() => {
       const g = window.__game;
@@ -195,8 +206,10 @@ if (!only || only === 'gadgets') {
     });
     await p.waitForTimeout(200);
     await p.keyboard.press('Digit4');
-  }, 3500);
-  // Breakables: a cracked wall and a glass sign go (first debris, first collision removal).
+  }, 3500, ['grunt', 'grunt', 'grunt', 'grunt', 'knife', 'brute']);
+  // Breakables: a cracked wall and a glass sign go (first debris, first collision removal). No
+  // goons needed here, so the swarm's squad is cleared rather than left piled up off camera.
+  await p.evaluate(() => { for (const e of window.__sweepGoons) e.remove(); window.__sweepGoons = []; });
   await label(p, 'g:breakables');
   await p.evaluate(() => {
     const g = window.__game, w = g.breakables.items.find((i) => i.id === 'wallMonarchBooth');
