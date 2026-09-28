@@ -78,16 +78,25 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
   }
 
   // ---------- pause ----------
-  function pause({ onResume, onRestart, onTitle }) {
+  // opts: { onResume, onRestart, onTitle, info?: { challenge, crimesStopped, percent },
+  //         onQuitChallenge?, onChallenges?, onProgress?, onPhoto? }
+  function pause(opts) {
+    const { onResume, onRestart, onTitle, info = {}, onQuitChallenge, onChallenges, onProgress, onPhoto } = opts;
+    const again = () => pause(opts);
     const node = el('div', 'menu pause-menu');
     node.appendChild(el('h2', '', 'Paused'));
     const list = el('div', 'mlist');
     list.appendChild(button('Resume', onResume, 'primary'));
-    list.appendChild(button('Controls', () => help(() => pause({ onResume, onRestart, onTitle }))));
-    list.appendChild(button('Settings', () => openSettings(() => pause({ onResume, onRestart, onTitle }))));
+    if (info.challenge && onQuitChallenge) list.appendChild(button('Quit challenge', onQuitChallenge));
+    if (onChallenges) list.appendChild(button('Challenges', onChallenges));
+    if (onProgress) list.appendChild(button(info.percent != null ? `Progress, ${info.percent}%` : 'Progress', onProgress));
+    if (onPhoto) list.appendChild(button('Photo mode', onPhoto));
+    list.appendChild(button('Controls', () => help(again)));
+    list.appendChild(button('Settings', () => openSettings(again)));
     list.appendChild(button('Restart from checkpoint', onRestart));
     list.appendChild(button('Quit to title', onTitle));
     node.appendChild(list);
+    if (info.crimesStopped != null) node.appendChild(el('p', 'note', `Crimes stopped: ${info.crimesStopped}`));
     show(node);
   }
 

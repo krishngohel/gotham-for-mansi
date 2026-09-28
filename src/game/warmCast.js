@@ -1,10 +1,12 @@
 // A throwaway cast drawn once under the loading screen so every character shader variant, outfit
 // texture and suit texture is ready before play: the painted and the gold Batsuit (with cape and
-// the female hair), every goon look and the Joker. Nothing here is kept; the real characters
-// are built later and reuse the compiled programs and uploaded textures.
+// the female hair), every goon look, the civilian bystander, the Joker, and the side content
+// props (challenge pillar, ink hoop, crime van, loot bags). Nothing here is kept; the real
+// characters and props are built later and reuse the compiled programs and uploaded textures.
 import * as THREE from 'three';
 import { createBat, createGoon, createJoker } from '../actors/characters.js';
 import { createCape } from '../actors/cape.js';
+import { createPillar, createRingMesh, createVan, createLootBags } from '../world/sideProps.js';
 
 export function createWarmCast(assets) {
   const group = new THREE.Group();
@@ -23,6 +25,10 @@ export function createWarmCast(assets) {
   let x = 6;
   for (const v of [0, 0.6, 0.9]) add(createGoon(assets, { type: 'grunt', rng: fixed(v) }), (x += 2));
   for (const type of ['knife', 'brute']) add(createGoon(assets, { type, rng: fixed(0) }), (x += 2));
+  add(createGoon(assets, { type: 'civilian', rng: fixed(0) }), (x += 2));
+  // Side content props share the city's programs, but drawing them once here keeps a first
+  // sighting (a new hoop, the crime van) from uploading anything mid-play.
+  [createPillar(), createRingMesh(), createVan(), createLootBags()].forEach((m, i) => { m.position.set(40 + i * 5, -50, 0); group.add(m); });
   add(createJoker(assets), (x += 2));
   return group;
 }

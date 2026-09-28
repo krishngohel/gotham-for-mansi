@@ -17,6 +17,7 @@ export const ACTIONS = [
   { id: 'special', label: 'Special takedown (combo 8+)', group: 'Fight' },
   { id: 'detective', label: 'Detective vision', group: 'Other' },
   { id: 'help', label: 'Controls help', group: 'Other' },
+  { id: 'photo', label: 'Photo mode', group: 'Other' },
   { id: 'pause', label: 'Pause and settings', group: 'Other' },
 ];
 
@@ -38,6 +39,7 @@ export const DEFAULT_BINDINGS = {
   special: ['KeyX'],
   detective: ['KeyV'],
   help: ['KeyH'],
+  photo: ['KeyO'],
   pause: ['Escape', 'KeyP'],
 };
 

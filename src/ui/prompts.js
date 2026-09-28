@@ -33,6 +33,7 @@ const ENTRIES = [
   ['wallrun', (k) => `Sprint along a wall and press ${k('jump')} to run on it. ${k('jump')} again to kick off.`],
   ['divebomb', (k) => `Gliding high? Press ${k('kick')} to dive bomb and flatten everyone where you land.`],
   ['takedown', (k) => `Hanging under an unaware goon? ${k('punch')} pulls them over the edge. Landing on one from above works too.`],
+  ['challenges', () => `Glowing bat pillars start challenges: glide rings, a rooftop run and an arena fight. Walk into one to begin.`],
 ];
 
 export const PROMPT_IDS = ENTRIES.map(([id]) => id);

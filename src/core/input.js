@@ -3,7 +3,7 @@
 
 const PAD_BUTTONS = {
   jump: [0], kick: [1], punch: [2], block: [3], grapple: [4], cape: [5], dodge: [6], batarang: [7],
-  detective: [8], pause: [9], sprint: [10], special: [11], help: [13], throw: [15],
+  detective: [8], pause: [9], sprint: [10], special: [11], photo: [12], help: [13], throw: [15],
 };
 const DEADZONE = 0.18;
 
@@ -55,7 +55,9 @@ export function createInput({ target = window, bindings }) {
     if (held.delete(code)) releasedCodes.add(code);
   }
 
-  const onKeyDown = (e) => { if (!e.repeat) codeDown(e.code, e); else if (codeToActions.has(e.code)) e.preventDefault(); };
+  // Typing in a text field (the photo caption) never drives the game.
+  const typing = (e) => !!e.target?.closest?.('input[type="text"], textarea');
+  const onKeyDown = (e) => { if (typing(e)) return; if (!e.repeat) codeDown(e.code, e); else if (codeToActions.has(e.code)) e.preventDefault(); };
   const onKeyUp = (e) => codeUp(e.code);
   const onMouseDown = (e) => {
     if (e.target?.closest?.('.menu, .rebind')) { if (capture) codeDown('Mouse' + e.button, e); return; }
@@ -110,6 +112,9 @@ export function createInput({ target = window, bindings }) {
     // Gamepad-only queries (menus and comics listen to the pad directly).
     padPressed: (a) => padPressed.has(a),
     padButton: (i) => rawPressed.has(i),
+    // Raw pad state for screens with their own controls (photo mode). Works while disabled.
+    padButtonHeld: (i) => rawHeld.has(i),
+    get stick() { return stick; },
     pressed: (a) => anyCode(pressedCodes, a) || padPressed.has(a),
     released: (a) => anyCode(releasedCodes, a) || padReleased.has(a),
     setBindings,
