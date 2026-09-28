@@ -25,6 +25,7 @@ export const STEALTH = {
   silentTime: 2,     // seconds a silent takedown takes
   perchOn: 0.9,      // metres from a perch point that count as standing on it
   perchReach: 5, perchMinDrop: 1.5, perchMaxDrop: 14,
+  smokeTime: 6,     // seconds a smoke cloud blocks sight (the cloud's own life in gadgetFx)
 };
 
 // States in which a goon can't look around or react: being hit, held, tied, frozen, dancing or out.
@@ -39,6 +40,15 @@ export function inCone(from, yaw, p, fov = STEALTH.fov) {
   const dx = p.x - from.x, dz = p.z - from.z, d = Math.hypot(dx, dz);
   if (d < 1e-6) return true;
   return (dx * Math.sin(yaw) + dz * Math.cos(yaw)) / d >= Math.cos(fov / 2);
+}
+
+// Whether a smoke cloud { x, y, z, r } (y at its floor) hides the sight line that starts at
+// eye and runs len metres along the unit vector dir: it passes through the sphere of radius r
+// centred a metre above the cloud's floor.
+export function smokeBlocks(eye, dir, len, cloud) {
+  const cx = cloud.x - eye.x, cy = cloud.y + 1 - eye.y, cz = cloud.z - eye.z;
+  const t = Math.min(len, Math.max(0, cx * dir.x + cy * dir.y + cz * dir.z));
+  return Math.hypot(cx - dir.x * t, cy - dir.y * t, cz - dir.z * t) < cloud.r;
 }
 
 export function inShadow(p, lights = []) {

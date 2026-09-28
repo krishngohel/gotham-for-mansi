@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   STEALTH, inCone, inShadow, inRect, sightRange, canLook, spotCheck, fillRate, hears, footstepNoise, perchedOn,
-  canSilentTakedown, pickSilentTarget, pickPerchDrop,
+  canSilentTakedown, pickSilentTarget, pickPerchDrop, smokeBlocks,
 } from '../../src/stealth/vision.js';
 
 const P = (x, y, z) => ({ x, y, z });
@@ -166,5 +166,19 @@ describe('allocation-free runtime', () => {
     expect(result3).toBeCloseTo(20);
     expect(result1).toBe(result2);
     expect(result2).toBe(result3);
+  });
+});
+
+describe('smoke', () => {
+  const cloud = { x: 0, y: 0, z: 10, r: 2.5 };
+  const eye = P(0, 1.6, 0);
+  const toward = (x, y, z) => { const dx = x - eye.x, dy = y - eye.y, dz = z - eye.z, l = Math.hypot(dx, dy, dz); return [{ x: dx / l, y: dy / l, z: dz / l }, l]; };
+  it('hides Batman standing in the cloud and anyone behind it', () => {
+    expect(smokeBlocks(eye, ...toward(0, 1.1, 10), cloud)).toBe(true);
+    expect(smokeBlocks(eye, ...toward(0, 1.1, 16), cloud)).toBe(true);
+  });
+  it('does not hide someone off to the side, or in front of it', () => {
+    expect(smokeBlocks(eye, ...toward(6, 1.1, 10), cloud)).toBe(false);
+    expect(smokeBlocks(eye, ...toward(0, 1.1, 5), cloud)).toBe(false);
   });
 });

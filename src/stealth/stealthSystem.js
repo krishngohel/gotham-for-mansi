@@ -4,7 +4,7 @@
 // hands combat the silent takedown and the perch drop (combatSystem's stealthStart hook) and keeps
 // hero.perched up to date. Allocation-free per frame: every goon record, sense and goal is built
 // in begin(), and line-of-sight rays run at 10 Hz per goon.
-import { STEALTH, spotCheck, sightRange, inShadow, inRect, canLook, hears, perchedOn, pickSilentTarget, pickPerchDrop } from './vision.js';
+import { STEALTH, spotCheck, sightRange, inShadow, inRect, canLook, hears, perchedOn, pickSilentTarget, pickPerchDrop, smokeBlocks } from './vision.js';
 import { HOSTILE, createSquad, createMind, thinkGoon, thinkSquad, alarmAll, smokeReset, struck, noteTakedown, fearSpeed, huddles, pickLine } from './brain.js';
 import { createPatrol, stepPatrol, huddleSpot, pickSpot } from './patrol.js';
 import { ROOMS, roomSquad, roomSpots } from './stealthRooms.js';
@@ -24,6 +24,8 @@ export function createStealth({ hero, combat, events, collision, perches = [], r
   let squad = createSquad();
   const goons = [], minds = [];
   const eye = { x: 0, y: 0, z: 0 }, ray = { x: 0, y: 0, z: 0 };
+  // The last smoke pellet's cloud: nobody sees through it while t > 0.
+  const cloud = { x: 0, y: 0, z: 0, r: 0, t: 0 };
   const view = { pos: hero.pos, crouched: false, perched: false, hidden: false, flying: false };
   const sense = { seesAt: -1, range: rules.range, hero: hero.pos, noise: null };
   let perchT = 0, lineT = 0, lineN = 0, alive = 0, lastAlive = -1;
@@ -108,6 +110,7 @@ export function createStealth({ hero, combat, events, collision, perches = [], r
     const len = Math.hypot(ray.x, ray.y, ray.z);
     if (len < 0.5) return d;
     ray.x /= len; ray.y /= len; ray.z /= len;
+    if (cloud.t > 0 && smokeBlocks(eye, ray, len, cloud)) return -1;
     const hit = collision.raycast(eye, ray, len);
     return hit && hit.t < len - 0.3 ? -1 : d;
   }
@@ -162,7 +165,9 @@ export function createStealth({ hero, combat, events, collision, perches = [], r
     }
     if (m.alert === 'patrol') {
       if (e.aware) e.calm();
-      if (room.huddle && huddles(squad.fear, alive)) huddleSpot(room.huddle, g.slot, alive, g.goal);
+      // Only goons on the huddle's own floor can reach it: a catwalk goon would walk to the rail
+      // nearest it and freeze there, so it keeps to its route instead (just faster).
+      if (room.huddle && huddles(squad.fear, alive) && Math.abs(e.pos.y - room.huddle.y) < 1) huddleSpot(room.huddle, g.slot, alive, g.goal);
       else stepPatrol(g.patrol, g.route, e.pos, dt, g.goal);
       e.goTo(g.goal.x, g.goal.y, g.goal.z, WALK * k, 'patrol', g.goal.face);
       return;
@@ -211,6 +216,7 @@ export function createStealth({ hero, combat, events, collision, perches = [], r
       prompt = promptFor();
     }
     if (!room) return;
+    cloud.t -= dt;
     view.crouched = !!hero.crouched;
     view.perched = hero.perched;
     view.hidden = !!room.vent && !!hero.crouched && inRect(hero.pos, room.vent);
@@ -275,6 +281,9 @@ export function createStealth({ hero, combat, events, collision, perches = [], r
   events.on('batarangWall', (d) => { if (room) noise(d.pos, rules.noise.batarang, 'batarang'); });
   events.on('smoke', (d) => {
     if (!room) return;
+    cloud.x = d.pos.x; cloud.y = d.pos.y; cloud.z = d.pos.z;
+    cloud.r = d.radius ?? 2.5;
+    cloud.t = rules.smokeTime;
     smokeReset(minds, squad, d.pos, rules);
     for (const g of goons) if (g.e.alive) g.e.calm();
     events.emit('stealthLost');

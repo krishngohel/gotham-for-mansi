@@ -160,6 +160,17 @@ describe('a predator room at run time', () => {
     for (const i of [0, 1, 2]) { expect(t.mind(i).alert).toBe('search'); expect(t.mind(i).target).toMatchObject({ x: 1, z: 1 }); }
     expect(t.goons.every((e) => !e.aware)).toBe(true);
   });
+  it('nobody sees Batman through the smoke cloud until it clears', () => {
+    const t = setup();
+    t.step(3);
+    expect(t.stealth.alarm).toBe(true);
+    t.events.emit('smoke', { pos: { x: 0, y: 0, z: 10 }, radius: 2.5 });
+    t.step(2);
+    expect(t.stealth.alarm).toBe(false);
+    expect(t.goons.some((e) => e.seesHero)).toBe(false);
+    t.step(5);
+    expect(t.stealth.alarm).toBe(true);
+  });
   it('a stunned goon goes looking; one that parried a punch raises the alarm', () => {
     const t = setup({ hero: [0, 0, -30] });
     t.events.emit('impact', { target: t.goons[0], outcome: 'stun' });
@@ -183,6 +194,18 @@ describe('a predator room at run time', () => {
     expect(LINES.fear1).toContain(names(t.seen, 'stealthLine').at(-1)[1]);
     const [, x, z] = t.goons[1].calls.at(-1);
     expect(Math.hypot(x - 0, z + 10)).toBeCloseTo(1.6, 1);
+  });
+  it('a scared goon on another floor than the huddle keeps to its route instead of freezing at the rail', () => {
+    const room = { ...ROOM, squad: [...ROOM.squad.slice(0, 2), { type: 'grunt', route: { mode: 'pingpong', points: [W(-10, 7, 0), W(-10, 7, -8)] } }] };
+    const t = setup({ room, hero: [0, 0, -30] });
+    t.step(0.1);
+    t.goons[0].alive = false;
+    t.step(0.1);
+    const [, hx, hz] = t.goons[1].calls.at(-1);
+    expect(Math.hypot(hx - 0, hz + 10)).toBeCloseTo(1.6, 1);
+    const [state, x] = t.goons[2].calls.at(-1);
+    expect(state).toBe('patrol');
+    expect(x).toBe(-10);
   });
   it('a punch from behind an unaware goon starts the silent takedown; from the front it does not', () => {
     const t = setup({ hero: [0, 0, -1.2] });
