@@ -206,9 +206,18 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       const e = createEnemy({ id: `e${nextId++}`, type, assets, scene, collision: world.collision, rng });
       readyObjects(e.ch.root);
       e.place(p, Math.atan2(hero.pos.x - p.x, hero.pos.z - p.z) + rng.range(-1, 1));
+      // A goon's first draw builds its bone textures and vertex bindings (~8 ms). A wave of four
+      // in one frame is a visible hitch, so new goons join the scene one per frame instead.
+      scene.remove(e.ch.root);
+      toReveal.push(e);
       return e;
     };
-    const despawn = (e) => e.remove();
+    const toReveal = [];
+    const despawn = (e) => {
+      const i = toReveal.indexOf(e);
+      if (i >= 0) toReveal.splice(i, 1);
+      e.remove();
+    };
     const encounters = createEncounters({ spawn, despawn, combat, events, collision: world.collision });
     const balloons = createBalloons(scene, progress.balloons);
     const pickups = createPickups(scene, world.halos, SITES);
@@ -330,6 +339,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const palBuf = new Array(18).fill(0);
 
     function update(real) {
+      if (toReveal.length) scene.add(toReveal.shift().ch.root);
       const playing = flow.mode === 'play' || flow.mode === 'dead';
       const dt = playing && !state.paused ? time.scale(real) : 0;
       if (playing && !state.paused) {
