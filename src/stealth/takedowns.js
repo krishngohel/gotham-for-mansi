@@ -123,7 +123,7 @@ export function createPerchDrop(h, api, { target, rules = STEALTH }) {
   h.bat.animator.play('NinjaJump_Start', { once: true, fade: 0.05 });
   api.events.emit('perchDropStart', { target });
   return {
-    name: 'perchDrop', camera: 'dive', combat: true, target,
+    name: 'perchDrop', camera: 'drop', combat: true, target,
     canChain: () => hit && t > dur + 0.2,
     update(dt) {
       t += dt;

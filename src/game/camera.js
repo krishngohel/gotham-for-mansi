@@ -12,9 +12,18 @@ const MODES = {
   hang: { dist: 4.2, height: 0.6, side: 0.35, fov: 4 },
   wallrun: { dist: 4.4, height: 1.4, side: 0.2, fov: 10 },
   dive: { dist: 5.5, height: 2.2, side: 0, fov: 14 },
+  // Perch drop: the orbit numbers only matter for the hand-back; see DROP_UP below.
+  drop: { dist: 5.5, height: 2.2, side: 0, fov: 8 },
   chain: { dist: 4.8, height: 1.6, side: 0.2, fov: 2 },
   remote: { dist: 2.4, height: 0.35, side: 0, fov: 8 },
 };
+
+// Perch drop framing: the camera holds still off to the side of the drop, DROP_SIDE out from the
+// line between the perch and the goon and DROP_UP above the perch, and turns to watch Batman
+// plunge onto the goon. Following him down instead would put the camera inside the building or
+// column the gargoyle sits on, and he would fall out of the bottom of the frame. Without a
+// dropShot() it rises DROP_UP over the perch, DROP_BACK behind it.
+const DROP_SIDE = 5, DROP_UP = 1, DROP_BACK = 1.2;
 
 export function createFollowCamera(camera, collision) {
   const s = {
@@ -29,6 +38,9 @@ export function createFollowCamera(camera, collision) {
   let first = true;
   const action = { active: false, t: 0, dur: 1, focus: new THREE.Vector3(), pos: new THREE.Vector3(), roll: 0 };
   const blendPos = new THREE.Vector3(), blendLook = new THREE.Vector3(), toAction = new THREE.Vector3();
+  const held = new THREE.Vector3(), up = new THREE.Vector3();
+  const dropFrom = new THREE.Vector3(), dropTo = new THREE.Vector3();
+  let holding = false, dropSet = false;
 
   return {
     state: s,
@@ -44,6 +56,8 @@ export function createFollowCamera(camera, collision) {
     right(out = new THREE.Vector3()) { return out.set(-Math.cos(s.yaw), 0, Math.sin(s.yaw)); },
     lookDir(out = new THREE.Vector3()) { return camera.getWorldDirection(out); },
     snapBehind(yaw, pitch = 0.22) { s.yaw = yaw; s.pitch = pitch; first = true; },
+    // A perch drop is starting from `from` onto a goon at `to`: frame it from the side.
+    dropShot(from, to) { dropFrom.copy(from); dropTo.copy(to); dropSet = true; },
     // Action shot for critical hits: the camera swings low and to the side of the blow,
     // tilts like a comic panel, then eases back. Player control of the orbit is untouched.
     actionShot(focus, attacker, duration = 0.9, { dist = 3.2, lift = -0.55, back = 1.2 } = {}) {
@@ -116,6 +130,31 @@ export function createFollowCamera(camera, collision) {
       }
       // Looking up tilts the view toward the rooftops instead of only lowering the camera.
       lookAt.y += Math.max(0, -s.pitch - 0.1) * 9;
+      if (mode === 'drop') {
+        if (!holding) {
+          // Once, when the drop starts; pulled in if a wall or roof is in the way.
+          holding = true;
+          if (dropSet) {
+            const dx = dropTo.x - dropFrom.x, dz = dropTo.z - dropFrom.z, dl = Math.hypot(dx, dz) || 1;
+            const px = -dz / dl, pz = dx / dl;
+            const mx = (dropFrom.x + dropTo.x) / 2, mz = (dropFrom.z + dropTo.z) / 2;
+            // The side of the drop the camera is already on.
+            const side = (camera.position.x - mx) * px + (camera.position.z - mz) * pz >= 0 ? 1 : -1;
+            held.set(mx, dropFrom.y + DROP_UP, mz);
+            up.set(px * side, 0, pz * side);
+            const wall = collision.raycast(held, up, DROP_SIDE + 0.3);
+            held.addScaledVector(up, wall ? Math.max(0.8, wall.t - 0.3) : DROP_SIDE);
+          } else {
+            up.set(-fx * DROP_BACK, 4, -fz * DROP_BACK);
+            const upLen = up.length();
+            up.divideScalar(upLen);
+            const roof = collision.raycast(focus, up, upLen + 0.3);
+            held.copy(focus).addScaledVector(up, roof ? Math.max(0.8, roof.t - 0.3) : upLen);
+          }
+        }
+        camera.position.copy(held);
+        lookAt.set(focus.x, focus.y + 0.6, focus.z);
+      } else { holding = false; dropSet = false; }
       camera.up.set(0, 1, 0);
       if (action.active) {
         action.t += dt;

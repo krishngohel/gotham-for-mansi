@@ -463,6 +463,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       crouchOn: 'crouch', silentTakedown: 'silent', perched: 'perch', perchDrop: 'perchDrop', batarangWall: 'distract', ventHide: 'vent', stealthLost: 'spotted',
     };
     for (const [ev, id] of Object.entries(PROMPT_DONE)) events.on(ev, () => prompts.done(id));
+    events.on('perchDropStart', ({ target }) => follow.dropShot(hero.pos, target.pos));
     events.on('stealthAlarm', () => prompts.show(['spotted']));
     events.on('rifleAim', () => prompts.show(['rifle']));
     events.on('takedown', ({ kind }) => { if (kind === 'ledge') prompts.done('ledgeStealth'); });

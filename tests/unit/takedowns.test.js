@@ -103,7 +103,7 @@ describe('the perch drop', () => {
   it('arcs onto the goon, knocks it out with an action shot and lands beside it', () => {
     const h = fakeHero(0, 10, 0), e = fakeGoon(2, 0, 1), api = fakeApi();
     const ctl = createPerchDrop(h, api, { target: e });
-    expect(ctl).toMatchObject({ name: 'perchDrop', camera: 'dive', combat: true });
+    expect(ctl).toMatchObject({ name: 'perchDrop', camera: 'drop', combat: true });
     expect(e.state).toBe('chained');
     expect(h.state).toBe('air');
     let peak = 0;
