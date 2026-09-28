@@ -84,7 +84,7 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
   // Freeze blast: stuck in ice for `sec`. No AI and no animation (the pose stays in the ice).
   // Any hit shatters it (applyHit). Returns whether it was mid-attack.
   e.freeze = (sec) => {
-    if (!e.alive || e.def.boss) return false;
+    if (!e.alive || e.def.boss || e.down || e.air || e.state === 'tied' || e.state === 'chained') return false;
     const was = e.state === 'windup' || e.state === 'attack';
     e.glyph = null;
     e.countered = false;
