@@ -130,9 +130,6 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
     node.appendChild(el('h2', '', `Progress: ${data.percent}%`));
     const wrap = el('div', 'pg-wrap');
     const map = el('canvas', 'pg-map');
-    map.width = 540;
-    map.height = 540;
-    drawProgressMap(map, data.map);
     const parts = el('div', 'pg-parts');
     for (const p of data.parts) {
       const row = el('div', 'pg-row', '<div class="pg-head"><span class="pg-label"></span><span class="pg-count"></span></div><div class="pg-bar"><i></i></div><div class="pg-detail"></div>');
@@ -150,6 +147,18 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
     if (data.fromKrishn) node.appendChild(button(`Read: From ${MANSI.fromName}`, onRead, 'primary'));
     node.appendChild(button('Back', onBack, 'small'));
     show(node);
+    // Sized and drawn once the map is actually laid out, so the backing store matches its real
+    // CSS box (min(320px, 80vw), see .pg-map) instead of guessing it. Backing store = CSS size x
+    // device pixel ratio (capped at 2), floored at 540 so non-Retina screens keep today's crispness.
+    // drawProgressMap scales its own drawing to canvas.width/height, so this alone fixes the soft
+    // render on Retina screens (DPR 2, e.g. a 2021 MacBook Air); it's still one draw per open, no
+    // per-frame redraw.
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const boxSize = map.getBoundingClientRect().width || 320;
+    const backing = Math.max(540, Math.round(boxSize * dpr));
+    map.width = backing;
+    map.height = backing;
+    drawProgressMap(map, data.map);
   }
 
   // ---------- controls help ----------
