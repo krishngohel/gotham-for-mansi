@@ -5,6 +5,10 @@ import { createStealth } from '../../src/stealth/stealthSystem.js';
 import { createEvents } from '../../src/core/events.js';
 import { createRng } from '../../src/core/rng.js';
 import { LINES } from '../../src/stealth/brain.js';
+import { tracker, moveList, BASE_MOVES } from '../../src/game/progressTracker.js';
+import { sanitizeProgress, BALLOON_COUNT, DISTRICT_IDS } from '../../src/core/save.js';
+import { STEPS } from '../../src/game/story.js';
+import { CHALLENGES } from '../../src/game/challenges.js';
 
 const W = (x, y, z, wait = 0, face = null) => ({ x, y, z, wait, face });
 const ROOM = {
@@ -251,6 +255,83 @@ describe('a predator room at run time', () => {
     expect(u.stealth.start('punch')).toBe(true);
     expect(u.hero.control).toBe(null);
     expect(names(u.seen, 'hint')).toEqual([['hint', 'perch-none']]);
+  });
+  it('a punch just after the takedown prompt went away still takes the goon down, a little farther off', () => {
+    const t = setup({ hero: [0, 0, -1.5] });
+    t.step(0.1);
+    expect(t.stealth.prompt).toBe('silent');
+    t.hero.pos.z = -1.85; // the goon walked on: 1.85 m is past the 1.6 m reach, inside 1.2 times it
+    t.step(0.1);
+    expect(t.stealth.prompt).toBe(null);
+    expect(t.stealth.start('punch')).toBe(true);
+    expect(t.hero.control.name).toBe('silent');
+    // Too late: a quarter second after the prompt went away the grace is over.
+    const late = setup({ hero: [0, 0, -1.5] });
+    late.step(0.1);
+    late.hero.pos.z = -1.85;
+    late.step(0.4);
+    expect(late.stealth.start('punch')).toBe(false);
+    // The grace needs the prompt to have been up: standing at 1.85 m from the start is no takedown.
+    const never = setup({ hero: [0, 0, -1.85] });
+    never.step(0.1);
+    expect(never.stealth.start('punch')).toBe(false);
+    // And it adds reach, not much: 2.1 m is out even straight after the prompt.
+    const far = setup({ hero: [0, 0, -1.5] });
+    far.step(0.1);
+    far.hero.pos.z = -2.1;
+    far.step(0.05);
+    expect(far.stealth.start('punch')).toBe(false);
+  });
+  it('in a quiet room a punch that would land on an unaware goon is swallowed with a hint', () => {
+    const t = setup({ hero: [0, 0, 3] });
+    expect(t.stealth.hold('punch', t.goons[0])).toBe(true);
+    expect(names(t.seen, 'hint')).toEqual([['hint', 'silent-miss']]);
+    // Kicks still go loud; aware, stunned, down or outside goons take a normal punch.
+    expect(t.stealth.hold('kick', t.goons[0])).toBe(false);
+    t.goons[1].aware = true;
+    expect(t.stealth.hold('punch', t.goons[1])).toBe(false);
+    t.goons[2].stunned = true;
+    expect(t.stealth.hold('punch', t.goons[2])).toBe(false);
+    const stranger = { ...t.goons[0], room: null };
+    expect(t.stealth.hold('punch', stranger)).toBe(false);
+    expect(t.stealth.hold('punch', null)).toBe(false);
+  });
+  it('after an alarm, or outside a room, punches are normal again', () => {
+    const t = setup({ hero: [0, 0, 3] });
+    t.events.emit('impact', { target: t.goons[1], outcome: 'parried' });
+    expect(t.stealth.alarm).toBe(true);
+    expect(t.stealth.hold('punch', t.goons[0])).toBe(false);
+    const u = setup({ hero: [0, 0, 3] });
+    u.stealth.end();
+    expect(u.stealth.hold('punch', u.goons[0])).toBe(false);
+    expect(names(t.seen, 'hint').concat(names(u.seen, 'hint'))).toEqual([]);
+  });
+  it('outside a room a perched kick with nobody below is a normal kick; a drop still works', () => {
+    const t = setup({ perches: [{ x: 0, y: 6, z: 2, perch: true }], hero: [0, 6, 2] });
+    t.stealth.end();
+    for (const e of t.goons) e.pos.x += 40;
+    t.step(0.1);
+    expect(t.hero.perched).toBe(true);
+    expect(t.stealth.start('kick')).toBe(false);
+    expect(t.stealth.start('punch')).toBe(false);
+    expect(names(t.seen, 'hint')).toEqual([]);
+    const u = setup({ perches: [{ x: 0, y: 6, z: 2, perch: true }], hero: [0, 6, 2] });
+    u.stealth.end();
+    u.step(0.1);
+    expect(u.stealth.start('kick')).toBe(true);
+    expect(u.hero.control.name).toBe('perchDrop');
+  });
+  it('registers the stealth moves so a finished old save keeps 100% and an early one counts 10', () => {
+    const at = (id) => STEPS.findIndex((x) => x.id === id);
+    expect(moveList()).toEqual([...BASE_MOVES, 'silentTakedown', 'perchDrop']);
+    const done = sanitizeProgress({
+      step: at('credits'), finished: true, balloons: [...Array(BALLOON_COUNT).keys()],
+      challenges: Object.fromEntries(CHALLENGES.map((c) => [c.id, { best: 1, medal: 'gold' }])),
+      crimes: { stopped: 10 }, moves: BASE_MOVES, districts: DISTRICT_IDS,
+    });
+    expect(tracker.score(done).percent).toBe(100);
+    const early = tracker.score(sanitizeProgress({ step: at('party'), moves: BASE_MOVES })).parts.find((x) => x.id === 'moves');
+    expect(early).toMatchObject({ done: 8, total: 10 });
   });
   it('a room that ends mid-takedown (a restart, a story jump) drops the takedown and lets go of the goon', () => {
     const t = setup({ hero: [0, 0, -1.2] });

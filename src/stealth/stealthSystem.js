@@ -32,6 +32,10 @@ export function createStealth({ hero, combat, events, collision, perches = [], r
   const sense = { seesAt: -1, range: rules.range, hero: hero.pos, noise: null };
   let perchT = 0, lineT = 0, lineN = 0, alive = 0, lastAlive = -1;
   let prompt = null, wasPerched = false, wasHidden = false;
+  // Seconds since the silent takedown prompt was last on screen. The prompt is 10 Hz stale and a
+  // goon walks off at 1.6 m/s, so a press just after it goes still counts with a little more reach.
+  let silentAgo = Infinity;
+  const graceRules = { ...rules, silentReach: rules.silentReach * (rules.silentGraceReach ?? 1) };
   const api = { events, noise, takedown: (e, kind, opts) => combat.takedown(e, kind, opts) };
 
   function hearAt(g, at) {
@@ -218,6 +222,7 @@ export function createStealth({ hero, combat, events, collision, perches = [], r
       wasPerched = hero.perched;
       prompt = promptFor();
     }
+    silentAgo = prompt === 'silent' ? 0 : silentAgo + dt;
     if (!room) return;
     cloud.t -= dt;
     view.crouched = !!hero.crouched;
@@ -265,17 +270,31 @@ export function createStealth({ hero, combat, events, collision, perches = [], r
     if (action !== 'punch' && action !== 'kick') return false;
     if (hero.perched) {
       const t = pickPerchDrop(hero.pos, combat.enemies, rules);
-      if (!t) { events.emit('hint', { id: 'perch-none' }); return true; }
-      hero.control = createPerchDrop(hero, api, { target: t, rules });
+      if (t) { hero.control = createPerchDrop(hero, api, { target: t, rules }); return true; }
+      // Outside a room a gargoyle or a container top is just somewhere to stand: a normal attack.
+      if (!room) return false;
+      events.emit('hint', { id: 'perch-none' });
       return true;
     }
     if (action !== 'punch') return false;
-    const t = pickSilentTarget(hero.pos, combat.enemies, rules);
+    let t = pickSilentTarget(hero.pos, combat.enemies, rules);
+    if (!t && silentAgo <= (rules.silentGrace ?? 0)) t = pickSilentTarget(hero.pos, combat.enemies, graceRules);
     if (!t) return false;
-    // Null when no side of the goon is safe to snap to (a wall, or an edge): a normal punch then.
+    // Null when no side of the goon is safe to snap to (a wall, or an edge): combat decides then.
     const choke = createSilentTakedown(hero, api, { target: t, rules });
     if (!choke) return false;
     hero.control = choke;
+    return true;
+  }
+
+  // combatSystem's stealthHold hook, asked once a punch has picked its target: true swallows the
+  // press. In a quiet room a punch that would land on a goon who hasn't noticed Batman is a missed
+  // takedown, not a plan: the rifle would parry it and raise the alarm. Kicks still go loud, and
+  // punches are normal outside rooms, after an alarm, or on a goon who is down, stunned or frozen.
+  function hold(action, target) {
+    if (action !== 'punch' || !room || squad.alarm || !target || target.room !== room.id) return false;
+    if (target.aware || !canLook(target)) return false;
+    events.emit('hint', { id: 'silent-miss' });
     return true;
   }
 
@@ -305,7 +324,7 @@ export function createStealth({ hero, combat, events, collision, perches = [], r
     get squad() { return squad; },
     get prompt() { return prompt; },
     goons, rules,
-    begin, end, update, noise, start,
+    begin, end, update, noise, start, hold,
     armed() { let n = 0; for (const g of goons) if (g.e.alive && g.e.def?.ranged) n += 1; return n; },
   };
 }

@@ -39,10 +39,10 @@ function makeGoon(id, type, x, z, o = {}) {
 }
 const follow = { forward: (v = new THREE.Vector3()) => v.set(0, 0, 1), right: (v = new THREE.Vector3()) => v.set(-1, 0, 0), addShake() {}, actionShot() {} };
 const ctxWith = (pressed = []) => ({ input: { move: { x: 0, y: 0 }, pressed: (a) => pressed.includes(a), down: () => false }, fx: {} });
-function setup(stealthStart = null) {
+function setup(stealthStart = null, stealthHold = null) {
   const hero = makeHero();
   const events = createEvents();
-  const combat = createCombat({ hero, follow, time: createTimeControl(), events, rng: createRng(3), getDifficulty: () => 'normal', stealthStart });
+  const combat = createCombat({ hero, follow, time: createTimeControl(), events, rng: createRng(3), getDifficulty: () => 'normal', stealthStart, stealthHold });
   hero.combat = combat;
   return { hero, events, combat };
 }
@@ -61,6 +61,17 @@ describe('the stealth hook in combat', () => {
     const { combat, hero } = setup(() => false);
     combat.setEnemies([makeGoon('g', 'grunt', 0, 1.5)]);
     combat.update(0.016, ctxWith(['punch']));
+    expect(hero.control?.name).toBe('strike');
+  });
+  it('a punch asks stealthHold about the goon it picked, and a yes swallows the press', () => {
+    const asked = [];
+    const { combat, hero } = setup(() => false, (a, t) => { asked.push([a, t.id]); return a === 'punch'; });
+    combat.setEnemies([makeGoon('g', 'grunt', 0, 1.5, { aware: false, state: 'idle' })]);
+    combat.update(0.016, ctxWith(['punch']));
+    expect(asked).toEqual([['punch', 'g']]);
+    expect(hero.control).toBe(null);
+    combat.update(0.016, ctxWith(['kick']));
+    expect(asked.at(-1)).toEqual(['kick', 'g']);
     expect(hero.control?.name).toBe('strike');
   });
   it('blocks and dodges never reach it', () => {
@@ -106,6 +117,21 @@ describe('takedowns and rifles', () => {
     combat.update(0.016, ctxWith());
     expect(shots).toEqual([false]);
     expect(hero.health).toBe(100);
+  });
+  it('a rifle holds its fire while Batman is down: no tracer', () => {
+    const { combat, hero, events } = setup();
+    const shots = [];
+    events.on('rifleShot', (d) => shots.push(d.hit));
+    const g = makeGoon('r', 'rifle', 0, 8);
+    combat.setEnemies([g]);
+    hero.dead = true;
+    g.attack = 'rifle';
+    combat.update(0.016, ctxWith());
+    expect(shots).toEqual([]);
+    hero.dead = false;
+    g.attack = 'rifle';
+    combat.update(0.016, ctxWith());
+    expect(shots).toHaveLength(1);
   });
   it('the director announces a rifle wind-up', () => {
     const { combat, events } = setup();

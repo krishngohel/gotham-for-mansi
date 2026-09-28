@@ -262,6 +262,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       hero, follow, time, events, rng, reach, getDifficulty: () => settings.difficulty,
       effects, getChainDiscount: () => effects.chainDiscount, useGadget: (ctx, o) => gadgets.fire(ctx, o),
       stealthStart: (action, c) => stealth?.start(action, c) ?? false,
+      stealthHold: (action, target) => stealth?.hold(action, target) ?? false,
     });
     hero.combat = combat;
     // Predator stealth: room goons, perches, silent takedowns and perch drops (Part D).
@@ -450,6 +451,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       gas: () => 'Laughing gas! Get out of the green cloud.',
       finish: () => `He is reeling! ${key('special')} Finish him!`,
       'perch-none': () => `Get right above a goon first. ${key('kick')} drops on him from the gargoyle.`,
+      'silent-miss': () => `Too far for a silent takedown. Sneak right up behind him, or ${key('kick')} kick to start a fight.`,
       rifle: () => `Rifle goons parry punches. ${key('kick')} kick them, ${key('cape')} cape-stun them, or take them from behind.`,
     };
     events.on('blocked', ({ outcome, target }) => hud.hint((target?.type === 'joker' ? HINTS.joker : target?.type === 'rifle' ? HINTS.rifle : HINTS[outcome])(), 3500));

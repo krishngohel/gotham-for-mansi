@@ -31,7 +31,7 @@ const CHAIN = 4;
 // Clip beats the chain timelines don't carry themselves: the mocap kicks (Kick_Front, Kick_Flying).
 const BEATS = MOCAP_BEATS;
 
-export function createCombat({ hero, follow, time, events, rng, getDifficulty, reach = {}, effects = BASE_EFFECTS, getChainDiscount = () => effects.chainDiscount, useGadget = null, stealthStart = null }) {
+export function createCombat({ hero, follow, time, events, rng, getDifficulty, reach = {}, effects = BASE_EFFECTS, getChainDiscount = () => effects.chainDiscount, useGadget = null, stealthStart = null, stealthHold = null }) {
   const combo = createCombo({ timeout: 1.5, ready: effects.specialAt, shield: effects.comboShield });
   let difficulty = getDifficulty();
   const director = createDirector({ ...DIFFICULTY[difficulty], rng });
@@ -698,6 +698,8 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
   const shotFrom = new THREE.Vector3(), shotTo = new THREE.Vector3();
   const shot = { from: shotFrom, to: shotTo, target: null, hit: false };
   function onRifleFire(e, lands = true) {
+    // Batman is down: the squad holds its fire (no tracer, no crack) until he is back up.
+    if (hero.dead) return;
     if (e.ch.muzzle) e.ch.muzzle.getWorldPosition(shotFrom);
     else e.ch.headWorld(shotFrom, -0.2);
     shotTo.set(hero.pos.x, hero.pos.y + (hero.crouched ? 0.7 : 1.1), hero.pos.z);
@@ -737,6 +739,8 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
       }
       const target = selectTarget(hero.pos, inputDir(ctx), list, { range: action === 'kick' ? 10 : 9, allowDown: true });
       if (!target) { if (engaged().length) { hero.control = whiff(); return true; } return false; }
+      // Predator stealth: in a quiet room, a punch on a goon who hasn't noticed Batman is swallowed.
+      if (stealthHold && stealthHold(action, target)) return true;
       if (target.down && target.alive && !target.air && action === 'punch') events.emit('groundTakedown', { target });
       hero.control = strike(action, target);
       return true;

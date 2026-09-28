@@ -23,6 +23,8 @@ export const STEALTH = {
   silentReach: 1.6,  // metres between Batman and the goon's back
   silentBehind: -0.2, // cos of the angle between the goon's facing and the way to Batman
   silentTime: 2,     // seconds a silent takedown takes
+  silentGrace: 0.25, // a punch this long after the takedown prompt went away still takes down...
+  silentGraceReach: 1.2, // ...a goon within this times silentReach
   perchOn: 0.9,      // metres from a perch point that count as standing on it
   perchReach: 5, perchMinDrop: 1.5, perchMaxDrop: 14,
   smokeTime: 6,     // seconds a smoke cloud blocks sight when the smoke event carries no life
