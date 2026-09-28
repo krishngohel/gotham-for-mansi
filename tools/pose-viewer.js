@@ -5,10 +5,12 @@
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { loadAssets } from '../src/actors/assets.js';
-import { createBat } from '../src/actors/characters.js';
+import { createBat, createGoon } from '../src/actors/characters.js';
+import { LAYER_FX } from '../src/render/layers.js';
 import { buildClimbClips } from '../src/actors/climbAnims.js';
 import { buildChainClips } from '../src/actors/chainAnims.js';
 import { CHAIN_BEATS } from '../src/combat/chainTimeline.js';
+import { buildStealthClips, STEALTH_BEATS } from '../src/actors/stealthAnims.js';
 import { MOCAP_BEATS } from '../src/config/mocap.js';
 
 const params = new URLSearchParams(location.search);
@@ -17,7 +19,7 @@ const params = new URLSearchParams(location.search);
 const kicksModule = params.get('kicks') || '../src/actors/kicks.js';
 const { buildKickClips, KICK_BEATS: KEYED_BEATS = {} } = await import(/* @vite-ignore */ kicksModule);
 // Contact frames: mocap clips override the code-authored ones; <name>_keyed keeps its own.
-const KICK_BEATS = { ...KEYED_BEATS, ...MOCAP_BEATS, ...CHAIN_BEATS, ...Object.fromEntries(Object.entries(KEYED_BEATS).map(([k, v]) => [k + '_keyed', v])) };
+const KICK_BEATS = { ...KEYED_BEATS, ...MOCAP_BEATS, ...CHAIN_BEATS, ...STEALTH_BEATS, ...Object.fromEntries(Object.entries(KEYED_BEATS).map(([k, v]) => [k + '_keyed', v])) };
 
 const CELL = { w: 190, h: 300 };
 const gl = document.getElementById('gl');
@@ -50,17 +52,23 @@ for (const c of buildKickClips(SkeletonUtils.clone(assets.bodies.m), assets.clip
 }
 for (const c of buildClimbClips(SkeletonUtils.clone(assets.bodies.m), assets.clips)) assets.clips.set(c.name, c);
 for (const c of buildChainClips(SkeletonUtils.clone(assets.bodies.m), assets.clips)) assets.clips.set(c.name, c);
+for (const c of buildStealthClips(SkeletonUtils.clone(assets.bodies.m), assets.clips)) assets.clips.set(c.name, c);
 
 const bats = {};
+// suit='goon' renders the takedown's other half on a goon body instead of a bat suit.
 function bat(suit) {
   if (!bats[suit]) {
-    const b = createBat(assets, suit);
+    const b = suit === 'goon' ? createGoon(assets, { type: 'grunt' }) : createBat(assets, suit);
     bats[suit] = b;
   }
   return bats[suit];
 }
 
 const camera = new THREE.PerspectiveCamera(32, CELL.w / CELL.h, 0.1, 50);
+// Worn gear (boots, gauntlets, goon clothes) and hull outlines render on LAYER_FX in the real
+// game's multi-pass ink pipeline; this single-pass viewer needs it enabled directly, or a goon's
+// clothed body is invisible below the neck (only the base body shows on the default layer).
+camera.layers.enable(LAYER_FX);
 const LOOK = new THREE.Vector3(0, 0.95, 0);
 // Camera positions per view. The kicking leg is the right one (character's -X), so "side"
 // looks from -X to keep it in front.
