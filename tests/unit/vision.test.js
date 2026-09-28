@@ -149,3 +149,19 @@ describe('the perch drop', () => {
     expect(pickPerchDrop(perch, [enemy('t', 1, 0, 0, { state: 'tied' })])).toBe(null);
   });
 });
+
+describe('allocation-free runtime', () => {
+  it('spotCheck gives consistent results across repeated calls (allocation-free)', () => {
+    const goon = goonAt(0, 0);
+    const hero = heroAt(0, 20);
+    const lights = LIT;
+    const result1 = spotCheck(goon, hero, lights);
+    const result2 = spotCheck(goon, hero, lights);
+    const result3 = spotCheck(goon, hero, lights);
+    expect(result1).toBeCloseTo(20);
+    expect(result2).toBeCloseTo(20);
+    expect(result3).toBeCloseTo(20);
+    expect(result1).toBe(result2);
+    expect(result2).toBe(result3);
+  });
+});

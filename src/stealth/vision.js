@@ -31,11 +31,9 @@ export const STEALTH = {
 export const BLIND = new Set(['hit', 'stunned', 'down', 'getup', 'grabbed', 'chained', 'tied', 'frozen', 'dance', 'ko']);
 // States in which a goon can't be grabbed for a takedown.
 export const HELD = new Set(['grabbed', 'chained', 'tied', 'frozen', 'ko']);
-export const planar = (a, b) => Math.hypot(b.x - a.x, b.z - a.z);
 const SIGHT_ARG = { crouched: false, shadow: false };
 
 export const planar = (a, b) => Math.hypot(b.x - a.x, b.z - a.z);
-
 // Whether p is inside a cone of full width fov around yaw, seen from `from` (planar).
 export function inCone(from, yaw, p, fov = STEALTH.fov) {
   const dx = p.x - from.x, dz = p.z - from.z, d = Math.hypot(dx, dz);
