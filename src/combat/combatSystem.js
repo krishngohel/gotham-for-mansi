@@ -75,12 +75,13 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     hero.bat.face(Math.atan2(target.pos.x - hero.pos.x, target.pos.z - hero.pos.z));
   }
 
-  // A critical hit: slow motion, a big word, and an action camera shot from the side.
-  function critical(target, { slow = 0.55, scale = 0.28 } = {}) {
+  // A critical hit: slow motion, a big word, and an action camera shot from the side. `shot`
+  // frames the camera (see follow.actionShot); `variant` picks the speed lines.
+  function critical(target, { slow = 0.55, scale = 0.28, shot, variant } = {}) {
     time.slowMo(slow, scale);
     target.ch.headWorld(chest, -0.4);
-    follow.actionShot?.(chest.clone(), hero.pos.clone(), slow + 0.35);
-    events.emit('critical', { target });
+    follow.actionShot?.(chest.clone(), hero.pos.clone(), slow + 0.35, shot);
+    events.emit('critical', { target, variant });
   }
 
   function landHit(move, target, { word: w, power = 1, stopTime = 0.06, launch = 0, crit = false } = {}) {
@@ -705,7 +706,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
   // A dive-bomb impact: knocks down every downable goon in range. Armored enemies (brutes)
   // shrug it off via the same immunity resolveHit already gives them (unless stunned), and
   // the boss is excluded outright so neither can be one-shot by it.
-  function shockwave(center, radius = 4) {
+  function shockwave(center, radius = 4, { crit = true, word } = {}) {
     let n = 0;
     let first = null;
     for (const e of enemies) {
@@ -717,8 +718,8 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
       if (!first) first = e;
       n += 1;
     }
-    events.emit('diveImpact', { pos: center.clone(), count: n });
-    if (first) critical(first);
+    events.emit('diveImpact', { pos: center.clone(), count: n, word });
+    if (first && crit) critical(first);
     return n;
   }
 

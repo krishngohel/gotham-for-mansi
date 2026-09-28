@@ -12,6 +12,7 @@ const MODES = {
   hang: { dist: 4.2, height: 0.6, side: 0.35, fov: 4 },
   wallrun: { dist: 4.4, height: 1.4, side: 0.2, fov: 10 },
   dive: { dist: 5.5, height: 2.2, side: 0, fov: 14 },
+  chain: { dist: 4.8, height: 1.6, side: 0.2, fov: 2 },
 };
 
 export function createFollowCamera(camera, collision) {
@@ -44,7 +45,7 @@ export function createFollowCamera(camera, collision) {
     snapBehind(yaw, pitch = 0.22) { s.yaw = yaw; s.pitch = pitch; first = true; },
     // Action shot for critical hits: the camera swings low and to the side of the blow,
     // tilts like a comic panel, then eases back. Player control of the orbit is untouched.
-    actionShot(focus, attacker, duration = 0.9) {
+    actionShot(focus, attacker, duration = 0.9, { dist = 3.2, lift = -0.55, back = 1.2 } = {}) {
       if (!s.actionEnabled) return;
       const dx = focus.x - attacker.x, dz = focus.z - attacker.z;
       const len = Math.hypot(dx, dz) || 1;
@@ -55,7 +56,7 @@ export function createFollowCamera(camera, collision) {
       action.dur = duration;
       action.focus.copy(focus).lerp(attacker, 0.35);
       action.focus.y = focus.y - 0.2;
-      action.pos.set(action.focus.x + px * side * 3.2 - (dx / len) * 1.2, focus.y - 0.55, action.focus.z + pz * side * 3.2 - (dz / len) * 1.2);
+      action.pos.set(action.focus.x + px * side * dist - (dx / len) * back, focus.y + lift, action.focus.z + pz * side * dist - (dz / len) * back);
       action.roll = side * 0.16;
       action.active = true;
     },

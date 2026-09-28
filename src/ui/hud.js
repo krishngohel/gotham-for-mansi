@@ -120,11 +120,11 @@ export function createHud(root) {
       speechEl.style.top = `${y}px`;
       speechEl.style.visibility = visible ? 'visible' : 'hidden';
     },
-    // Comic speed lines burst on a critical hit.
-    critical() {
-      speedEl.classList.remove('on');
+    // Comic speed lines burst on a critical hit; chain finishers pick their own ('rope', 'head', 'domino').
+    critical(variant = '') {
+      speedEl.className = 'hud-speed';
       void speedEl.offsetWidth;
-      speedEl.classList.add('on');
+      speedEl.className = `hud-speed on ${variant}`.trim();
     },
     sfx(word, x, y, big = false) {
       const s = document.createElement('div');
