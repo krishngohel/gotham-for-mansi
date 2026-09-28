@@ -60,21 +60,27 @@ function confettiMaterial() {
       .replace('#include <common>', 'attribute float aSizeMul;\n#include <common>')
       .replace('gl_PointSize = size;', 'gl_PointSize = size * aSizeMul;');
   };
+  // three's program cache for built-in materials doesn't hash onBeforeCompile text, so without
+  // this the warm copy and the live copy could end up sharing a program only by coincidence.
+  mat.customProgramCacheKey = () => 'confetti-size';
   return mat;
 }
 
 // The trail is a camera-facing ribbon (a triangle strip of quads), not a 1px Line: the shared
 // ink post-process outlines thin lines in black regardless of their material color, which was
-// swallowing the batarang trail's gold. A ribbon is real geometry, so its color reads correctly
-// and its width attenuates with distance the same way the rest of the scene does.
+// swallowing the batarang trail's gold. A ribbon is real geometry, so its color reads correctly,
+// its width (aWidth, a per-vertex taper set by setTrailTaper) can narrow toward the tail like a
+// comic motion streak, and it fades with scene fog (FogExp2, game/world.js) like everything else.
 function trailMaterial() {
-  return new THREE.ShaderMaterial({
-    uniforms: { uColor: { value: new THREE.Color(PALETTE.signal) }, uWidth: { value: 0.14 } },
+  const mat = new THREE.ShaderMaterial({
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uColor: { value: new THREE.Color(PALETTE.signal) } }]),
     side: THREE.DoubleSide,
+    fog: true,
     vertexShader: /* glsl */ `
       attribute vec3 aTangent;
       attribute float aSide;
-      uniform float uWidth;
+      attribute float aWidth;
+      #include <fog_pars_vertex>
       void main() {
         vec3 t = aTangent;
         if (dot(t, t) < 1e-8) t = vec3(0.0, 0.0, 1.0);
@@ -83,15 +89,22 @@ function trailMaterial() {
         vec3 right = cross(viewDir, t);
         float rl = length(right);
         right = rl < 1e-5 ? vec3(1.0, 0.0, 0.0) : right / rl;
-        vec3 offsetPos = position + right * (aSide * uWidth * 0.5);
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(offsetPos, 1.0);
+        vec3 offsetPos = position + right * (aSide * aWidth * 0.5);
+        vec4 mvPosition = modelViewMatrix * vec4(offsetPos, 1.0);
+        gl_Position = projectionMatrix * mvPosition;
+        #include <fog_vertex>
       }
     `,
     fragmentShader: /* glsl */ `
       uniform vec3 uColor;
-      void main() { gl_FragColor = vec4(uColor, 1.0); }
+      #include <fog_pars_fragment>
+      void main() {
+        gl_FragColor = vec4(uColor, 1.0);
+        #include <fog_fragment>
+      }
     `,
   });
+  return mat;
 }
 
 export function gadgetMaterials() {
@@ -137,16 +150,19 @@ function lineOf(n, mat) {
 }
 
 // A billboard ribbon along n centreline points: two vertices (aSide -1/+1) per point, offset
-// sideways in the vertex shader from the camera-facing right vector. Index buffer is static.
+// sideways in the vertex shader from the camera-facing right vector by aWidth (a per-vertex full
+// width, set with setTrailTaper below). Index buffer is static.
 function ribbonOf(n, mat) {
   const g = new THREE.BufferGeometry();
   const pos = new THREE.BufferAttribute(new Float32Array(n * 2 * 3), 3).setUsage(THREE.DynamicDrawUsage);
   const tan = new THREE.BufferAttribute(new Float32Array(n * 2 * 3), 3).setUsage(THREE.DynamicDrawUsage);
   const side = new THREE.BufferAttribute(new Float32Array(n * 2), 1);
+  const width = new THREE.BufferAttribute(new Float32Array(n * 2), 1);
   for (let i = 0; i < n; i++) { side.array[i * 2] = -1; side.array[i * 2 + 1] = 1; }
   g.setAttribute('position', pos);
   g.setAttribute('aTangent', tan);
   g.setAttribute('aSide', side);
+  g.setAttribute('aWidth', width);
   const idx = new Uint16Array(Math.max(0, n - 1) * 6);
   for (let i = 0; i < n - 1; i++) {
     const a = i * 2, b = a + 1, c = a + 2, d = a + 3, o = i * 6;
@@ -157,6 +173,19 @@ function ribbonOf(n, mat) {
   const mesh = new THREE.Mesh(g, mat);
   mesh.layers.set(LAYER_FX);
   mesh.frustumCulled = false;
+  return mesh;
+}
+
+// Tapers a ribbon's width from headWidth at ring index 0 (the newest point, per writeTrail's
+// ordering) to tailWidth at index n-1 (the oldest), so it reads as a comic motion streak instead
+// of a constant-width band. Static: set once at creation, not touched per frame.
+function setTrailTaper(mesh, n, headWidth = 0.05, tailWidth = 0) {
+  const w = mesh.geometry.attributes.aWidth;
+  for (let k = 0; k < n; k++) {
+    const v = headWidth + (tailWidth - headWidth) * (n > 1 ? k / (n - 1) : 0);
+    w.array[k * 2] = v; w.array[k * 2 + 1] = v;
+  }
+  w.needsUpdate = true;
   return mesh;
 }
 
@@ -179,7 +208,7 @@ export function createGadgetWarm() {
   const texturedInst = new THREE.InstancedMesh(g.box, m.textured, 1);
   group.add(
     new THREE.Mesh(g.gel, m.gel), new THREE.Mesh(g.ice, m.ice), new THREE.Mesh(g.shot, m.ice), puff, confetti,
-    lineOf(2, m.line), ribbonOf(GFX_LIMITS.trail, m.trail), debris, new THREE.Mesh(g.box, m.textured), texturedInst,
+    lineOf(2, m.line), setTrailTaper(ribbonOf(GFX_LIMITS.trail, m.trail), GFX_LIMITS.trail), debris, new THREE.Mesh(g.box, m.textured), texturedInst,
   );
   return group;
 }
@@ -477,7 +506,7 @@ export function createGadgetFx(scene) {
     hide(name) { lineObjs[name].visible = false; },
   };
   const T = GFX_LIMITS.trail;
-  const trailLine = ribbonOf(T, m.trail);
+  const trailLine = setTrailTaper(ribbonOf(T, m.trail), T);
   trailLine.visible = false;
   scene.add(trailLine);
   const ring = new Float32Array(T * 3);
