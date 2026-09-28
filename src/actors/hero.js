@@ -103,11 +103,11 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
     if (impact < -15) {
       setState('roll');
       bat.animator.play('Roll', { once: true, timeScale: 1.35, fade: 0.08 });
-      events.emit('land', { hard: true });
+      events.emit('land', { hard: true, who: 'hero' });
     } else {
       setState('ground');
       if (impact < -6) { bat.animator.play('Jump_Land', { once: true, timeScale: 1.5, fade: 0.06 }); h.landT = 0.18; }
-      events.emit('land', { hard: false });
+      events.emit('land', { hard: false, who: 'hero' });
     }
   }
 
@@ -225,6 +225,7 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
       bat.tilt.rotation.z += (-turn / dt * 0.12 - bat.tilt.rotation.z) * Math.min(1, dt * 4);
       if (input.pressed('kick') && shouldDiveBomb(h.state, heightAboveGround()) && h.combat) {
         h.control = createDiveControl(h, { events, combat: h.combat });
+        h.combat.consumeInput('kick');
         return;
       }
       if (!input.down('jump')) {

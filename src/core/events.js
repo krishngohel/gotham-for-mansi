@@ -13,3 +13,16 @@ export function createEvents() {
     },
   };
 }
+
+// Wires `sourceToId` (source event name -> id) onto `events`, emitting `emitName` with `{ id }`
+// the first time each id's source event fires (later fires of the same or another source event
+// mapped to the same id are ignored). Used for progress-tracking events like `moveLearned`,
+// where several distinct triggers (ladderOn, ledgeGrab, ...) should each count once per run.
+// Returns the Set of ids already seen, mainly so tests can inspect it.
+export function onceEachId(events, sourceToId, emitName) {
+  const seen = new Set();
+  for (const [source, id] of Object.entries(sourceToId)) {
+    events.on(source, () => { if (!seen.has(id)) { seen.add(id); events.emit(emitName, { id }); } });
+  }
+  return seen;
+}

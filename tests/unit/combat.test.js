@@ -3,6 +3,7 @@ import { resolveHit, damageToHero, ENEMY, DIFFICULTY, inShockwave, shouldDiveBom
 import { selectTarget } from '../../src/combat/targeting.js';
 import { createCombo } from '../../src/combat/combo.js';
 import { createDirector } from '../../src/combat/director.js';
+import { createInputBuffer } from '../../src/combat/inputBuffer.js';
 import { createRng } from '../../src/core/rng.js';
 
 const foe = (type, extra = {}) => ({ type, health: ENEMY[type].health, stunned: false, down: false, ...extra });
@@ -154,6 +155,49 @@ describe('director', () => {
   });
 });
 
+describe('inputBuffer', () => {
+  it('holds the latest press until consumed or read', () => {
+    const b = createInputBuffer(0.3);
+    expect(b.value).toBe(null);
+    b.press('punch');
+    expect(b.value).toBe('punch');
+  });
+  it('a later press overwrites an earlier one', () => {
+    const b = createInputBuffer(0.3);
+    b.press('punch');
+    b.press('kick');
+    expect(b.value).toBe('kick');
+  });
+  it('ages out after the window with nothing consuming it', () => {
+    const b = createInputBuffer(0.3);
+    b.press('punch');
+    b.tick(0.2);
+    expect(b.value).toBe('punch');
+    b.tick(0.11);
+    expect(b.value).toBe(null);
+  });
+  it('consume clears only the matching action, leaving a different buffered action alone', () => {
+    const b = createInputBuffer(0.3);
+    b.press('kick');
+    b.consume('punch');
+    expect(b.value).toBe('kick');
+    b.consume('kick');
+    expect(b.value).toBe(null);
+  });
+  it('consuming an empty buffer is a no-op', () => {
+    const b = createInputBuffer(0.3);
+    b.consume('punch');
+    expect(b.value).toBe(null);
+  });
+  it('a press right after a consume buffers normally again', () => {
+    const b = createInputBuffer(0.3);
+    b.press('punch');
+    b.consume('punch');
+    b.press('block');
+    expect(b.value).toBe('block');
+  });
+});
+
 describe('new moves', () => {
   it('heavy and spin kick finishers knock down and hit hard', () => {
     const g = foe('grunt');
@@ -211,6 +255,14 @@ describe('canLedgeTakedown', () => {
     expect(canLedgeTakedown(goon({ pos: { x: 2, y: 5, z: 0 } }), ledge)).toBe(false);
     expect(canLedgeTakedown(goon({ pos: { x: 0, y: 6, z: 0.5 } }), ledge)).toBe(false);
   });
+  it('the vertical threshold is a strict < 0.4 m', () => {
+    expect(canLedgeTakedown(goon({ pos: { x: 0, y: 5.39, z: 0 } }), ledge)).toBe(true);
+    expect(canLedgeTakedown(goon({ pos: { x: 0, y: 5.4, z: 0 } }), ledge)).toBe(false);
+  });
+  it('the horizontal threshold is a strict < 1.5 m', () => {
+    expect(canLedgeTakedown(goon({ pos: { x: 1.49, y: 5, z: 0 } }), ledge)).toBe(true);
+    expect(canLedgeTakedown(goon({ pos: { x: 1.5, y: 5, z: 0 } }), ledge)).toBe(false);
+  });
   it('rejects an aware goon', () => {
     expect(canLedgeTakedown(goon({ aware: true }), ledge)).toBe(false);
   });
@@ -235,6 +287,14 @@ describe('canDropTakedown', () => {
   it('rejects a goon out of range (too far, or wrong height)', () => {
     expect(canDropTakedown(goon({ pos: { x: 2, y: 0, z: 0 } }), heroPos)).toBe(false);
     expect(canDropTakedown(goon({ pos: { x: 0.5, y: 1.5, z: 0 } }), heroPos)).toBe(false);
+  });
+  it('the horizontal threshold is a strict < 1.2 m', () => {
+    expect(canDropTakedown(goon({ pos: { x: 1.19, y: 0, z: 0 } }), heroPos)).toBe(true);
+    expect(canDropTakedown(goon({ pos: { x: 1.2, y: 0, z: 0 } }), heroPos)).toBe(false);
+  });
+  it('the vertical threshold is a strict < 1 m', () => {
+    expect(canDropTakedown(goon({ pos: { x: 0.5, y: 0.99, z: 0 } }), heroPos)).toBe(true);
+    expect(canDropTakedown(goon({ pos: { x: 0.5, y: 1.0, z: 0 } }), heroPos)).toBe(false);
   });
   it('rejects a dead or already-down goon', () => {
     expect(canDropTakedown(goon({ alive: false }), heroPos)).toBe(false);

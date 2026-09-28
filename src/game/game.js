@@ -4,7 +4,7 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { loadSettings } from '../core/settings.js';
 import { loadProgress, saveProgress, sanitizeProgress, DEFAULT_PROGRESS } from '../core/save.js';
 import { createInput } from '../core/input.js';
-import { createEvents } from '../core/events.js';
+import { createEvents, onceEachId } from '../core/events.js';
 import { createTimeControl } from '../core/time.js';
 import { createRng } from '../core/rng.js';
 import { bindingLabel } from '../core/bindings.js';
@@ -242,6 +242,11 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     // ---- HUD reactions ----
     events.on('impact', ({ pos, outcome }) => fx.impact(pos, outcome === 'hit' ? 0.7 : 1.1));
     events.on('word', ({ text, pos, big }) => { const p = toScreen(pos); if (!p.behind) hud.sfx(text, p.x, p.y, big); });
+    events.on('zipOn', () => events.emit('word', { text: 'ZZZIP!', pos: hero.pos.clone().setY(hero.pos.y + 2), big: false }));
+    events.on('diveStart', () => events.emit('word', { text: 'FWOOSH!', pos: hero.pos.clone(), big: false }));
+    events.on('diveImpact', ({ pos }) => events.emit('word', { text: 'KA-THOOM!', pos, big: true }));
+    // hard THUD is the hero's own landing only; the boss emits 'land' too (boss.js) but has no `who`.
+    events.on('land', ({ hard, who }) => { if (hard && who === 'hero') events.emit('word', { text: 'THUD', pos: hero.pos.clone(), big: false }); });
     events.on('critical', () => hud.critical());
     events.on('heroHurt', ({ damage }) => { hud.damage(damage); hud.setHealth(hero.health / hero.maxHealth); });
     const HINTS = {
@@ -257,10 +262,18 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     events.on('blocked', ({ outcome, target }) => hud.hint((target?.type === 'joker' ? HINTS.joker : HINTS[outcome])(), 3500));
     events.on('hint', ({ id }) => HINTS[id] && hud.hint(HINTS[id](), 3000));
     events.on('bossStaggered', () => hud.hint(HINTS.finish(), 3500));
-    const PROMPT_DONE = { throwRelease: 'throw', slam: 'slam', glideStart: 'glide', grapple: 'grapple', grappleBoost: 'grappleBoost', counter: 'counter', cape: 'cape', batarangThrow: 'batarang', dodge: 'dodge', special: 'special', jumpKick: 'kick' };
+    const PROMPT_DONE = {
+      throwRelease: 'throw', slam: 'slam', glideStart: 'glide', grapple: 'grapple', grappleBoost: 'grappleBoost', counter: 'counter', cape: 'cape',
+      batarangThrow: 'batarang', dodge: 'dodge', special: 'special', jumpKick: 'kick',
+      ladderOn: 'ladder', ledgeGrab: 'ledge', zipOn: 'zip', wallRun: 'wallrun', diveStart: 'divebomb', takedown: 'takedown',
+    };
     for (const [ev, id] of Object.entries(PROMPT_DONE)) events.on(ev, () => prompts.done(id));
     events.on('swing', ({ kind, finisher }) => { prompts.done(kind === 'kick' ? 'kick' : 'punch'); if (finisher) prompts.done('finisher'); });
     events.on('step', ({ step }) => { if (step.id === 'toDocks') setTimeout(() => prompts.show(['detective', 'balloons']), 30000); });
+
+    // Progress tracking (Plan 3C): one moveLearned event the first time each traversal move happens.
+    const MOVE_IDS = { ladderOn: 'ladder', ledgeGrab: 'ledge', zipOn: 'zipline', wallRun: 'wallrun', diveImpact: 'divebomb' };
+    onceEachId(events, MOVE_IDS, 'moveLearned');
 
     const sound = wireAudio({ audio, events, hero, combat, flow, settings, voice });
     sound.start();
@@ -297,6 +310,12 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const ctx = { input, cam: follow, grappleTarget: null, fx };
     let lastCombo = -1;
     let detective = 0;
+    // First-time traversal hints (ladder, zip, divebomb). Kept to one cheap pass every 0.5s
+    // (including the divebomb altitude check, which calls hero.heightAboveGround(), a raycast,
+    // so it must not run every frame), and each one stops checking once it has shown.
+    let hintCheckT = 0;
+    let glideHighT = 0;
+    const hintShown = { ladder: false, zip: false, divebomb: false };
 
     function update(real) {
       const playing = flow.mode === 'play' || flow.mode === 'dead';
@@ -307,6 +326,23 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         // Grapple is only locked while a fight is actually around you.
         const busy = combat.enemies.some((e) => e.alive && e.aware && e.pos.distanceTo(hero.pos) < 12 && Math.abs(e.pos.y - hero.pos.y) < 4);
         ctx.grappleTarget = busy ? null : grapple.target;
+        hintCheckT -= real;
+        if (hintCheckT <= 0) {
+          hintCheckT = 0.5;
+          if (!hintShown.ladder) {
+            for (const l of world.climbables.ladders) {
+              const lx = l.x + l.nx * 0.45, lz = l.z + l.nz * 0.45;
+              if (Math.hypot(hero.pos.x - lx, hero.pos.z - lz) < 6 && Math.abs(hero.pos.y - l.bottom) < 6) { prompts.show(['ladder']); hintShown.ladder = true; break; }
+            }
+          }
+          if (!hintShown.zip && ctx.grappleTarget?.zip) { prompts.show(['zip']); hintShown.zip = true; }
+          if (!hintShown.divebomb) {
+            // Sampled once per throttle tick, not every frame: the timer advances by the
+            // tick length instead of by `real`, so it still reads as "~3s continuously high".
+            if (hero.state === 'glide' && hero.heightAboveGround() > 10) glideHighT += 0.5; else glideHighT = 0;
+            if (glideHighT > 3) { prompts.show(['divebomb']); hintShown.divebomb = true; }
+          }
+        }
         combat.update(dt, ctx);
         hero.update(dt, ctx);
         fx.update(dt);
