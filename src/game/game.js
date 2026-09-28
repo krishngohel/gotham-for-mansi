@@ -1,4 +1,5 @@
 // Game shell: boot, title screen, the frame loop and the wiring between systems.
+import '../gadgets/gadgetSave.js';
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { loadSettings } from '../core/settings.js';
@@ -33,6 +34,7 @@ import { createWorld } from './world.js';
 import { createFollowCamera } from './camera.js';
 import { createFx } from './fx.js';
 import { createGadgetFx } from '../gadgets/gadgetFx.js';
+import { createBreakables } from '../world/breakables.js';
 import { createEncounters } from './encounters.js';
 import { createBalloons } from './balloons.js';
 import { createFlow } from './flow.js';
@@ -208,6 +210,10 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const comicFx = createComicFx(document.body);
     const fx = createFx(scene);
     const gfx = createGadgetFx(scene);
+    const breakables = createBreakables({
+      scene, collision: world.collision, climbables: world.climbables, progress, events, gfx,
+      save: () => saveProgress(storage, progress),
+    });
     const rng = createRng(99);
     const combat = createCombat({ hero, follow, time, events, rng, reach, getDifficulty: () => settings.difficulty });
     hero.combat = combat;
@@ -422,6 +428,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         side.update(dt, real, { toScreen });
         fx.update(dt);
         gfx.update(dt);
+        breakables.update(state.t, hero.pos);
         if (hero.pos.y < -0.8) { hero.teleport(hero.lastSafe); events.emit('splash'); }
         follow.update(real, hero.pos, input.look, combat.cameraMode ?? hero.cameraMode(), hero.speed);
         comicFx.update(real, { speed: hero.control?.speed ?? Math.hypot(hero.vel.x, hero.vel.y, hero.vel.z), actionActive: follow.actionActive });
@@ -458,7 +465,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     }
 
     const api = {
-      hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, side, stage, gfx,
+      hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, side, stage, gfx, breakables,
       winFight: () => { for (const e of combat.enemies) if (e.alive && e.type !== 'joker') { e.health = 0; e.applyHit({ outcome: 'ko' }, hero.pos); } },
     };
     if (params.get('god') === '1') events.on('heroHurt', () => { hero.health = hero.maxHealth; hud.setHealth(1); });
@@ -563,7 +570,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   window.addEventListener('mousedown', () => audio.unlock(), { once: true });
   window.addEventListener('keydown', () => audio.unlock(), { once: true });
 
-  window.__game = { state, renderer, ink, dynRes, camera, scene, world, input, events, audio, voice, settings, time, get progress() { return progress; }, begin, lightningNow: () => { weather.next = 0; } };
+  window.__game = { state, renderer, ink, dynRes, camera, scene, world, input, events, audio, voice, settings, sites: SITES, time, get progress() { return progress; }, begin, lightningNow: () => { weather.next = 0; } };
 
   // ---------------- frame loop ----------------
   let last = performance.now(), fpsT = 0, fpsN = 0, errors = 0;

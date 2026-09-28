@@ -14,9 +14,14 @@ export const BREAKABLES = [
   { id: 'wallMonarchBooth', kind: 'weakWall', room: { x: 158.2, y: 0.15, z: -60, w: 3.6, d: 3, h: 3.2, open: 'w', against: 'e' }, hides: { type: 'balloon', index: 6 } },
   { id: 'wallColdStore', kind: 'weakWall', room: { x: -70, y: 22, z: 128, w: 3, d: 3, h: 2.6, open: 'e' }, hides: { type: 'cache', id: 'cacheColdStore' } },
   { id: 'wallDinerRoof', kind: 'weakWall', room: { x: 192, y: 9, z: 66, w: 3, d: 3, h: 2.6, open: 'w' }, hides: { type: 'cache', id: 'cacheDinerRoof' } },
-  { id: 'wallDockBrick', kind: 'weakWall', room: { x: -190, y: 26, z: 108, w: 3, d: 3, h: 2.6, open: 'e' }, hides: { type: 'cache', id: 'cacheDockBrick' } },
-  { id: 'wallBarEscape', kind: 'weakWall', ladderNear: { x: 140, z: 48 }, hides: { type: 'shortcut' } },
-  { id: 'wallIcebergEscape', kind: 'weakWall', ladderNear: { x: 160, z: 115 }, hides: { type: 'shortcut' } },
+  { id: 'wallDockBrick', kind: 'weakWall', room: { x: -189.3, y: 26, z: 108, w: 3, d: 3, h: 2.6, open: 'e' }, hides: { type: 'cache', id: 'cacheDockBrick' } },
+  // These two board up real street-level fire-escape ladders (the closest ones the live city
+  // has): built by hand instead of through ladderNear/cageRoom because both ladders read
+  // `bottom: 0` (true ground), while the sidewalk slab they stand on tops out at y 0.15; cageRoom
+  // would sink the cage's floor 0.15 m into the sidewalk. Same box cageRoom(l) would build
+  // (x, z, w, d, open, against from the ladder's own position and normal), floor raised to match.
+  { id: 'wallBarEscape', kind: 'weakWall', room: { x: 81.7, y: 0.15, z: -8, w: 1.8, d: 2.2, h: 3, open: 'e', against: 'w', noRoof: true }, hides: { type: 'shortcut' } },
+  { id: 'wallIcebergEscape', kind: 'weakWall', room: { x: 60.6, y: 0.15, z: -68, w: 1.6, d: 2.2, h: 3, open: 'e', against: 'w', noRoof: true }, hides: { type: 'shortcut' } },
   // Remote batarang: the Joker's glass party signs hung over the street.
   { id: 'glassNeonNorth', kind: 'glass', box: { x: 150, y: 6.5, z: -30, w: 6, h: 1.6, d: 0.12 } },
   { id: 'glassNeonMid', kind: 'glass', box: { x: 150, y: 6.5, z: 30, w: 6, h: 1.6, d: 0.12 } },
@@ -24,10 +29,10 @@ export const BREAKABLES = [
   { id: 'glassAceGate', kind: 'glass', box: { x: 95, y: 6, z: -99, w: 6, h: 1.6, d: 0.12 } },
   // Batclaw: vent covers on rooftop ducts, each hiding a small cache.
   { id: 'ventGcpd', kind: 'vent', room: { x: 14, y: 42, z: -10, w: 1.4, d: 1.4, h: 1.2, open: 's' }, hides: { type: 'cache', id: 'cacheVentGcpd' } },
-  { id: 'ventWarehouse', kind: 'vent', room: { x: 66, y: 13, z: 186, w: 1.4, d: 1.4, h: 1.2, open: 'w' }, hides: { type: 'cache', id: 'cacheVentWarehouse' } },
+  { id: 'ventWarehouse', kind: 'vent', room: { x: 66, y: 14.1, z: 186, w: 1.4, d: 1.4, h: 1.2, open: 'w' }, hides: { type: 'cache', id: 'cacheVentWarehouse' } },
   { id: 'ventJazz', kind: 'vent', room: { x: 110, y: 34, z: 76, w: 1.4, d: 1.4, h: 1.2, open: 'n' }, hides: { type: 'cache', id: 'cacheVentJazz' } },
   // Batclaw: weak railings on roof edges where goons stand. `site` finds the roof and its edge.
-  { id: 'railWarehouse', kind: 'railing', site: { x: 60, y: 13, z: 166 }, len: 6 },
+  { id: 'railWarehouse', kind: 'railing', site: { x: 60, y: 14.1, z: 166 }, len: 6 },
   { id: 'railFactory', kind: 'railing', site: { x: 140, y: 25.1, z: -172 }, len: 6 },
 ];
 export const BREAKABLE_IDS = BREAKABLES.map((b) => b.id);
