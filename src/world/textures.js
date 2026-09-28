@@ -722,11 +722,22 @@ export function graffitiTexture(rng, text = 'HA HA HA') {
   g.textAlign = 'center';
   g.textBaseline = 'middle';
   g.lineJoin = 'round';
+  // Long tags wrap onto two lines at the middle space, then shrink until they fit the sheet.
+  let lines = [text];
+  if (g.measureText(text).width > 470 && text.includes(' ')) {
+    const gaps = [...text].map((ch, i) => (ch === ' ' ? i : -1)).filter((i) => i >= 0);
+    const cut = gaps.reduce((a, i) => (Math.abs(i - text.length / 2) < Math.abs(a - text.length / 2) ? i : a));
+    lines = [text.slice(0, cut), text.slice(cut + 1)];
+  }
+  let size = lines.length > 1 ? 96 : 120;
+  const widest = () => Math.max(...lines.map((l) => g.measureText(l).width));
+  g.font = `${size}px Bangers, Impact, sans-serif`;
+  while (widest() > 470 && size > 40) { size -= 6; g.font = `${size}px Bangers, Impact, sans-serif`; }
   g.strokeStyle = hex(PALETTE.jokerPurple);
-  g.lineWidth = 18;
-  g.strokeText(text, 0, 0);
+  g.lineWidth = size * 0.15;
+  lines.forEach((l, i) => g.strokeText(l, 0, (i - (lines.length - 1) / 2) * size * 0.95));
   g.fillStyle = hex(PALETTE.jokerGreen);
-  g.fillText(text, 0, 0);
+  lines.forEach((l, i) => g.fillText(l, 0, (i - (lines.length - 1) / 2) * size * 0.95));
   // Drips.
   g.fillStyle = hex(PALETTE.jokerGreen);
   for (let i = 0; i < 9; i++) g.fillRect(rng.range(-200, 200), rng.range(10, 40), 4, rng.range(20, 70));

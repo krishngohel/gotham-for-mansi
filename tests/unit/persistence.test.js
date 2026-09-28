@@ -31,6 +31,13 @@ describe('settings', () => {
     expect(loadSettings(brokenStorage)).toEqual(DEFAULT_SETTINGS);
     expect(() => saveSettings(brokenStorage, DEFAULT_SETTINGS)).not.toThrow();
   });
+  it('keeps the comic toggles as booleans, on by default', () => {
+    const s = sanitizeSettings({});
+    expect(s.lineWobble).toBe(true);
+    expect(s.impactFrames).toBe(true);
+    expect(sanitizeSettings({ lineWobble: false, impactFrames: false }).lineWobble).toBe(false);
+    expect(sanitizeSettings({ impactFrames: 3 }).impactFrames).toBe(true);
+  });
 });
 
 describe('progress', () => {

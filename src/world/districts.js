@@ -6,6 +6,8 @@ import { SITES } from './mapData.js';
 import { box, cylinder, prism, tiledBox } from './buckets.js';
 import { bareTree } from './trees.js';
 import { solid, glow, lightSpot, edgeGrapples, graffiti, waterTower, acUnit, vent, duct } from './cityBuilder.js';
+import { addGargoyle, plinth } from './gargoyles.js';
+import { jokerBillboard, wantedPoster } from './posterArt.js';
 
 const CONTAINERS = [PALETTE.containerRed, PALETTE.containerBlue, PALETTE.containerGreen, PALETTE.containerOrange, 0x5a5f66];
 
@@ -40,6 +42,45 @@ function gcpd(ctx) {
   for (const [vx, vz] of [[-8, -17.2], [17, 9], [17.2, -8]]) vent(ctx, vx, y, vz);
   ctx.steam.push({ x: -8, y: y + 1.6, z: -17.2, s: 0.7 });
   for (const [fx, fz] of [[-18, 18], [18, -18]]) ctx.reflect.push({ x: fx, y, z: fz, h: 2.3, color: PALETTE.windowCool, w: 0.7, len: 6, k: 0.35 });
+  // The district's skyline mark: a lattice radio mast on the tallest roof next door (the deco
+  // tower's upper tier, one block west), read off the collision so it tracks the map data.
+  const mastTop = ctx.collision.groundBelow(-60, 90, 0, 0.5);
+  if (mastTop > 50) radioMast(ctx, -60, mastTop, 0, 22);
+}
+
+// A four-legged lattice mast with X braces on every bay and a blinking red top light.
+function radioMast(ctx, x, y, z, h) {
+  const base = 1.1, top = 0.32, bays = 8;
+  const at = (k) => base + (top - base) * (k / h);
+  for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+    const leg = new THREE.BoxGeometry(0.14, h + 0.4, 0.14);
+    const dx = sx * (top - base), dz = sz * (top - base);
+    leg.rotateX(Math.atan2(dz, h)).rotateZ(-Math.atan2(dx, h));
+    leg.translate(x + sx * (base + top) / 2, y + h / 2, z + sz * (base + top) / 2);
+    solid(ctx, 'steel', leg);
+  }
+  for (let k = 0; k < bays; k++) {
+    const y0 = y + (k / bays) * h, y1 = y + ((k + 1) / bays) * h;
+    const r0 = at(y0 - y), r1 = at(y1 - y), rm = (r0 + r1) / 2, dy = y1 - y0;
+    // A horizontal ring of struts at the bay top, then one X on each face.
+    for (const [ax, az, bx, bz] of [[-1, -1, 1, -1], [1, -1, 1, 1], [1, 1, -1, 1], [-1, 1, -1, -1]]) {
+      ctx.buckets.add('steel', box(Math.abs(bx - ax) ? r1 * 2 : 0.07, 0.07, Math.abs(bz - az) ? r1 * 2 : 0.07, x + (ax + bx) / 2 * r1, y1, z + (az + bz) / 2 * r1));
+      const len = Math.hypot(rm * 2, dy);
+      for (const s of [-1, 1]) {
+        const brace = new THREE.BoxGeometry(0.06, len, 0.06);
+        if (Math.abs(bx - ax)) brace.rotateZ(s * Math.atan2(rm * 2, dy)).translate(x, (y0 + y1) / 2, z + az * rm);
+        else brace.rotateX(s * Math.atan2(rm * 2, dy)).translate(x + ax * rm, (y0 + y1) / 2, z);
+        ctx.buckets.add('steel', brace);
+      }
+    }
+  }
+  // Dish, top light and a cap so the tip reads as a solid shape.
+  ctx.buckets.add('painted', new THREE.SphereGeometry(0.9, 12, 6, 0, Math.PI * 2, 0, 0.9).rotateX(-1.2).rotateY(0.7).translate(x + 0.6, y + h * 0.6, z), 0x8c877d);
+  ctx.buckets.add('steel', box(0.08, 2.4, 0.08, x, y + h + 1.2, z));
+  glow(ctx, box(0.36, 0.36, 0.36, x, y + h + 2.4, z), PALETTE.balloon);
+  const i = ctx.halos.add(x, y + h + 2.4, z, PALETTE.balloon, 3.6);
+  ctx.blinkers.push({ i, size: 3.6, phase: 0.7 });
+  ctx.collision.addBox(x - top, y + h - 0.1, z - top, x + top, y + h, z + top, 'mastTop');
 }
 
 // ---------------- Docks ----------------
@@ -117,18 +158,19 @@ function lighthouse(ctx) {
   ctx.halos.add(x, 27.1, z, PALETTE.window, 10);
   lightSpot(ctx, x, 26, z, PALETTE.window, 60, 50);
   ctx.reflect.push({ x, y: -0.5, z: z - 4, h: 27, color: PALETTE.window, w: 2.2, len: 45, k: 0.55, far: 2.6 });
-  // Rotating beam.
-  const beamGeo = new THREE.CylinderGeometry(9, 0.4, 150, 20, 1, true).translate(0, 75, 0).rotateZ(-Math.PI / 2);
-  const beamMat = new THREE.ShaderMaterial({
-    uniforms: { uColor: { value: new THREE.Color(PALETTE.window) } },
-    vertexShader: 'varying float vA; void main(){ vA = uv.y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-    fragmentShader: 'uniform vec3 uColor; varying float vA; void main(){ float a = (1.0 - vA) * 0.22; gl_FragColor = vec4(uColor * a, a); }',
-    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
-  });
-  const beam = new THREE.Mesh(beamGeo, beamMat);
+  // Rotating beam: a flat comic wedge in the signal colour. One plane lies flat (the fan you see
+  // from the roofs) and one stands on edge (the triangle you see from the docks).
+  const wedge = () => {
+    const g = new THREE.PlaneGeometry(150, 30, 1, 1).translate(75, 0, 0);
+    const p = g.attributes.position;
+    for (let i = 0; i < p.count; i++) if (p.getX(i) < 1) p.setY(i, Math.sign(p.getY(i)) * 0.5);
+    return g;
+  };
+  const beamMat = new THREE.MeshBasicMaterial({ color: PALETTE.signal, transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide });
+  const beam = new THREE.Group();
+  beam.add(new THREE.Mesh(wedge().rotateX(-Math.PI / 2), beamMat), new THREE.Mesh(wedge(), beamMat));
   beam.position.set(x, 27.1, z);
-  beam.layers.set(LAYER_FX);
-  beam.frustumCulled = false;
+  for (const m of beam.children) { m.layers.set(LAYER_FX); m.frustumCulled = false; }
   beam.userData.dynamic = true;
   ctx.scene.add(beam);
   ctx.updaters.push((t) => { beam.rotation.y = t * 0.45; });
@@ -167,6 +209,10 @@ function docks(ctx) {
     ctx.blinkers.push({ i, size: 3, phase: bx });
   }
   graffiti(ctx, -80.1, 8, 180, -1, 0, 8);
+  // The yard's tag on the warehouse wall facing it, with the Joker's paste-ups either side.
+  graffiti(ctx, -40, 4.2, 178, 1, 0, 10, "WHERE'S THE CAKE, BAT?");
+  wantedPoster(ctx, -40, 2.1, 170, 1, 0, 0.05);
+  wantedPoster(ctx, 40, 2.2, 176, -1, 0, -0.04);
 }
 
 // ---------------- Neon Row ----------------
@@ -195,6 +241,12 @@ function neonRow(ctx) {
   lightSpot(ctx, 150, 6, 100, PALETTE.neonPink, 30, 26);
   graffiti(ctx, 140.1, 7, 30, 1, 0, 7);
   graffiti(ctx, 180, 22, -60, 0, 0, 8);
+  // The Joker's birthday billboard on the diner roof, facing the strip, and his tag on the diner
+  // wall below it (clear of the DINER and EAT signs).
+  jokerBillboard(ctx, 163, 9, 60, -1, 0);
+  graffiti(ctx, 160, 6.4, 50, -1, 0, 7, "PARTY'S OVER!");
+  wantedPoster(ctx, 160, 2.3, 74.2, -1, 0, 0.06, 0.22);
+  wantedPoster(ctx, 160, 2.2, -47, -1, 0, -0.05, 0.22);
 }
 
 // ---------------- Ace Chemicals ----------------
@@ -293,6 +345,9 @@ function aceChemicals(ctx) {
     solid(ctx, 'painted', cylinder(0.45, 0.45, 1.2, x, 0.75, z, 10), { color: ctx.rng.pick([PALETTE.chem, PALETTE.signal, PALETTE.containerBlue]) });
   }
   graffiti(ctx, 90, 2, -96.9, 0, 1, 7);
+  // Three laughs down the factory's yard wall, under the pipe runs, and paste-ups by the doors.
+  for (const z of [-158, -170, -182]) graffiti(ctx, 108, 4, z, -1, 0, 8, 'HA HA HA');
+  wantedPoster(ctx, 108, 2.1, -164, -1, 0, 0.04);
 }
 
 // ---------------- Clock plaza ----------------
@@ -341,6 +396,8 @@ function clockPlaza(ctx) {
     for (const [half, y0, y1] of [[3, 48, 49.5], [2.2, 49.5, 53], [1.2, 53, 60], [0.5, 60, 64]]) ctx.collision.addBox(tx - half, y0, -122 - half, tx + half, y1, -122 + half, 'spire');
     glow(ctx, box(1.4, 6, 0.1, tx, 36, -117.95), PALETTE.windowCool);
     for (const [nx, nz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) ctx.grapple.push({ x: tx + nx * 3.55, y: 48, z: -122 + nz * 3.55, nx, nz, perch: true });
+    // Gargoyles on the rim's two plaza-facing corners, crouched on the trim and facing out.
+    for (const sx of [-1, 1]) addGargoyle(ctx, tx + sx * 4.7, 48.3, -122 + 4.7, Math.atan2(sx, 1));
   }
   for (let z = -175; z < -125; z += 10) for (const s of [-1, 1]) solid(ctx, 'painted', box(2, 20, 2.4, -120 + s * 14, 10, z), { color: PALETTE.stone });
   // The nave's side ledges sit under its pitched roof, so the ridge gets its own perches instead.
@@ -369,6 +426,8 @@ function clockPlaza(ctx) {
   lightSpot(ctx, hx, 86, hz + 12, PALETTE.clockFace, 60, 40);
   const i = ctx.halos.add(hx, 124.4, hz, PALETTE.balloon, 4);
   ctx.blinkers.push({ i, size: 4, phase: 1 });
+  // Two gargoyles on the lower belt course, looking south over the arena and the balcony.
+  for (const sx of [-1, 1]) addGargoyle(ctx, hx + sx * 7.82, 76.4, hz + 7.82, Math.atan2(sx, 1));
   // Joker's balcony above the arena.
   const by = SITES.balcony.y;
   solid(ctx, 'painted', box(12, 0.5, 5, hx, by - 0.25, hz + 9.5), { color: PALETTE.stone });
@@ -396,6 +455,9 @@ function clockPlaza(ctx) {
     ctx.buckets.add('painted', new THREE.SphereGeometry(0.4, 10, 8).translate(sx, 4.9, -100), 0x3b4a44);
   }
   graffiti(ctx, -62, 58, -150, 0, 0, 10, 'HA HA HA');
+  // The Joker's question on the hall's plaza wall, and a paste-up by the cathedral portal.
+  graffiti(ctx, -62, 5, -140, 0, 1, 12, 'BIRTHDAY? WHAT BIRTHDAY?');
+  wantedPoster(ctx, -112.5, 2.3, -118, 0, 1, 0.05);
 
   // The cathedral portal: a tall pointed doorway with candlelight inside.
   const portal = new THREE.Shape();
@@ -435,4 +497,28 @@ export function buildDistricts(ctx) {
   clockPlaza(ctx);
   // A few water towers on the warehouses for the docks skyline.
   waterTower(ctx, -52, 16, 172);
+  decoGargoyles(ctx);
+}
+
+// Gargoyles on the cornice corners of the two tallest deco towers (seed 11's map), on the faces
+// that meet a street: the north face of the tower west of GCPD and the east face of the one by
+// the docks road. Each crouches on a corner plinth at parapet height, a little proud of the wall,
+// facing out diagonally, so it shows from the roof as well as the street.
+function decoGargoyles(ctx) {
+  const towers = [
+    { id: 'f-60_-60_0_-10.5', face: [0, -1] },
+    { id: 'f-180_60_10.5_0', face: [1, 0] },
+  ];
+  for (const t of towers) {
+    const r = ctx.roofs.find((o) => o.id === t.id);
+    if (!r) continue;
+    const [fx, fz] = t.face;
+    for (const s of [-1, 1]) {
+      // The corner's outward diagonal: the face normal plus a unit step along the face.
+      const dx = fx || s, dz = fz || s;
+      const cx = r.x + dx * (r.w / 2 + 0.32), cz = r.z + dz * (r.d / 2 + 0.32);
+      plinth(ctx, cx, r.y, cz);
+      addGargoyle(ctx, cx, r.y + 0.9, cz, Math.atan2(dx, dz));
+    }
+  }
 }

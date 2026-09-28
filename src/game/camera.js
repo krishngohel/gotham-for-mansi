@@ -26,6 +26,8 @@ export function createFollowCamera(camera, collision) {
 
   return {
     state: s,
+    // True while an action-shot camera swing (from a critical hit) is running.
+    get actionActive() { return action.active; },
     configure({ fov, sensitivity, invertY, cameraShake, actionCam = true }) {
       s.baseFov = fov; s.sensitivity = sensitivity; s.invertY = invertY; s.shakeEnabled = cameraShake; s.actionEnabled = actionCam;
     },
