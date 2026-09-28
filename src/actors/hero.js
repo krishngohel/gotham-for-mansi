@@ -43,6 +43,8 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
   const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3(), wish = new THREE.Vector3();
   const before = new THREE.Vector3();
   const zipProbe = { x: 0, y: 0, z: 0 }; // reused each frame for the nearest-zipline check while airborne
+  const zipHit = { s: 0, dist: 0 }; // reused result for zipClosest, likewise
+  const ladderOpts = { reach: 0.7, facingX: undefined, facingZ: undefined }; // reused options for ladderGrab
 
   const h = {
     bat, cape, pos, vel, collision, dead: false,
@@ -244,10 +246,12 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
     if (!h.control && h.lastClimbT > 0.4 && climbables.ladders.length) {
       let g = null, fromTop = false;
       if (h.state === 'ground' && mag > 0.3) {
-        g = ladderGrab(climbables.ladders, pos, { facingX: wish.x, facingZ: wish.z });
+        ladderOpts.reach = 0.7; ladderOpts.facingX = wish.x; ladderOpts.facingZ = wish.z;
+        g = ladderGrab(climbables.ladders, pos, ladderOpts);
         if (!g) { const top = ladderTopGrab(climbables.ladders, pos, wish.x, wish.z); if (top) { g = { ladder: top, y: top.top - 1 }; fromTop = true; } }
       } else if ((h.state === 'air' || h.state === 'glide') && vel.y < 0) {
-        g = ladderGrab(climbables.ladders, pos, { reach: 0.55 });
+        ladderOpts.reach = 0.55; ladderOpts.facingX = undefined; ladderOpts.facingZ = undefined;
+        g = ladderGrab(climbables.ladders, pos, ladderOpts);
       }
       if (g) { h.control = createLadderControl(h, { collision, events }, { ...g, fromTop }); return; }
     }
@@ -262,8 +266,8 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
     if (!h.control && h.lastClimbT > 0.5 && (h.state === 'air' || h.state === 'glide') && climbables.ziplines.length) {
       zipProbe.x = pos.x; zipProbe.y = pos.y + 2.05; zipProbe.z = pos.z;
       for (const line of climbables.ziplines) {
-        const c = zipClosest(line, zipProbe);
-        if (c.dist < 0.9 && c.s < line.length - 3) { h.control = createZipControl(h, { events }, { line, s: c.s }); return; }
+        zipClosest(line, zipProbe, zipHit);
+        if (zipHit.dist < 0.9 && zipHit.s < line.length - 3) { h.control = createZipControl(h, { events }, { line, s: zipHit.s }); return; }
       }
     }
     const wasGrounded = h.grounded;
