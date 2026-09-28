@@ -857,7 +857,13 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     update(dt, ctx) {
       checkChainDropped();
       if (chainRun) chainRun.t += dt;
-      combo.tick(dt);
+      // Spec Part E1: a chain spends that much combo and keeps the rest. The 1.5 s window on its
+      // own can't tell "the player stopped hitting things" from "a Rope-a-Dope's tether-and-yank
+      // lead-in is playing", so pausing the timeout for the length of the chain control (name
+      // 'chain') is what actually keeps the rest, rather than relying on every chain's contact
+      // hits to happen to land inside 1.5 s of each other. It resumes the moment the chain ends
+      // or is dropped, since hero.control stops being 'chain' either way before this runs.
+      if (hero.control?.name !== 'chain') combo.tick(dt);
       availT -= dt;
       if (availT <= 0 || combo.value !== availCombo) {
         availT = 0.1;

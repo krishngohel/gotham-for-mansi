@@ -206,27 +206,80 @@ describe('a chain played through combat', () => {
     expect(b.state).toBe('tied');
     expect(of(events, 'chainTied')[0]?.data.count).toBe(2);
     expect(of(events, 'chainDone')).toHaveLength(1);
-    // The tie no longer refunds its cost (ruling: chains always cost something), and the tether
-    // and yank before it take over a second: longer than the 1.5 s combo window since the last
-    // stagger, so the combo times out on its own before the tie could have propped it back up.
-    // Rope-a-Dope nets a full loss, not a wash.
+    // Spec Part E1: a chain spends that much combo and keeps the rest. The combo timeout is
+    // paused for the length of the chain control (combatSystem.js's update loop skips
+    // combo.tick while hero.control.name === 'chain'), so the tether-and-yank lead-in before the
+    // tie can't time the combo out from under it the way it used to. The tie itself still adds
+    // no hits (Minor 2): only the 2 staggers do. 6 - 6 + 2 = 2.
+    expect(combat.combo.value).toBe(2);
+  });
+
+  it('resumes the combo timeout once the chain ends: an idle player still decays to 0', () => {
+    const { hero, combat } = harness();
+    const a = goon('a', 0, 3), b = goon('b', 1, 4);
+    combat.setEnemies([a, b]);
+    hits(combat, 6);
+    combat.update(dt, ctxFor('chain1'));
+    play(hero, combat);
+    expect(hero.control).toBeNull();
+    expect(combat.combo.value).toBe(2);
+    // Well over the 1.5 s window, with no more hits: the pause only covers the chain itself.
+    for (let i = 0; i < 200; i++) combat.update(dt, ctxFor(null));
     expect(combat.combo.value).toBe(0);
   });
 
-  it('a 3-goon Rope-a-Dope nets a combo loss too: tying still refunds nothing', () => {
+  // Each of these starts at 12, well above every chain's cost, so "keeps the rest" is visible
+  // regardless of the chain's own cost, and each expected value is `start - cost + hits`, where
+  // `hits` is exactly the number of combo.hit() calls that chain's steps make (counted from
+  // chainTimeline.js's step effects and combatSystem.js's chainApi): stagger and finish
+  // (headSmash/heel/stomp) each count once per goon they land on; tie and shockwave/diveBomb
+  // count for none. None of this depends on how long any step's animation takes, since the combo
+  // timeout no longer runs during the chain at all.
+  it('a 3-goon Rope-a-Dope keeps the rest: 3 staggers, no hit from the tie', () => {
     const { hero, combat, events } = harness();
     const a = goon('a', 0, 3), b = goon('b', 1, 4), c = goon('c', -1, 5);
     combat.setEnemies([a, b, c]);
-    hits(combat, 9);
+    hits(combat, 12);
     combat.update(dt, ctxFor('chain1'));
     play(hero, combat);
     expect(a.state).toBe('tied');
     expect(b.state).toBe('tied');
     expect(c.state).toBe('tied');
     expect(of(events, 'chainTied')[0]?.data.count).toBe(3);
-    // Started at 9: a net loss, same as the 2-goon case above.
-    expect(combat.combo.value).toBeLessThan(9);
-    expect(combat.combo.value).toBe(0);
+    // 12 - 6 (rope cost) + 3 (one stagger per goon) = 9.
+    expect(combat.combo.value).toBe(9);
+    expect(combat.combo.value).toBeGreaterThan(0);
+  });
+
+  it('a 3-goon Headbanger keeps the rest: 1 stagger, 2 from the smash, 1 heel', () => {
+    const { hero, combat } = harness();
+    const a = goon('a', 0, 3), b = goon('b', 1, 4), c = goon('c', -1, 5);
+    combat.setEnemies([a, b, c]);
+    hits(combat, 12);
+    combat.update(dt, ctxFor('chain2'));
+    play(hero, combat);
+    expect(a.alive).toBe(false);
+    expect(b.alive).toBe(false);
+    expect(c.alive).toBe(false);
+    // 12 - 9 (headbanger cost) + 4 (1 stagger on the first goon, 2 from the head-smash finish on
+    // the first two, 1 from the flying heel finish on the third) = 7.
+    expect(combat.combo.value).toBe(7);
+    expect(combat.combo.value).toBeGreaterThan(0);
+  });
+
+  it('a 3-goon Domino Drop keeps the rest: 3 stomps, nothing from the dive-bomb', () => {
+    const { hero, combat } = harness();
+    const a = goon('a', 0, 3), b = goon('b', 1, 4), c = goon('c', -1, 5);
+    combat.setEnemies([a, b, c]);
+    hits(combat, 12);
+    combat.update(dt, ctxFor('chain3'));
+    play(hero, combat);
+    expect(a.alive).toBe(false);
+    expect(b.alive).toBe(false);
+    expect(c.alive).toBe(false);
+    // 12 - 12 (domino cost) + 3 (one finish per stomp; the closing shockwave adds no combo hit) = 3.
+    expect(combat.combo.value).toBe(3);
+    expect(combat.combo.value).toBeGreaterThan(0);
   });
 
   it('Headbanger knocks both goons out', () => {
