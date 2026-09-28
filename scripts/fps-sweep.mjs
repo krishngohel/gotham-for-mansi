@@ -4,11 +4,12 @@
 //
 // Scenarios: five fixed spots (with a separate "arrive" window right after each teleport), a
 // long glide across districts, goons spawned mid-play, the ?fight=test sandbox with the hero
-// kicking, and the boss arena (?at=boss).
+// kicking, the boss arena (?at=boss), and a gadgets page (a row per gadget, the wheel, the
+// swarm and breakables).
 //
 // Usage: node scripts/fps-sweep.mjs [baseUrl] [high|low]
 // Env:   OUT=<file.json> writes the raw result; SHOTS=<dir> saves a screenshot at each spot;
-//        ONLY=main|fight|boss runs one page only; EXTRA=<query> replaces the default extra URL params (dynres=0).
+//        ONLY=main|fight|boss|gadgets runs one page only; EXTRA=<query> replaces the default extra URL params (dynres=0).
 import { chromium } from 'playwright-core';
 import { writeFileSync, mkdirSync } from 'node:fs';
 
@@ -138,6 +139,75 @@ if (!only || only === 'boss') {
   if (shots) { await label(p, 'shot'); await p.screenshot({ path: `${shots}/boss.png` }); }
   all.push(...await collect(p, 'boss'));
   meta.errorsBoss = errors;
+  await p.close();
+}
+if (!only || only === 'gadgets') {
+  const { p, errors } = await openGame('fight=test&god=1&gadgets=all');
+  await p.waitForTimeout(1500);
+  await skipComic(p);
+  await label(p, 'warmup');
+  await p.waitForTimeout(5000);
+  // Fresh goons in front of Batman on the GCPD roof, every gadget ready.
+  const fresh = (id) => p.evaluate((id) => {
+    const g = window.__game, h = g.hero.pos;
+    g.hero.teleport({ x: 6, y: 42, z: 10 }, Math.PI);
+    g.follow.snapBehind(Math.PI, 0.15);
+    const list = ['grunt', 'grunt', 'knife'].map((t, i) => g.spawn(t, { x: 4 + i * 2, y: 42, z: 5 }));
+    g.combat.setEnemies([...g.combat.enemies.filter((e) => e.alive), ...list]);
+    for (const e of list) e.wake();
+    g.gadgets.equip(id);
+    g.gadgets.state.tick(30);
+  }, id);
+  const row = async (id, name, act, hold = 3000) => {
+    await fresh(id);
+    await p.waitForTimeout(300);
+    await label(p, name);
+    await act();
+    await p.waitForTimeout(hold);
+  };
+  // The wheel: open it, walk the pick through all eight slots, close.
+  await label(p, 'g:wheel');
+  await p.keyboard.down('Tab');
+  for (const k of ['Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8', 'Digit1']) { await p.keyboard.press(k); await p.waitForTimeout(250); }
+  await p.keyboard.up('Tab');
+  await p.waitForTimeout(1000);
+  await row('batarang', 'g:batarang', () => p.keyboard.press('KeyR'));
+  await row('remote', 'g:remote', () => p.keyboard.press('KeyR'), 3800);
+  await row('gel', 'g:gel', async () => {
+    for (let i = 0; i < 3; i++) { await p.keyboard.press('KeyR'); await p.waitForTimeout(250); }
+    await p.keyboard.down('KeyR'); await p.waitForTimeout(500); await p.keyboard.up('KeyR');
+  });
+  await row('smoke', 'g:smoke', () => p.keyboard.press('KeyR'), 6500);
+  await row('launcher', 'g:launcher', async () => {
+    await p.evaluate(() => { const g = window.__game; g.teleport({ x: 152, y: 0.15, z: 72 }); g.hero.bat.face(-Math.PI / 2); g.follow.snapBehind(-Math.PI / 2, 0.1); });
+    await p.waitForTimeout(600);
+    await p.keyboard.press('KeyR');
+  });
+  await row('claw', 'g:claw', () => p.keyboard.press('KeyR'));
+  await row('freeze', 'g:freeze', async () => { await p.keyboard.press('KeyR'); await p.waitForTimeout(700); await p.mouse.click(640, 360); });
+  await row('popper', 'g:popper', () => p.keyboard.press('KeyR'), 7000);
+  await row('batarang', 'g:swarm', async () => {
+    await p.evaluate(() => {
+      const g = window.__game;
+      g.wayne.award(20000, 'sweep');
+      for (const id of ['reflexes', 'flow', 'efficient', 'fastFinish', 'swarm']) g.wayne.buy(id);
+      for (let i = 0; i < 15; i++) g.combat.combo.hit();
+    });
+    await p.waitForTimeout(200);
+    await p.keyboard.press('Digit4');
+  }, 3500);
+  // Breakables: a cracked wall and a glass sign go (first debris, first collision removal).
+  await label(p, 'g:breakables');
+  await p.evaluate(() => {
+    const g = window.__game, w = g.breakables.items.find((i) => i.id === 'wallMonarchBooth');
+    g.teleport({ x: w.center.x - 5, y: 0.15, z: w.center.z }); g.hero.bat.face(Math.PI / 2); g.follow.snapBehind(Math.PI / 2, 0.15);
+  });
+  await p.waitForTimeout(1500);
+  await p.evaluate(() => { const g = window.__game; for (const id of ['wallMonarchBooth', 'glassNeonNorth']) g.breakables.smash(g.breakables.items.find((i) => i.id === id), g.hero.pos); });
+  await p.waitForTimeout(2500);
+  if (shots) { await label(p, 'shot'); await p.screenshot({ path: `${shots}/gadgets.png` }); }
+  all.push(...await collect(p, 'gadgets'));
+  meta.errorsGadgets = errors;
   await p.close();
 }
 await b.close();
