@@ -23,4 +23,8 @@ export default {
 
   // Rolls with the credits.
   finalMessage: 'Happy birthday, Mansi. Every rooftop, every goon and every balloon in this city was built for you. Thank you for being the friend you are. Here is to your best year yet.',
+
+  // Shown on the closing comic page, "From Krishn", once the Progress page reaches 100%.
+  // PLACEHOLDER: Krishn writes the real message before sharing.
+  completionMessage: 'One hundred percent. Every balloon found, every medal won, every street kept safe. Gotham is yours, Mansi. Happy birthday.',
 };
