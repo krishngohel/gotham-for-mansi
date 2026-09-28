@@ -31,6 +31,8 @@ export const STEALTH = {
 export const BLIND = new Set(['hit', 'stunned', 'down', 'getup', 'grabbed', 'chained', 'tied', 'frozen', 'dance', 'ko']);
 // States in which a goon can't be grabbed for a takedown.
 export const HELD = new Set(['grabbed', 'chained', 'tied', 'frozen', 'ko']);
+export const planar = (a, b) => Math.hypot(b.x - a.x, b.z - a.z);
+const SIGHT_ARG = { crouched: false, shadow: false };
 
 export const planar = (a, b) => Math.hypot(b.x - a.x, b.z - a.z);
 
@@ -63,7 +65,9 @@ export function spotCheck(goon, hero, lights = [], rules = STEALTH) {
   const rise = hero.pos.y - goon.pos.y;
   if (hero.perched) { if (!goon.hostile || d > rules.perchSpot) return -1; }
   else if (rise > rules.lookUp && !goon.hostile) return -1;
-  if (d > sightRange({ crouched: hero.crouched, shadow: inShadow(hero.pos, lights) }, rules)) return -1;
+  SIGHT_ARG.crouched = hero.crouched;
+  SIGHT_ARG.shadow = inShadow(hero.pos, lights);
+  if (d > sightRange(SIGHT_ARG, rules)) return -1;
   if (!inCone(goon.pos, goon.yaw, hero.pos, goon.hostile ? rules.hostileFov : rules.fov)) return -1;
   return d;
 }
