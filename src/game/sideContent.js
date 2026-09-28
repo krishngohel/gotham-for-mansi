@@ -5,13 +5,15 @@ import * as THREE from 'three';
 import { districtAt } from '../world/mapData.js';
 import { DISTRICT_IDS, saveProgress } from '../core/save.js';
 import { tracker, milestonesCrossed } from './progressTracker.js';
-import { createPlayStats } from './playStats.js';
+import { createPlayStats, formatStatsLine } from './playStats.js';
 import { createSideHud } from '../ui/sideHud.js';
-import { CHALLENGES, pillarPos } from './challenges.js';
+import { CHALLENGES, pillarPos, formatResult } from './challenges.js';
 import { createChallengeRunner } from './challengeRunner.js';
 import { attachArena } from './arenaChallenge.js';
 import { CRIME_SPOTS, isCrimeId, crimeBlocked } from './crimes.js';
 import { createCrimeDirector } from './crimeDirector.js';
+import { BALLOONS } from '../config/balloonSpots.js';
+import { mapModel } from './mapModel.js';
 
 export const MILESTONE_TEXT = {
   25: 'A quarter of Gotham, handled. The Joker has started to notice.',
@@ -21,7 +23,7 @@ export const MILESTONE_TEXT = {
 };
 
 export function createSideContent(deps) {
-  const { scene, hero, follow, combat, encounters, events, flow, hudRoot, prompts, progress, storage, assets, rng, collision } = deps;
+  const { scene, hero, follow, combat, encounters, events, flow, hudRoot, prompts, progress, storage, assets, rng, collision, buildings } = deps;
   const save = () => saveProgress(storage, progress);
   const ui = createSideHud(hudRoot);
   const stats = createPlayStats(progress.stats);
@@ -122,5 +124,22 @@ export function createSideContent(deps) {
     },
     pauseInfo: () => ({ challenge: challenges.current?.name ?? null, crimesStopped: progress.crimes.stopped, percent: tracker.score(progress).percent }),
     photoTaken() { stats.photo(); save(); },
+    challengesPage: () => ({
+      list: CHALLENGES.map((ch) => {
+        const e = progress.challenges[ch.id];
+        return { id: ch.id, name: ch.name, blurb: ch.blurb, medal: e?.medal ?? null, best: e ? formatResult(ch, e.best) : null, goal: `Gold: ${formatResult(ch, ch.medals.gold)}` };
+      }),
+      goldStandard: progress.unlocks.includes('goldStandard'),
+    }),
+    progressPage: () => {
+      const s = tracker.score(progress);
+      return {
+        percent: s.percent,
+        parts: s.parts,
+        statsLine: formatStatsLine(progress.stats, { crimes: progress.crimes.stopped }),
+        fromKrishn: progress.unlocks.includes('fromKrishn'),
+        map: mapModel({ buildings, balloons: BALLOONS, challenges: CHALLENGES.map((ch) => ({ id: ch.id, ...pillarPos(ch) })), progress }),
+      };
+    },
   };
 }

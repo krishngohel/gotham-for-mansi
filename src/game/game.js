@@ -38,6 +38,8 @@ import { createFlow } from './flow.js';
 import { STEPS } from './story.js';
 import { wireAudio } from './sound.js';
 import { createBoss } from './boss.js';
+import { tracker } from './progressTracker.js';
+import { goldStandardPages, fromKrishnPages } from './rewardPages.js';
 import { createFinale } from './finale.js';
 import { createSideContent } from './sideContent.js';
 import { createPhotoMode } from '../ui/photoMode.js';
@@ -163,6 +165,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     audio.music('title');
     menus.title({
       canContinue: progress.step > 0,
+      percent: tracker.score(progress).percent,
       onContinue: () => begin(progress.suit ?? 'm', false),
       onNew: () => menus.suitSelect({ gold: progress.goldUnlocked, onPick: (s) => begin(s, true), onBack: showTitle }),
     });
@@ -508,9 +511,21 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       onTitle: () => { location.search = ''; },
       info: side.pauseInfo(),
       onQuitChallenge: () => { side.challenges.quit(); resume(); },
+      onChallenges: () => menus.challengesPage(side.challengesPage(), { onBack: () => menus.pause(opts), onRead: () => readPage('goldStandard', () => menus.pause(opts)) }),
+      onProgress: () => menus.progressPage(side.progressPage(), { onBack: () => menus.pause(opts), onRead: () => readPage('fromKrishn', () => menus.pause(opts)) }),
       onPhoto: () => { menus.hide(); game.photo.open(); },
     };
     return opts;
+  }
+  // Reward comics open from the pause menu. stage.shot moves the camera for its panels, so the
+  // paused view is put back before the comic shows.
+  function readPage(kind, back) {
+    menus.hide();
+    const p = camera.position.clone(), q = camera.quaternion.clone();
+    const pages = kind === 'goldStandard' ? goldStandardPages(game.stage) : fromKrishnPages(game.stage);
+    camera.position.copy(p);
+    camera.quaternion.copy(q);
+    game.comic.play(pages).then(back);
   }
   function resume({ lock = true } = {}) {
     menus.hide();
