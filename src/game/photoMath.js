@@ -99,7 +99,7 @@ export function frameLayout(frame, w, h) {
 }
 
 export function sanitizeCaption(text) {
-  return String(text ?? '').replace(/[–—]/g, '-').replace(/\s+/g, ' ').trim().toUpperCase().slice(0, 48);
+  return String(text ?? '').replace(/[\u2013\u2014]/g, '-').replace(/\s+/g, ' ').trim().toUpperCase().slice(0, 48);
 }
 
 const two = (n) => String(n).padStart(2, '0');

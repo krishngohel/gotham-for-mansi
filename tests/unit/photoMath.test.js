@@ -82,7 +82,7 @@ describe('filters, frames and captions', () => {
     }
   });
   it('cleans captions', () => {
-    expect(sanitizeCaption('  happy   birthday — mansi  ')).toBe('HAPPY BIRTHDAY - MANSI');
+    expect(sanitizeCaption('  happy   birthday \u2014 mansi  ')).toBe('HAPPY BIRTHDAY - MANSI');
     expect(sanitizeCaption('x'.repeat(60))).toHaveLength(48);
     expect(sanitizeCaption(null)).toBe('');
   });
