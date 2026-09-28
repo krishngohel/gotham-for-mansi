@@ -56,10 +56,19 @@ describe('story data', () => {
   it('no player-facing text uses em dashes', () => {
     for (const s of STEPS) if (s.text) expect(s.text).not.toMatch(/—/);
   });
+  it('stealth fights name their room and an entry site', () => {
+    for (const [id, f] of Object.entries(FIGHTS)) {
+      if (!f.stealth) continue;
+      expect(f.stealth, id).toBe(id);
+      expect(SITES[f.entry], id).toBeDefined();
+      expect(SITES[f.site], id).toBeDefined();
+    }
+    expect(Object.values(FIGHTS).filter((f) => f.stealth)).toHaveLength(2);
+  });
   it('fights have waves of known enemy types', () => {
     for (const [id, f] of Object.entries(FIGHTS)) {
       expect(f.waves.length, id).toBeGreaterThan(0);
-      for (const w of f.waves) for (const e of w) expect(['grunt', 'knife', 'brute']).toContain(e.type);
+      for (const w of f.waves) for (const e of w) expect(['grunt', 'knife', 'brute', 'rifle']).toContain(e.type);
     }
   });
 });

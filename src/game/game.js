@@ -42,6 +42,7 @@ import { createEncounters } from './encounters.js';
 import { createBalloons } from './balloons.js';
 import { createFlow } from './flow.js';
 import { STEPS } from './story.js';
+import { migrateProgress } from './storyMigrate.js';
 import { wireAudio } from './sound.js';
 import { createBoss } from './boss.js';
 import { tracker } from './progressTracker.js';
@@ -108,9 +109,11 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   onProgress(0.97);
 
   let progress = params.has('new') ? sanitizeProgress(DEFAULT_PROGRESS) : loadProgress(storage);
+  // Put the save on the story by step id (saves from before Part D only have an old index).
+  progress = migrateProgress(progress);
   if (params.has('at')) {
     const i = STEPS.findIndex((s) => s.id === params.get('at'));
-    if (i >= 0) progress = { ...progress, step: i };
+    if (i >= 0) progress = { ...progress, step: i, stepId: STEPS[i].id };
   }
 
   // Recorded Joker lines; the music ducks while he talks.
@@ -190,7 +193,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     audio.unlock();
     // Don't let the integrated-GPU hint sit over the boss bar once a run is under way.
     if (gpuHintBox) { gpuHintBox.remove(); gpuHintBox = null; }
-    if (fresh) progress = newGameProgress(progress);
+    if (fresh) { progress = newGameProgress(progress); progress.stepId = null; }
     progress.suit = suit;
     saveProgress(storage, progress);
     game = buildRun(suit);

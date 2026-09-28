@@ -1,4 +1,6 @@
 // Encounters. Positions are offsets (dx, dz) from the fight's site; y is found by collision.
+import { stealthFight } from '../stealth/stealthRooms.js';
+
 const g = (dx, dz) => ({ type: 'grunt', dx, dz });
 const k = (dx, dz) => ({ type: 'knife', dx, dz });
 const b = (dx, dz) => ({ type: 'brute', dx, dz });
@@ -13,4 +15,7 @@ export const FIGHTS = {
   aceYard: { site: 'aceYard', radius: 16, waves: [[g(-6, -4), g(6, -4), b(0, 8)], [g(-8, 4), k(8, 6)]] },
   factory: { site: 'factoryRoof', radius: 18, waves: [[g(-8, -6), g(8, -6), k(0, 8), k(-8, 8)], [b(0, -8), g(8, 6), g(-10, 0)]] },
   vats: { site: 'vatDeck', radius: 11, waves: [[g(-5, -5), g(5, -5), k(0, 6)], [b(-5, 4), k(5, 5), g(0, -7)], [b(0, 0), g(-6, 0), g(6, 0)]] },
+  // Predator rooms (Part D): a squad on patrol routes that the stealth runtime drives.
+  monarchBalcony: stealthFight('monarchBalcony'),
+  aceCatwalks: stealthFight('aceCatwalks'),
 };

@@ -55,6 +55,7 @@ export function createFlow(d) {
   function enterStep() {
     const s = objectives.step;
     progress.step = objectives.index;
+    progress.stepId = s?.id ?? null;
     save();
     if (!s) return;
     hud.setObjective(s.text ?? '');
