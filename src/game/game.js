@@ -595,7 +595,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     }
 
     const api = {
-      hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, side, stage, gfx, breakables, chainFx, swarmFx, photo,
+      hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, despawn, side, stage, gfx, breakables, chainFx, swarmFx, photo,
       gadgets, wheelUi, wayne,
       winFight: () => { for (const e of combat.enemies) if (e.alive && e.type !== 'joker') { e.health = 0; e.applyHit({ outcome: 'ko' }, hero.pos); } },
     };

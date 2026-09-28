@@ -34,11 +34,15 @@ export function createFreezeHandler() {
       });
       return true;
     },
-    // Ice goes when the goon leaves the frozen state: shattered into shards, or melted.
+    // Ice goes when the goon leaves the frozen state: shattered into shards, or melted. It also
+    // goes if the goon itself is gone: a despawn (a checkpoint restart, an encounter or boss
+    // clearing its squad) drops the goon out of combat.enemies without ever thawing it, so its
+    // state would otherwise stay 'frozen' forever and leak this ice slot (and a floating ice
+    // block in the world) for the rest of the run.
     update(sys) {
       for (let i = frozen.length - 1; i >= 0; i--) {
         const f = frozen[i];
-        if (f.e.state === 'frozen') continue;
+        if (f.e.state === 'frozen' && sys.combat.enemies.includes(f.e)) continue;
         sys.gfx.ice.release(f.slot, f.e.shattered);
         frozen.splice(i, 1);
       }
