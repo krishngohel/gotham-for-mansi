@@ -12,7 +12,7 @@ import { createLedgeControl } from './traverse/ledge.js';
 import { createZipControl } from './traverse/zipline.js';
 import { createWallRunControl } from './traverse/wallrun.js';
 import { createDiveControl } from './traverse/divebomb.js';
-import { shouldDiveBomb } from '../combat/rules.js';
+import { shouldDiveBomb, canDropTakedown } from '../combat/rules.js';
 
 const GRAVITY = 26;
 const JUMP_V = 9.4;
@@ -91,6 +91,10 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
   }
 
   function land(impact) {
+    if (impact < -8 && h.combat && h.control?.name !== 'dive') {
+      const e = h.combat.enemies.find((g) => canDropTakedown(g, pos));
+      if (e) h.combat.takedown(e, 'drop');
+    }
     h.airRuns = 0;
     h.grounded = true;
     h.airT = 0;

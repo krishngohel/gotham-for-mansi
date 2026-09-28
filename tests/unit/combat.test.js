@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveHit, damageToHero, ENEMY, DIFFICULTY, inShockwave, shouldDiveBomb } from '../../src/combat/rules.js';
+import { resolveHit, damageToHero, ENEMY, DIFFICULTY, inShockwave, shouldDiveBomb, canLedgeTakedown, canDropTakedown } from '../../src/combat/rules.js';
 import { selectTarget } from '../../src/combat/targeting.js';
 import { createCombo } from '../../src/combat/combo.js';
 import { createDirector } from '../../src/combat/director.js';
@@ -198,6 +198,53 @@ describe('shouldDiveBomb', () => {
     expect(shouldDiveBomb('glide', 5.9)).toBe(false);
     expect(shouldDiveBomb('air', 20)).toBe(false);
     expect(shouldDiveBomb('ground', 20)).toBe(false);
+  });
+});
+
+describe('canLedgeTakedown', () => {
+  const ledge = { x: 0, y: 5, z: 0 };
+  const goon = (extra = {}) => ({ alive: true, down: false, aware: false, def: ENEMY.grunt, state: 'idle', pos: { x: 0, y: 5, z: 0.5 }, ...extra });
+  it('allows an unaware standing goon within reach of the hang point', () => {
+    expect(canLedgeTakedown(goon(), ledge)).toBe(true);
+  });
+  it('rejects a goon out of range (too far along the wall, or wrong height)', () => {
+    expect(canLedgeTakedown(goon({ pos: { x: 2, y: 5, z: 0 } }), ledge)).toBe(false);
+    expect(canLedgeTakedown(goon({ pos: { x: 0, y: 6, z: 0.5 } }), ledge)).toBe(false);
+  });
+  it('rejects an aware goon', () => {
+    expect(canLedgeTakedown(goon({ aware: true }), ledge)).toBe(false);
+  });
+  it('rejects a dead or already-down goon', () => {
+    expect(canLedgeTakedown(goon({ alive: false }), ledge)).toBe(false);
+    expect(canLedgeTakedown(goon({ down: true }), ledge)).toBe(false);
+  });
+  it('never targets the boss, even if unaware and in range', () => {
+    expect(canLedgeTakedown(goon({ def: ENEMY.joker }), ledge)).toBe(false);
+  });
+  it('rejects a grabbed enemy', () => {
+    expect(canLedgeTakedown(goon({ state: 'grabbed' }), ledge)).toBe(false);
+  });
+});
+
+describe('canDropTakedown', () => {
+  const heroPos = { x: 0, y: 0, z: 0 };
+  const goon = (extra = {}) => ({ alive: true, down: false, def: ENEMY.grunt, state: 'idle', pos: { x: 0.5, y: 0, z: 0 }, ...extra });
+  it('allows a standing goon right under the hero', () => {
+    expect(canDropTakedown(goon(), heroPos)).toBe(true);
+  });
+  it('rejects a goon out of range (too far, or wrong height)', () => {
+    expect(canDropTakedown(goon({ pos: { x: 2, y: 0, z: 0 } }), heroPos)).toBe(false);
+    expect(canDropTakedown(goon({ pos: { x: 0.5, y: 1.5, z: 0 } }), heroPos)).toBe(false);
+  });
+  it('rejects a dead or already-down goon', () => {
+    expect(canDropTakedown(goon({ alive: false }), heroPos)).toBe(false);
+    expect(canDropTakedown(goon({ down: true }), heroPos)).toBe(false);
+  });
+  it('never targets the boss, so a drop can never one-shot the Joker', () => {
+    expect(canDropTakedown(goon({ def: ENEMY.joker }), heroPos)).toBe(false);
+  });
+  it('rejects a grabbed enemy', () => {
+    expect(canDropTakedown(goon({ state: 'grabbed' }), heroPos)).toBe(false);
   });
 });
 

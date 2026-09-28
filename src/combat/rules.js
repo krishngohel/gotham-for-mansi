@@ -81,6 +81,24 @@ function applyDamage(enemy, damage, knockdown) {
   return { outcome: knockdown ? 'knockdown' : 'hit', damage, stun: 0 };
 }
 
+// Whether a hanging ledge takedown can target this enemy: alive, standing, unaware, not the
+// boss or a grabbed goon, and within reach of the ledge's hang point.
+export function canLedgeTakedown(enemy, ledge) {
+  if (!enemy || !ledge || !enemy.alive || enemy.down || enemy.aware) return false;
+  if (enemy.def?.boss || enemy.state === 'grabbed') return false;
+  return Math.abs(enemy.pos.y - ledge.y) < 0.4 &&
+    Math.hypot(enemy.pos.x - ledge.x, enemy.pos.z - ledge.z) < 1.5;
+}
+
+// Whether a hard landing can drop-takedown this enemy: alive, standing, not the boss or a
+// grabbed goon (the boss can never be one-shot), and right under the hero.
+export function canDropTakedown(enemy, heroPos) {
+  if (!enemy || !heroPos || !enemy.alive || enemy.down) return false;
+  if (enemy.def?.boss || enemy.state === 'grabbed') return false;
+  return Math.hypot(enemy.pos.x - heroPos.x, enemy.pos.z - heroPos.z) < 1.2 &&
+    Math.abs(enemy.pos.y - heroPos.y) < 1;
+}
+
 export function damageToHero(attack, { difficulty = 'normal', blocking = false, invulnerable = false } = {}) {
   if (invulnerable) return 0;
   const base = ATTACK_DAMAGE[attack] ?? 10;

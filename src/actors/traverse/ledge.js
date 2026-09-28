@@ -2,6 +2,7 @@
 // Hanging from a ledge: shimmy left/right (wrapping outside corners), pull up, drop, or backflip.
 import * as THREE from 'three';
 import { hangPos, wrapCorner } from './probes.js';
+import { canLedgeTakedown } from '../../combat/rules.js';
 
 const SHIMMY = 1.6;
 const DROP_HOLD = 0.25; // seconds `back` must be held before it drops instead of backflipping
@@ -47,6 +48,14 @@ export function createLedgeControl(h, { collision, events }, { ledge }) {
         return false;
       }
       // Hanging.
+      if (input.pressed('punch') && h.combat) {
+        const e = h.combat.enemies.find((g) => canLedgeTakedown(g, l));
+        if (e) {
+          h.bat.animator.play('Ledge_Yank', { once: true, fade: 0.05 });
+          e.launch(l.nx * 3, 2, l.nz * 3);
+          h.combat.takedown(e, 'ledge');
+        }
+      }
       const backHeld = input.move.y < -0.5;
       backT = backHeld ? backT + dt : 0;
       if (input.pressed('jump') && backHeld && backT < DROP_HOLD) {

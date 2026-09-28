@@ -589,10 +589,21 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
     return n;
   }
 
+  // An instant KO from a ledge or drop takedown: no fight, just an action shot.
+  function takedown(e, kind) {
+    if (!e?.alive) return false;
+    e.health = 0;
+    e.applyHit({ outcome: 'ko' }, hero.pos);
+    critical(e, { slow: 0.7 });
+    events.emit('takedown', { kind, pos: e.pos.clone() });
+    return true;
+  }
+
   return {
     combo,
     director,
     shockwave,
+    takedown,
     get enemies() { return enemies; },
     setEnemies(list) {
       enemies = list;
