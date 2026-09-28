@@ -1,5 +1,6 @@
 // WayneTech: four trees of five upgrades, one point each, each needing the one above it. Every
 // effect is a number in one shared effects object that combat, the hero and the gadgets read. Pure.
+import { damageToHero } from '../combat/rules.js';
 export const TREES = [
   { id: 'armor', name: 'Armor', upgrades: [
     { id: 'plating1', name: 'Reinforced Plating', text: 'Max health +25.' },
@@ -93,10 +94,18 @@ export function upgradeStatus(owned, id, free) {
   return r.reason === 'owned' ? 'owned' : r.reason === 'points' ? 'poor' : 'locked';
 }
 
-// How much of an attack's damage lands. `buzzer` is the Joker's thrown gag.
+// How much of an attack's damage lands. The Joker's gags are `gas` (the laughing-gas grenades he
+// throws) and `buzzer` (the joy-buzzer floor tiles): Kevlar Weave covers both, as it does knives.
+const RANGED = new Set(['gas', 'buzzer']);
 export function damageFactor(kind, e) {
-  const k = kind === 'knife' ? e.knifeMult : kind === 'buzzer' ? e.rangedMult : 1;
+  const k = kind === 'knife' ? e.knifeMult : RANGED.has(kind) ? e.rangedMult : 1;
   return k * e.damageMult;
+}
+
+// Damage that reaches Batman after armor, rounded to hundredths: goon attacks (combat) and the
+// Joker fight's hazards (boss.js) both go through here, so every upgrade applies to both.
+export function hurtDamage(kind, opts, e) {
+  return Math.round(damageToHero(kind, opts) * damageFactor(kind, e) * 100) / 100;
 }
 
 // Health recovery out of combat: after `regenDelay` seconds calm and unhurt, `regenRate` per second.

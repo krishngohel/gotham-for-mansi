@@ -1,6 +1,6 @@
 // Freeflow combat: turns hero input into moves against enemies and resolves enemy attacks on the hero.
 import * as THREE from 'three';
-import { resolveHit, damageToHero, DIFFICULTY, inShockwave, shouldDiveBomb } from './rules.js';
+import { resolveHit, DIFFICULTY, inShockwave, shouldDiveBomb } from './rules.js';
 import { selectTarget } from './targeting.js';
 import { createCombo } from './combo.js';
 import { createDirector } from './director.js';
@@ -11,7 +11,7 @@ import { CHAIN_RULES, chainForAction, chainAvailability, selectChainTargets, cha
 import { SWARM, swarmTargets, swarmAvailability, swarmTimeline, createSwarmControl } from './batSwarm.js';
 import { buildChainTimeline } from './chainTimeline.js';
 import { createChainControl } from './chainControl.js';
-import { BASE_EFFECTS, damageFactor } from '../progress/upgrades.js';
+import { BASE_EFFECTS, hurtDamage } from '../progress/upgrades.js';
 
 const PUNCHES = ['Punch_Jab', 'Punch_Cross', 'Punch_Jab'];
 // Regular kicks alternate the front push kick and the roundhouse (the front kick alone at
@@ -673,7 +673,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     if (hero.dead) return;
     if (hero.invulnerable > 0) { events.emit('evaded', { e }); return; }
     const blocking = hero.blocking && kind !== 'charge';
-    const dmg = Math.round(damageToHero(kind, { difficulty, blocking }) * damageFactor(kind, effects) * 100) / 100;
+    const dmg = hurtDamage(kind, { difficulty, blocking }, effects);
     hero.health = Math.max(0, hero.health - dmg);
     combo.damaged();
     punchChain = kickChain = 0;

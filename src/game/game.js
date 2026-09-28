@@ -280,7 +280,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const prompts = createPromptQueue(hud, () => settings.bindings, () => settings.hints);
     const waypoint = createWaypoint(hudRoot.querySelector('.hud') ?? hudRoot);
     const beacon = createBeacon(scene);
-    const boss = createBoss({ assets, scene, rng, combat, events, hud, spawn, despawn, hero, time, getDifficulty: () => settings.difficulty, collision: world.collision });
+    const boss = createBoss({ assets, scene, rng, combat, events, hud, spawn, despawn, hero, time, getDifficulty: () => settings.difficulty, collision: world.collision, effects });
     boss.joker.health = 999;
     const finale = createFinale({ scene, world, hero, boss, camera, events, rng });
 

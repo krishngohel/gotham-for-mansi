@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { TREES, UPGRADES, UPGRADE_IDS, BASE_EFFECTS, upgradeEffects, canBuy, upgradeStatus, damageFactor, regenStep } from '../../src/progress/upgrades.js';
+import { TREES, UPGRADES, UPGRADE_IDS, BASE_EFFECTS, upgradeEffects, canBuy, upgradeStatus, damageFactor, hurtDamage, regenStep } from '../../src/progress/upgrades.js';
 import { sanitizeProgress, newGameProgress } from '../../src/core/save.js';
 import { sanitizeWayneSave } from '../../src/progress/wayneSave.js';
 
@@ -57,6 +57,21 @@ describe('effects', () => {
     expect(damageFactor('buzzer', e)).toBeCloseTo(0.595);
     expect(damageFactor('grunt', e)).toBeCloseTo(0.85);
     expect(damageFactor('grunt', BASE_EFFECTS)).toBe(1);
+  });
+  it("Kevlar Weave covers the Joker's thrown laughing gas, not just the buzzer tiles", () => {
+    const kevlar = upgradeEffects(['plating1', 'kevlar']);
+    expect(damageFactor('gas', kevlar)).toBeCloseTo(0.7);
+    expect(damageFactor('gas', upgradeEffects(tree('armor')))).toBeCloseTo(0.595);
+    expect(damageFactor('gas', BASE_EFFECTS)).toBe(1);
+  });
+  it('hurtDamage: the boss hazards take armor like any hit (normal difficulty: gas 4, buzzer 12)', () => {
+    const armor = upgradeEffects(tree('armor'));
+    const dampersOnly = { ...BASE_EFFECTS, damageMult: 0.85 };
+    expect(hurtDamage('gas', { difficulty: 'normal' }, BASE_EFFECTS)).toBe(4);
+    expect(hurtDamage('gas', { difficulty: 'normal' }, armor)).toBe(2.38);
+    expect(hurtDamage('buzzer', { difficulty: 'normal' }, armor)).toBe(7.14);
+    expect(hurtDamage('buzzer', { difficulty: 'normal' }, dampersOnly)).toBe(10.2);
+    expect(hurtDamage('gas', { difficulty: 'normal', invulnerable: true }, armor)).toBe(0);
   });
   it('regen waits for calm, then climbs at the rate, capped at max', () => {
     expect(regenStep(50, 100, { calm: false, sinceHurt: 99 }, BASE_EFFECTS, 1)).toBe(50);
