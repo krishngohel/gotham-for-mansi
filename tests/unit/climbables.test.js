@@ -131,3 +131,12 @@ it('zip routes cross real gaps', () => {
   for (const [a, b] of ZIP_ROUTES) expect(Math.hypot(b.x - a.x, b.z - a.z)).toBeGreaterThan(25);
   expect(ZIP_ROUTES.length).toBeGreaterThanOrEqual(8);
 });
+
+describe('line sag', () => {
+  it('a line with sag 0 is taut, others sag by ZIP_SAG', () => {
+    const c = createClimbables();
+    const a = addZipline(c, { x: 0, y: 10, z: 0 }, { x: 40, y: 10, z: 0 });
+    expect(zipSag(a, 20)).toBeCloseTo(40 * 0.03);
+    expect(zipSag({ ...a, sag: 0 }, 20)).toBe(0);
+  });
+});

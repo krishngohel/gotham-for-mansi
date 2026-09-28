@@ -91,3 +91,26 @@ describe('fast landings', () => {
     expect(p.z).toBeCloseTo(20.35, 5);
   });
 });
+
+describe('removeBox', () => {
+  it('takes a box out of every query', () => {
+    const c = createCollision();
+    const wall = c.addBox(-1, 0, 4, 1, 3, 4.3, 'breakable');
+    const o = { x: 0, y: 1, z: 0 }, d = { x: 0, y: 0, z: 1 };
+    expect(c.raycast(o, d, 10)?.box).toBe(wall);
+    expect(c.removeBox(wall)).toBe(true);
+    expect(wall.removed).toBe(true);
+    expect(c.raycast(o, d, 10)).toBe(null);
+    expect(c.query(-2, 3, 2, 5)).not.toContain(wall);
+    const p = { x: 0, y: 0, z: 4.15 };
+    expect(c.resolveCylinder(p, 0.35, 1.8).hitWall).toBe(false);
+    expect(c.removeBox(wall)).toBe(false);
+  });
+  it('a removed floor box is no longer ground', () => {
+    const c = createCollision({ floor: () => 0 });
+    const slab = c.addBox(-2, 0, -2, 2, 3, 2, 'shed');
+    expect(c.groundBelow(0, 5, 0)).toBe(3);
+    c.removeBox(slab);
+    expect(c.groundBelow(0, 5, 0)).toBe(0);
+  });
+});

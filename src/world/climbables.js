@@ -84,7 +84,7 @@ export function zipPoint(line, s, out = {}) {
 // maximum at the middle. The drawn ink line, the rider's hand and the catch check all subtract
 // this from zipPoint's straight-chord y so they agree on where the cable is.
 export function zipSag(line, s) {
-  return Math.sin((Math.PI * s) / line.length) * line.length * ZIP_SAG;
+  return Math.sin((Math.PI * s) / line.length) * line.length * (line.sag ?? ZIP_SAG);
 }
 
 // A scratch point reused across calls: zipClosest only needs the interpolated point to measure

@@ -18,6 +18,21 @@ export function createCollision({ cell = 8, floor = () => 0 } = {}) {
     return box;
   }
 
+  // Takes a box out of the world (a cracked wall blown open, a railing torn down). Its id stays
+  // reserved so the query stamps stay valid.
+  function removeBox(box) {
+    if (!box || box.removed) return false;
+    box.removed = true;
+    for (let i = Math.floor(box.minX / cell); i <= Math.floor(box.maxX / cell); i++) {
+      for (let j = Math.floor(box.minZ / cell); j <= Math.floor(box.maxZ / cell); j++) {
+        const list = grid.get(key(i, j));
+        const at = list ? list.indexOf(box) : -1;
+        if (at >= 0) list.splice(at, 1);
+      }
+    }
+    return true;
+  }
+
   let stamp = 0;
   const seen = new Uint32Array(1 << 16);
   function query(minX, minZ, maxX, maxZ, out = []) {
@@ -38,7 +53,7 @@ export function createCollision({ cell = 8, floor = () => 0 } = {}) {
     return out;
   }
   function queryAll(minX, minZ, maxX, maxZ, out) {
-    for (const b of boxes) if (b.maxX >= minX && b.minX <= maxX && b.maxZ >= minZ && b.minZ <= maxZ) out.push(b);
+    for (const b of boxes) if (!b.removed && b.maxX >= minX && b.minX <= maxX && b.maxZ >= minZ && b.minZ <= maxZ) out.push(b);
     return out;
   }
 
@@ -134,5 +149,5 @@ export function createCollision({ cell = 8, floor = () => 0 } = {}) {
     return best;
   }
 
-  return { addBox, query: (a, b, c, d) => query(a, b, c, d, []), groundBelow, resolveCylinder, raycast, boxes };
+  return { addBox, removeBox, query: (a, b, c, d) => query(a, b, c, d, []), groundBelow, resolveCylinder, raycast, boxes };
 }

@@ -325,3 +325,48 @@ describe('diveBomb move (used by the shockwave)', () => {
     expect(resolveHit('diveBomb', b).outcome).toBe('knockdown');
   });
 });
+
+describe('combo shield and threshold (WayneTech)', () => {
+  it('damaged() breaks a combo and says so', () => {
+    const c = createCombo();
+    for (let i = 0; i < 4; i++) c.hit();
+    expect(c.damaged()).toBe(true);
+    expect(c.value).toBe(0);
+  });
+  it('a shield absorbs one hit per combo run', () => {
+    const c = createCombo({ shield: 1 });
+    for (let i = 0; i < 5; i++) c.hit();
+    expect(c.damaged()).toBe(false);
+    expect(c.value).toBe(5);
+    expect(c.damaged()).toBe(true);
+    expect(c.value).toBe(0);
+    c.hit();
+    expect(c.damaged()).toBe(false);
+    expect(c.value).toBe(1);
+  });
+  it('an absorbed hit restarts the timeout', () => {
+    const c = createCombo({ timeout: 1.5, shield: 1 });
+    c.hit();
+    c.tick(1.4);
+    c.damaged();
+    c.tick(1.4);
+    expect(c.value).toBe(1);
+  });
+  it('setShield and setReady change the rules live', () => {
+    const c = createCombo();
+    c.setShield(1);
+    c.hit();
+    expect(c.damaged()).toBe(false);
+    for (let i = 0; i < 5; i++) c.hit();
+    expect(c.ready).toBe(false);
+    c.setReady(6);
+    expect(c.ready).toBe(true);
+    expect(c.readyAt).toBe(6);
+  });
+  it('an empty combo takes damage without using the shield', () => {
+    const c = createCombo({ shield: 1 });
+    expect(c.damaged()).toBe(true);
+    c.hit();
+    expect(c.damaged()).toBe(false);
+  });
+});
