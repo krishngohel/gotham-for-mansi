@@ -10,7 +10,7 @@ import { LAYER_FX } from '../src/render/layers.js';
 import { buildClimbClips } from '../src/actors/climbAnims.js';
 import { buildChainClips } from '../src/actors/chainAnims.js';
 import { CHAIN_BEATS } from '../src/combat/chainTimeline.js';
-import { buildStealthClips, STEALTH_BEATS } from '../src/actors/stealthAnims.js';
+import { buildStealthClips, STEALTH_BEATS, CHOKE_OFFSET } from '../src/actors/stealthAnims.js';
 import { MOCAP_BEATS } from '../src/config/mocap.js';
 
 const params = new URLSearchParams(location.search);
@@ -55,10 +55,13 @@ for (const c of buildChainClips(SkeletonUtils.clone(assets.bodies.m), assets.cli
 for (const c of buildStealthClips(SkeletonUtils.clone(assets.bodies.m), assets.clips)) assets.clips.set(c.name, c);
 
 const bats = {};
-// suit='goon' renders the takedown's other half on a goon body instead of a bat suit.
+// suit='goon' or suit='rifle' renders on a goon body (grunt, or a rifle goon with its rifle mesh)
+// instead of a bat suit.
 function bat(suit) {
   if (!bats[suit]) {
-    const b = suit === 'goon' ? createGoon(assets, { type: 'grunt' }) : createBat(assets, suit);
+    const b = suit === 'goon' ? createGoon(assets, { type: 'grunt' })
+      : suit === 'rifle' ? createGoon(assets, { type: 'rifle' })
+      : createBat(assets, suit);
     bats[suit] = b;
   }
   return bats[suit];
@@ -142,6 +145,46 @@ function sheet({ clip, suit = 'm', views = ['side', 'front', 'quarter'], frames 
   return out.toDataURL('image/png');
 }
 
+// Two actors at once, placed the way gameplay places them for the silent takedown: the goon at
+// the origin facing +Z, Batman `offset` behind it on the same yaw (createSilentTakedown's spot,
+// src/stealth/takedowns.js Task 10). Rows = views, columns = evenly spaced frames of `batClip` and
+// `goonClip` played together. Returns a PNG data URL.
+function pairSheet({ batClip, goonClip, batSuit = 'm', goonSuit = 'goon', offset = CHOKE_OFFSET, views = ['side', 'quarter'], frames = 9, title = '' } = {}) {
+  const goon = bat(goonSuit), batman = bat(batSuit);
+  scene.add(goon.root, batman.root);
+  goon.root.position.set(0, 0, 0);
+  goon.face(0);
+  batman.root.position.set(0, 0, -offset);
+  batman.face(0);
+  const bc = assets.clips.get(batClip), gc = assets.clips.get(goonClip);
+  if (!bc) throw new Error(`no clip ${batClip}`);
+  if (!gc) throw new Error(`no clip ${goonClip}`);
+  const dur = Math.max(bc.duration, gc.duration);
+  const out = document.getElementById('sheet');
+  out.width = CELL.w * frames;
+  out.height = CELL.h * views.length + 22;
+  const ctx = out.getContext('2d');
+  ctx.fillStyle = '#dfe3ea';
+  ctx.fillRect(0, 0, out.width, out.height);
+  label(ctx, 0, 0, `${title || `${batClip} + ${goonClip}`}  offset=${offset}m  dur=${dur.toFixed(2)}s`);
+  for (let r = 0; r < views.length; r++) {
+    setView(views[r]);
+    for (let i = 0; i < frames; i++) {
+      const t = dur * (frames === 1 ? 0 : i / (frames - 1));
+      pose(batman, batClip, Math.min(t, bc.duration - 1e-4));
+      pose(goon, goonClip, Math.min(t, gc.duration - 1e-4));
+      renderer.render(scene, camera);
+      const x = i * CELL.w, y = 22 + r * CELL.h;
+      ctx.drawImage(gl, x, y);
+      ctx.strokeStyle = '#b8bec8';
+      ctx.strokeRect(x + 0.5, y + 0.5, CELL.w - 1, CELL.h - 1);
+      label(ctx, x, y, `${views[r]} t=${t.toFixed(2)}`);
+    }
+  }
+  scene.remove(goon.root, batman.root);
+  return out.toDataURL('image/png');
+}
+
 // Numbers for the authoring loop: per frame, where the support foot balls, hips, head and the
 // kicking foot are (root space, metres), plus knee angles, so drift and hyperextension can be
 // checked without eyeballing.
@@ -169,6 +212,6 @@ function measure({ clip, suit = 'm', frames = 24 } = {}) {
   return rows;
 }
 
-window.__viewer = { ready: true, sheet, measure, clips: [...assets.clips.keys()], beats: KICK_BEATS };
+window.__viewer = { ready: true, sheet, pairSheet, measure, clips: [...assets.clips.keys()], beats: KICK_BEATS };
 // Manual use: ?clip=Kick_Front&suit=m renders one sheet into the page.
 if (params.get('clip')) sheet({ clip: params.get('clip'), suit: params.get('suit') ?? 'm' });

@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import * as THREE from 'three';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { loadGlb } from '../../tools/rigNode.mjs';
 import { sanitizeClip } from '../../src/actors/animator.js';
-import { buildStealthClips, STEALTH_CLIPS, STEALTH_BEATS } from '../../src/actors/stealthAnims.js';
+import { buildStealthClips, STEALTH_CLIPS, STEALTH_BEATS, CHOKE_OFFSET } from '../../src/actors/stealthAnims.js';
 
 describe('buildStealthClips', () => {
   let model, clips, built;
@@ -70,6 +71,37 @@ describe('buildStealthClips', () => {
     expect(l.z - chest.z).toBeGreaterThan(0.35);
   });
 
+  // Model-space world quaternion of a bone at time t (same stepping as `at`, but the rotation).
+  function worldQuat(clip, t, bone) {
+    const mixer = new THREE.AnimationMixer(model);
+    const action = mixer.clipAction(clip);
+    action.play();
+    mixer.setTime(t);
+    model.updateMatrixWorld(true);
+    const q = model.getObjectByName(bone).getWorldQuaternion(new THREE.Quaternion());
+    action.stop();
+    mixer.uncacheClip(clip);
+    return q;
+  }
+
+  it('the aim points the muzzle forward and level, not up over the shoulder', () => {
+    // characters.js rigidly attaches the rifle to hand_r in hand_r's bind pose, with the barrel
+    // along the bind pose's own forward axis (Task 6). hand_r itself is never keyed by this clip
+    // (only clavicle/upperarm/lowerarm/spine/neck are), so its LOCAL rotation stays at rest and the
+    // barrel's world direction is exactly hand_r's rest-relative world rotation applied to +Z: the
+    // same "ch.muzzle" direction the game would show, without needing the rendered mesh.
+    const idle = clips.get('Idle_Loop');
+    const bindQuat = worldQuat(idle, 0, 'hand_r');
+    const aimQuat = worldQuat(built.get('Rifle_Aim'), 0.5, 'hand_r');
+    const muzzleDir = new THREE.Vector3(0, 0, 1).applyQuaternion(aimQuat.clone().multiply(bindQuat.clone().invert()));
+    const forward = new THREE.Vector3(0, 0, 1);
+    const angle = THREE.MathUtils.radToDeg(muzzleDir.angleTo(forward));
+    expect(angle).toBeLessThan(15);
+    const c = built.get('Rifle_Aim');
+    const r = at(c, 0.5, 'hand_r'), chest = at(c, 0.5, 'spine_03');
+    expect(Math.abs(r.y - chest.y)).toBeLessThan(0.2);
+  });
+
   it('the search swings the rifle from side to side', () => {
     const c = built.get('Rifle_Search');
     expect(Math.abs(at(c, 0.75, 'hand_l').x - at(c, 2.25, 'hand_l').x)).toBeGreaterThan(0.15);
@@ -88,5 +120,59 @@ describe('buildStealthClips', () => {
     const neck = at(c, 1, 'neck_01');
     for (const hand of ['hand_l', 'hand_r']) expect(at(c, 1, hand).distanceTo(neck)).toBeLessThan(0.3);
     expect(at(c, 0, 'pelvis').y - at(c, 1.95, 'pelvis').y).toBeGreaterThan(0.2);
+  });
+});
+
+// Both halves placed the way gameplay places them: the goon at the origin facing +Z, Batman
+// CHOKE_OFFSET behind it on the same yaw (createSilentTakedown's spot, Task 10). A single-body
+// check can't catch an arm that reads fine alone but never reaches the other actor, which is what
+// the paired contact sheet (pair-choke.png) found: the previous choke crossed Batman's own chest
+// beside the goon instead of wrapping it.
+describe('Takedown_Choke and Choked paired at the takedown offset', () => {
+  let batModel, goonModel, batHand;
+  beforeAll(async () => {
+    const [m, a1, a2] = await Promise.all([
+      loadGlb('public/assets/hero_m.glb'),
+      loadGlb('public/assets/anims1.glb', { stripTextures: false }),
+      loadGlb('public/assets/anims2.glb', { stripTextures: false }),
+    ]);
+    batModel = m.scene;
+    // A goon reaction is just the shared skeleton's clip played on a second body, same as the game
+    // plays it: one built clip set, two independent skinned models.
+    goonModel = SkeletonUtils.clone(batModel);
+    const clips = new Map();
+    for (const c of [...a1.animations, ...a2.animations]) clips.set(c.name, sanitizeClip(c));
+    const stealthClips = new Map(buildStealthClips(batModel, clips).map((c) => [c.name, c]));
+    batHand = { choke: stealthClips.get('Takedown_Choke'), choked: stealthClips.get('Choked') };
+  });
+
+  function worldPos(root, model, clip, t, bone) {
+    const mixer = new THREE.AnimationMixer(model);
+    const action = mixer.clipAction(clip);
+    action.play();
+    mixer.setTime(t);
+    root.updateMatrixWorld(true);
+    const p = model.getObjectByName(bone).getWorldPosition(new THREE.Vector3());
+    action.stop();
+    mixer.uncacheClip(clip);
+    return p;
+  }
+
+  it('Batman\'s hands reach the goon\'s neck, not his own chest', () => {
+    const goonRoot = new THREE.Group(); goonRoot.add(goonModel); goonRoot.position.set(0, 0, 0);
+    const batRoot = new THREE.Group(); batRoot.add(batModel); batRoot.position.set(0, 0, -CHOKE_OFFSET);
+    for (const t of [0.75, 1.0, 1.25]) {
+      const neck = worldPos(goonRoot, goonModel, batHand.choked, t, 'neck_01');
+      const ownChest = worldPos(batRoot, batModel, batHand.choke, t, 'spine_03');
+      const hl = worldPos(batRoot, batModel, batHand.choke, t, 'hand_l');
+      const hr = worldPos(batRoot, batModel, batHand.choke, t, 'hand_r');
+      expect(hl.distanceTo(neck), `hand_l at t=${t}`).toBeLessThan(0.18);
+      expect(hr.distanceTo(neck), `hand_r at t=${t}`).toBeLessThan(0.18);
+      // Not inside his own chest: nowhere near coincident with his own spine_03.
+      expect(hl.distanceTo(ownChest), `hand_l vs own chest at t=${t}`).toBeGreaterThan(0.15);
+      expect(hr.distanceTo(ownChest), `hand_r vs own chest at t=${t}`).toBeGreaterThan(0.15);
+    }
+    goonRoot.remove(goonModel);
+    batRoot.remove(batModel);
   });
 });
