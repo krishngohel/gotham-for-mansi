@@ -25,6 +25,7 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
     vel: new THREE.Vector3(), air: false, airFrom: 0, thrown: false,
     idlePose: rng.pick(IDLE_POSES),
     glyph: null,
+    tiedWith: null, tiedT: 0,
     radius: 0.42 * scale,
     get x() { return pos.x; },
     get z() { return pos.z; },
@@ -46,6 +47,36 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
     e.aware = true;
     setState('alert');
     play(rng.chance(0.5) ? 'Idle_No_Loop' : 'Yes', { once: true, timeScale: 1.3, fade: 0.15 });
+  };
+
+  // Chain takedowns (src/combat/chainControl.js) hold a goon in place: no AI, no physics; the
+  // chain moves and animates it. Returns whether it was mid-attack (the caller frees its
+  // director slot).
+  e.chainHold = () => {
+    const was = e.state === 'windup' || e.state === 'attack';
+    e.glyph = null;
+    e.countered = false;
+    e.knock.set(0, 0, 0);
+    e.vel.set(0, 0, 0);
+    setState('chained');
+    return was;
+  };
+  e.chainRelease = () => { if (e.state === 'chained') setState(e.aware ? 'engage' : 'idle'); };
+
+  // Rope-a-Dope: tied up with `partners` for `seconds`. Down and helpless; any hit on one of
+  // them knocks the whole bundle out (combatSystem's landHit). Returns whether it was mid-attack.
+  e.tie = (partners, seconds = 6) => {
+    if (!e.alive) return false;
+    const was = e.state === 'windup' || e.state === 'attack';
+    e.glyph = null;
+    e.countered = false;
+    e.stunned = false;
+    e.down = true;
+    e.tiedWith = partners.filter((p) => p !== e);
+    e.tiedT = seconds;
+    setState('tied');
+    play('Hit_Knockback', { once: true, timeScale: 1.3, fade: 0.05 });
+    return was;
   };
 
   e.ready = (hero) => e.state === 'engage' && e.alive && !e.down && tmp.set(hero.pos.x - pos.x, 0, hero.pos.z - pos.z).length() < 6.5;
@@ -154,7 +185,12 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
     let speed = 0;
     let moveX = 0, moveZ = 0;
 
-    if (e.state === 'grabbed') { ch.animator.update(dt); return; }
+    if (e.state === 'grabbed' || e.state === 'chained') {
+      // Failsafe: a chain that never finished (a teleport, a restart) lets go after 5 s.
+      if (e.state === 'chained' && e.t > 5) e.chainRelease();
+      ch.animator.update(dt);
+      return;
+    }
     switch (e.state) {
       case 'idle':
         play(e.idlePose, { fade: 0.3 });
@@ -229,7 +265,11 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
         if (e.downT <= 0) { setState('getup'); play('LayToIdle', { once: true, timeScale: 1.4, fade: 0.1 }); }
         break;
       case 'getup':
-        if (e.t > 1.0) { e.down = false; setState('engage'); }
+        if (e.t > 1.0) { e.down = false; if (e.aware) setState('engage'); else e.wake(); }
+        break;
+      case 'tied':
+        e.tiedT -= dt;
+        if (e.tiedT <= 0) { e.tiedWith = null; setState('getup'); play('LayToIdle', { once: true, timeScale: 1.4, fade: 0.1 }); }
         break;
       case 'ko':
         break;
@@ -254,7 +294,7 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
         e.thrown = false;
         e.vel.set(0, 0, 0);
         ctx.onLanded?.(e, drop);
-        if (e.alive && e.state !== 'ko') { e.down = true; e.downT = Math.max(e.downT, 1.6); setState('down'); }
+        if (e.alive && e.state !== 'ko' && e.state !== 'tied') { e.down = true; e.downT = Math.max(e.downT, 1.6); setState('down'); }
       } else if (ground === -Infinity && pos.y < -5) {
         pos.y = -5; e.air = false; e.alive = false; e.state = 'ko';
       }

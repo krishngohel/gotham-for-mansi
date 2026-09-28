@@ -7,6 +7,7 @@ import { createDirector } from './director.js';
 import { createInputBuffer } from './inputBuffer.js';
 import { MOCAP_SPEED, MOCAP_START } from '../config/mocap.js';
 import { rootMotionAt } from './reach.js';
+import { tiedGroup, chainOutcome } from './chains.js';
 
 const PUNCHES = ['Punch_Jab', 'Punch_Cross', 'Punch_Jab'];
 // Regular kicks alternate the front push kick and the roundhouse (the front kick alone at
@@ -83,6 +84,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
   }
 
   function landHit(move, target, { word: w, power = 1, stopTime = 0.06, launch = 0, crit = false } = {}) {
+    if (target.state === 'tied') return breakTied(target);
     const result = resolveHit(move, target);
     const wasAttacking = target.applyHit(result, hero.pos, { power, launch });
     if (wasAttacking) director.release(target.id);
@@ -107,6 +109,37 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     else if (crit && result.outcome !== 'hit') critical(target);
     else if (crit) critical(target, { slow: 0.35, scale: 0.4 });
     return result;
+  }
+
+  // One goon's part in a chain (or a tied bundle) ends: knocked out, or only knocked down for a
+  // brute. Same bookkeeping as landHit: director slot, combo, impact and ko events.
+  function finishTarget(e, { power = 1, launch = 0 } = {}) {
+    if (!e.alive) return null;
+    const outcome = chainOutcome(e);
+    if (outcome === 'ko') e.health = 0;
+    e.tiedWith = null;
+    e.applyHit({ outcome, damage: 0, stun: 0 }, hero.pos, { power, launch });
+    director.release(e.id);
+    combo.hit();
+    e.ch.headWorld(chest, -0.3);
+    events.emit('impact', { pos: chest.clone(), move: 'chain', outcome, target: e, crit: false });
+    if (outcome === 'ko') events.emit('ko', { target: e });
+    return outcome;
+  }
+
+  // Any hit on a tied goon knocks the whole bundle out (brutes only go down).
+  function breakTied(target) {
+    const group = tiedGroup(target);
+    let kos = 0;
+    for (const e of group) if (finishTarget(e, { power: 1.4, launch: 2.5 }) === 'ko') kos += 1;
+    time.hitStop(0.12);
+    follow.addShake(0.18);
+    target.ch.headWorld(chest, 0.2);
+    events.emit('word', { text: 'KAPOW!', pos: chest.clone(), big: true });
+    events.emit('tiedBreak', { count: group.length });
+    critical(target, { slow: 0.6, scale: 0.3, variant: 'rope' });
+    if (kos && engaged().length === 0) events.emit('lastHit', { target });
+    return { outcome: kos ? 'ko' : 'knockdown', damage: 0, stun: 0 };
   }
 
   // ---- moves (hero.control objects) ----

@@ -7,6 +7,8 @@ export function createCombo({ timeout = 1.5, ready = 8 } = {}) {
     miss: reset,
     damaged: reset,
     spend: reset,
+    // A chain takedown spends part of the combo and keeps the rest (the timeout restarts).
+    take(n) { value = Math.max(0, value - n); if (value === 0) reset(); else clock = timeout; },
     tick(dt) {
       if (value === 0) return;
       clock -= dt;
