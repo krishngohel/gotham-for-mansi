@@ -235,7 +235,9 @@ if (!only || only === 'stealth') {
 }
 
 if (!only || only === 'gadgets') {
-  const { p, errors } = await openGame('fight=test&god=1&gadgets=all');
+  // new=1: the pages share one browser context, so without it this page would load the stealth
+  // page's save (Ace Catwalks), start that predator room and orphan the fight=test squad.
+  const { p, errors } = await openGame('new=1&fight=test&god=1&gadgets=all');
   await p.waitForTimeout(1500);
   await skipComic(p);
   await label(p, 'warmup');
