@@ -85,8 +85,7 @@ void main() {
   float front = step(0.0, cosA);
   float inside = step(rad, 1.0) * front;
   float bat = texture2D(tBat, e * 0.5 + 0.5).r;
-  inside *= uSignalOn; 
-  float haze = smoothstep(1.6, 0.9, rad) * front * uSignalOn;
+  inside *= uSignalOn;
   float wedge = step(rad, 1.5) * front * uSignalOn;
   col = mix(col, uSignal * 0.6, wedge * 0.22 * (0.5 + cloud));
   col = mix(col, mix(uSignal, uInk, bat), inside * (0.6 + 0.4 * cloud));
