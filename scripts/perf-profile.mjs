@@ -4,7 +4,7 @@
 import { chromium } from 'playwright-core';
 const base = process.argv[2] ?? 'http://localhost:5208/';
 const mode = process.argv[3] ?? 'glide';
-const b = await chromium.launch({ channel: 'msedge', headless: false, args: ['--start-maximized', '--disable-gpu-vsync', '--disable-frame-rate-limit', '--mute-audio'] });
+const b = await chromium.launch({ channel: 'msedge', headless: false, args: ['--mute-audio', '--start-maximized', '--disable-gpu-vsync', '--disable-frame-rate-limit'] });
 const p = await (await b.newContext({ viewport: null })).newPage();
 await p.goto(`${base}?${mode === 'fight' ? 'fight=test' : 'at=start'}&god=1`);
 await p.waitForFunction(() => window.__game?.comic, null, { timeout: 120000 });

@@ -30,7 +30,7 @@ const spots = [
   ['clock plaza', { x: -62, y: 58, z: -148 }, Math.PI],
 ];
 
-const b = await chromium.launch({ channel: 'msedge', headless: false, args: ['--start-maximized', '--disable-gpu-vsync', '--disable-frame-rate-limit', '--mute-audio'] });
+const b = await chromium.launch({ channel: 'msedge', headless: false, args: ['--mute-audio', '--start-maximized', '--disable-gpu-vsync', '--disable-frame-rate-limit'] });
 const ctx = await b.newContext({ viewport: null });
 
 // Records every rAF delta with the current scenario label, and the draw calls/triangles of the

@@ -4,7 +4,7 @@
 import { chromium } from 'playwright-core';
 
 const url = process.argv[2] ?? 'http://localhost:5210/';
-const browser = await chromium.launch({ args: ['--ignore-gpu-blocklist', '--use-angle=d3d11', '--mute-audio'] });
+const browser = await chromium.launch({ args: ['--mute-audio', '--ignore-gpu-blocklist', '--use-angle=d3d11'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));

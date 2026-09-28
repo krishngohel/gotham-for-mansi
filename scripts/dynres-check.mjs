@@ -5,7 +5,7 @@
 import { chromium } from 'playwright-core';
 const base = process.argv[2] ?? 'http://localhost:5208/';
 const draws = Number(process.argv[3] ?? 40);
-const b = await chromium.launch({ channel: 'msedge', headless: false, args: ['--start-maximized', '--mute-audio'] });
+const b = await chromium.launch({ channel: 'msedge', headless: false, args: ['--mute-audio', '--start-maximized'] });
 const p = await (await b.newContext({ viewport: null })).newPage();
 await p.goto(`${base}?at=start&god=1&gputime=1`);
 await p.waitForFunction(() => window.__game?.comic, null, { timeout: 120000 });

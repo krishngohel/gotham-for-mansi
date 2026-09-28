@@ -10,7 +10,7 @@ import { join } from 'node:path';
 const out = process.argv[2] ?? 'C:/Users/awsom/AppData/Local/Temp/mocap/contact';
 const base = process.argv[3] ?? 'http://localhost:5212/';
 mkdirSync(out, { recursive: true });
-const browser = await chromium.launch({ args: ['--ignore-gpu-blocklist', '--use-angle=d3d11'] });
+const browser = await chromium.launch({ args: ['--mute-audio', '--ignore-gpu-blocklist', '--use-angle=d3d11'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 const errors = [];
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });

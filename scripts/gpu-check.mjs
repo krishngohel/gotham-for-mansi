@@ -4,7 +4,7 @@
 import { chromium } from 'playwright-core';
 const url = process.argv[2] ?? 'https://krishngohel.github.io/gotham-for-mansi/?at=start&god=1';
 const channel = process.argv[3] ?? 'msedge';
-const b = await chromium.launch({ channel, headless: false, args: ['--start-maximized', '--mute-audio'] });
+const b = await chromium.launch({ channel, headless: false, args: ['--mute-audio', '--start-maximized'] });
 const ctx = await b.newContext({ viewport: null });
 const p = await ctx.newPage();
 await p.goto(url);

@@ -10,7 +10,7 @@ const base = process.argv[2] ?? 'http://localhost:5206/';
 const only = process.argv.slice(3);
 const shots = process.env.SHOTS ?? '';
 if (shots) mkdirSync(shots, { recursive: true });
-const browser = await chromium.launch({ args: ['--ignore-gpu-blocklist', '--use-angle=d3d11', '--mute-audio'] });
+const browser = await chromium.launch({ args: ['--mute-audio', '--ignore-gpu-blocklist', '--use-angle=d3d11'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));

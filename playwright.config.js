@@ -8,7 +8,7 @@ export default defineConfig({
   use: {
     baseURL: process.env.BASE_URL ?? 'http://localhost:5200',
     viewport: { width: 1280, height: 720 },
-    launchOptions: { args: ['--ignore-gpu-blocklist', '--use-angle=d3d11', '--mute-audio'] },
+    launchOptions: { args: ['--mute-audio', '--ignore-gpu-blocklist', '--use-angle=d3d11'] },
   },
   webServer: process.env.BASE_URL ? undefined : { command: 'npm run dev', port: 5200, reuseExistingServer: true, timeout: 60000 },
 });
