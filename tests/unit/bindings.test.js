@@ -41,3 +41,17 @@ describe('rebind conflicts', () => {
     expect(keyLabel(undefined)).toBe('Unbound');
   });
 });
+
+describe('chain takedown bindings', () => {
+  it('binds chains 1 to 3 to the number keys in the Fight group', () => {
+    expect(DEFAULT_BINDINGS.chain1).toEqual(['Digit1']);
+    expect(DEFAULT_BINDINGS.chain2).toEqual(['Digit2']);
+    expect(DEFAULT_BINDINGS.chain3).toEqual(['Digit3']);
+    for (const id of ['chain1', 'chain2', 'chain3']) {
+      const a = ACTIONS.find((x) => x.id === id);
+      expect(a.group).toBe('Fight');
+      expect(a.label).toMatch(/^Chain takedown [123]: /);
+      expect(a.label).not.toContain('—');
+    }
+  });
+});

@@ -1,10 +1,28 @@
 // Action-based input over keyboard, mouse (pointer lock) and the Gamepad API.
 // Keyboard and mouse follow the rebindable settings; the gamepad uses a fixed Xbox layout.
 
-const PAD_BUTTONS = {
+export const PAD_BUTTONS = {
   jump: [0], kick: [1], punch: [2], block: [3], grapple: [4], cape: [5], dodge: [6], batarang: [7],
   detective: [8], pause: [9], sprint: [10], special: [11], help: [13], throw: [15],
 };
+
+// Chain takedowns: D-pad left, up and right while block (Y) is held. With block held, D-pad
+// right belongs to chain 3, not grab and throw.
+export const PAD_CHORD_HOLD = 3;
+export const PAD_CHORDS = { chain1: 14, chain2: 12, chain3: 15 };
+const CHORD_BUTTONS = new Set(Object.values(PAD_CHORDS));
+
+// Actions held on the pad this frame, from a button-state lookup. Pure.
+export function padActions(isDown, out = new Set()) {
+  out.clear();
+  const chord = isDown(PAD_CHORD_HOLD);
+  for (const [action, idx] of Object.entries(PAD_BUTTONS)) {
+    if (idx.some((i) => isDown(i) && !(chord && CHORD_BUTTONS.has(i)))) out.add(action);
+  }
+  if (chord) for (const [action, i] of Object.entries(PAD_CHORDS)) if (isDown(i)) out.add(action);
+  return out;
+}
+
 const DEADZONE = 0.18;
 
 export function createInput({ target = window, bindings }) {
@@ -88,7 +106,7 @@ export function createInput({ target = window, bindings }) {
     const pad = [...pads].find((p) => p && p.connected);
     const now = new Set();
     if (pad) {
-      for (const [action, idx] of Object.entries(PAD_BUTTONS)) if (idx.some((i) => pad.buttons[i]?.pressed)) now.add(action);
+      padActions((i) => !!pad.buttons[i]?.pressed, now);
       pad.buttons.forEach((b, i) => { if (b?.pressed) { if (!rawHeld.has(i)) rawPressed.add(i); rawHeld.add(i); } else rawHeld.delete(i); });
       stick.mx = dz(pad.axes[0] ?? 0); stick.my = dz(pad.axes[1] ?? 0);
       stick.lx = dz(pad.axes[2] ?? 0); stick.ly = dz(pad.axes[3] ?? 0);
