@@ -155,6 +155,14 @@ describe('chain control', () => {
     });
   });
 
+  it('Domino Drop frames its finisher on the goon nearest the pile Batman lands in', () => {
+    // Every goon is out by the dive: the action shot must not fall back to the first one stomped,
+    // who can lie metres from where Batman lands.
+    const targets = [fakeGoon('g0', 0, 2), fakeGoon('g1', 0.5, 5), fakeGoon('g2', -0.5, 5.2)];
+    const { log } = run('domino', targets);
+    expect(of(log, 'critical').map((l) => l[1])).toEqual(['g1']);
+  });
+
   it('keeps Batman near the fight', () => {
     for (const id of ['rope', 'head', 'domino']) expect(run(id, squad()).maxDist).toBeLessThan(9);
   });

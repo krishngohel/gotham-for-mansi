@@ -169,6 +169,20 @@ export function createChainControl(hero, api, { chain, targets, stealth, timelin
     if (k >= 1) pullOn = false;
   }
 
+  // A step aimed at the pile frames its first standing goon (the tied heap). Once they're all
+  // out (the Domino dive), the one nearest the middle: that's where Batman lands, not wherever
+  // the first goon went down.
+  function pileFocus() {
+    const first = targets.find(live);
+    if (first) return first;
+    let best = targets[0], bd = Infinity;
+    for (const e of targets) {
+      const d = Math.hypot(e.pos.x - center.x, e.pos.z - center.z);
+      if (d < bd) { bd = d; best = e; }
+    }
+    return best;
+  }
+
   function land(s) {
     const e = targetOf(s);
     // A step aimed at a goon that something else already knocked out lands nothing (no word).
@@ -200,7 +214,7 @@ export function createChainControl(hero, api, { chain, targets, stealth, timelin
     }
     if (s.thenClip) hero.bat.animator.play(s.thenClip, { once: true, timeScale: 0.9, fade: 0.04 });
     if (s.word && hit) api.word(s.word, at, s.finisher);
-    const focus = e ?? targets.find(live) ?? targets[0];
+    const focus = e ?? pileFocus();
     if (s.finisher) api.critical(focus, { slow: 0.9, scale: 0.25, shot: CHAIN_SHOTS[chain.id], variant: chain.id });
     else if (s.effect === 'heel') api.critical(focus, { slow: 0.35, scale: 0.4, variant: chain.id });
     events.emit('chainContact', { chain: chain.id, effect: s.effect, index: i });
