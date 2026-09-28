@@ -14,6 +14,7 @@ attribute float aArea;
 uniform float uTime, uHeight, uSpeed, uLen, uWidth;
 uniform vec3 uCenter;
 uniform vec2 uSlant;
+varying float vFade;
 void main() {
   float speed = uSpeed * (0.8 + 0.4 * aSeed);
   float y = mod(position.y - uTime * speed, uHeight);
@@ -27,20 +28,32 @@ void main() {
   p.z = uCenter.z + mod(position.z - uCenter.z, aArea) - aArea * 0.5 + uSlant.y * y;
   p.y = uCenter.y - uHeight * 0.45 + y;
   vec4 vp = viewMatrix * vec4(p, 1.0);
+  // The dash's own width/length offset (below) is added in view space, i.e. before the
+  // perspective divide, so a fixed view-space width blows up on screen within a couple
+  // of metres of the lens (screen size grows as 1/depth). Two guards against that:
+  // (1) fade the streak out entirely as it nears the camera, so nothing ever sits right
+  // on the lens, and (2) taper the width itself for anything closer than the 5 m cap
+  // depth, so its on-screen thickness matches the dash's normal mid-distance look
+  // instead of growing without bound as depth -> 0.
+  float depth = -vp.z;
+  vFade = smoothstep(1.2, 2.5, depth);
+  const float widthCapDepth = 5.0;
+  float width = uWidth * clamp(depth / widthCapDepth, 0.0, 1.0);
   // Fixed 18 degree slant in screen (view) space: dashDir is the dash's long axis,
   // widthDir its perpendicular thickness axis. Both are constant, so the dash never
   // rotates with the camera the way a true 3D line segment would.
   float ang = radians(18.0);
   vec2 dashDir = vec2(sin(ang), cos(ang));
   vec2 widthDir = vec2(-dashDir.y, dashDir.x);
-  vp.xy += dashDir * (uLen * aT) + widthDir * (uWidth * aSide);
+  vp.xy += dashDir * (uLen * aT) + widthDir * (width * aSide);
   gl_Position = projectionMatrix * vp;
 }
 `;
 const fragmentShader = /* glsl */ `
 uniform vec3 uColor;
 uniform float uOpacity;
-void main() { gl_FragColor = vec4(uColor, uOpacity); }
+varying float vFade;
+void main() { gl_FragColor = vec4(uColor, uOpacity * vFade); }
 `;
 
 // Splashes: comic "crown" marks (three short strokes fanning up) that flash briefly on
