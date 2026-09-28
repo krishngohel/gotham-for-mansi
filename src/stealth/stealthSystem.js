@@ -42,6 +42,7 @@ export function createStealth({ hero, combat, events, collision, perches = [], r
     room = def;
     spots = roomSpots(def);
     squad = createSquad();
+    cloud.t = 0; // a pellet's cloud from a room before (or a restart) blocks nothing here
     const list = roomSquad(def, fight.squad);
     made.forEach((e, i) => {
       const spec = list[i] ?? list[list.length - 1];
@@ -283,7 +284,7 @@ export function createStealth({ hero, combat, events, collision, perches = [], r
     if (!room) return;
     cloud.x = d.pos.x; cloud.y = d.pos.y; cloud.z = d.pos.z;
     cloud.r = d.radius ?? 2.5;
-    cloud.t = rules.smokeTime;
+    cloud.t = d.life ?? rules.smokeTime;
     smokeReset(minds, squad, d.pos, rules);
     for (const g of goons) if (g.e.alive) g.e.calm();
     events.emit('stealthLost');

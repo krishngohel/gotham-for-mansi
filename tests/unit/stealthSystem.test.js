@@ -171,6 +171,23 @@ describe('a predator room at run time', () => {
     t.step(5);
     expect(t.stealth.alarm).toBe(true);
   });
+  it('the cloud lasts as long as the smoke event says', () => {
+    const t = setup();
+    t.step(3);
+    t.events.emit('smoke', { pos: { x: 0, y: 0, z: 10 }, radius: 2.5, life: 2 });
+    t.step(1.5);
+    expect(t.stealth.alarm).toBe(false);
+    t.step(3);
+    expect(t.stealth.alarm).toBe(true);
+  });
+  it('a room that begins again forgets the last smoke cloud', () => {
+    const t = setup();
+    t.step(3);
+    t.events.emit('smoke', { pos: { x: 0, y: 0, z: 10 }, radius: 2.5 });
+    t.stealth.begin({ stealth: 'test', squad: 'main' }, t.goons, ROOM);
+    t.step(3);
+    expect(t.stealth.alarm).toBe(true);
+  });
   it('a stunned goon goes looking; one that parried a punch raises the alarm', () => {
     const t = setup({ hero: [0, 0, -30] });
     t.events.emit('impact', { target: t.goons[0], outcome: 'stun' });

@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { inRadius } from '../aim.js';
 
 const R = 2.5;
+const LIFE = 6; // seconds the cloud lasts: the puffs, and (via the smoke event) how long goons can't see through it
 
 export function createSmokeHandler() {
   const c = new THREE.Vector3();
@@ -13,7 +14,7 @@ export function createSmokeHandler() {
     fire(sys) {
       const { hero, api } = sys;
       c.copy(hero.pos);
-      sys.gfx.smoke.burst(c, R, 6);
+      sys.gfx.smoke.burst(c, R, LIFE);
       sys.pose('Sword_Regular_B', 0.35, 1.7);
       let n = 0;
       for (const e of sys.combat.enemies) {
@@ -25,7 +26,7 @@ export function createSmokeHandler() {
         } else if (e.aware && inRadius(c, e.pos, 10, 4)) e.lose(2, c);
       }
       hero.invulnerable = Math.max(hero.invulnerable, 0.6);
-      sys.events.emit('smoke', { pos: c.clone(), radius: R, count: n });
+      sys.events.emit('smoke', { pos: c.clone(), radius: R, life: LIFE, count: n });
       sys.events.emit('word', { text: 'FSSSHH!', pos: c.clone().setY(c.y + 1.6), big: false });
       return true;
     },

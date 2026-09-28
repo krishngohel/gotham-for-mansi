@@ -25,7 +25,7 @@ export const STEALTH = {
   silentTime: 2,     // seconds a silent takedown takes
   perchOn: 0.9,      // metres from a perch point that count as standing on it
   perchReach: 5, perchMinDrop: 1.5, perchMaxDrop: 14,
-  smokeTime: 6,     // seconds a smoke cloud blocks sight (the cloud's own life in gadgetFx)
+  smokeTime: 6,     // seconds a smoke cloud blocks sight when the smoke event carries no life
 };
 
 // States in which a goon can't look around or react: being hit, held, tied, frozen, dancing or out.
