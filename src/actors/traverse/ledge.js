@@ -7,8 +7,10 @@ import { canLedgeTakedown } from '../../combat/rules.js';
 const SHIMMY = 1.6;
 const DROP_HOLD = 0.25; // seconds `back` must be held before it drops instead of backflipping
 
+const YANK_DUR = 0.9; // length of the Ledge_Yank clip: hold the pose for the full takedown
+
 export function createLedgeControl(h, { collision, events }, { ledge }) {
-  let l = ledge, phase = 'catch', t = 0, backT = 0;
+  let l = ledge, phase = 'catch', t = 0, backT = 0, yankT = 0;
   const start = h.pos.clone();
   const rightOut = new THREE.Vector3();
   const hangOut = { x: 0, y: 0, z: 0 };
@@ -48,6 +50,16 @@ export function createLedgeControl(h, { collision, events }, { ledge }) {
         return false;
       }
       // Hanging.
+      // Mid-yank: hold the takedown pose for the whole clip instead of falling through to the
+      // shimmy/Hang_Idle branch below (which used to cut it off after a 0.15s fade), and block
+      // jump/drop/shimmy while it plays.
+      if (yankT > 0) {
+        yankT -= dt;
+        hangPos(l, hangOut);
+        h.pos.set(hangOut.x, hangOut.y, hangOut.z);
+        face();
+        return false;
+      }
       if (input.pressed('punch') && h.combat) {
         const e = h.combat.enemies.find((g) => canLedgeTakedown(g, l));
         if (e) {
@@ -55,6 +67,8 @@ export function createLedgeControl(h, { collision, events }, { ledge }) {
           e.launch(l.nx * 3, 2, l.nz * 3);
           h.combat.takedown(e, 'ledge');
           h.combat.consumeInput('punch');
+          yankT = YANK_DUR;
+          return false;
         }
       }
       const backHeld = input.move.y < -0.5;
