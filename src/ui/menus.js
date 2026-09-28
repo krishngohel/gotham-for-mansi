@@ -185,7 +185,8 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
     for (const id of MOVING_AROUND) node.appendChild(el('p', 'tip', promptText(id, settings.bindings)));
     node.appendChild(el('h3', '', 'Chain takedowns'));
     for (const id of CHAIN_TIPS) node.appendChild(el('p', 'tip', promptText(id, settings.bindings)));
-    node.appendChild(el('p', 'tip', 'Rope-a-Dope (6) ties up to three goons together. Headbanger (9) smashes two heads together. Domino Drop (12) bounces off every head into a dive-bomb. From stealth they are free and silent.'));
+    // Plan 6D restores the stealth clause when predator rooms ship.
+    node.appendChild(el('p', 'tip', 'Rope-a-Dope (6) ties up to three goons together. Headbanger (9) smashes two heads together. Domino Drop (12) bounces off every head into a dive-bomb.'));
     node.appendChild(el('h3', '', 'Extras'));
     for (const id of ['challenges', 'photo']) node.appendChild(el('p', 'tip', promptText(id, settings.bindings)));
     node.appendChild(el('p', 'tip', 'Tips: counter every blue bolt, dodge the red ones. Kick or cape-stun knife goons. Batarang the Joker mid-throw.'));

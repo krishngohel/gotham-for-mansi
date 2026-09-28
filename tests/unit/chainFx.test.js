@@ -49,6 +49,17 @@ describe('chainFx', () => {
     fx.update(2);
     expect(lines.visible).toBe(false);
   });
+  it('clear() drops a flying line and any bound bundles and fully hides the mesh', () => {
+    const { fx, lines } = setup();
+    fx.fire(hand, [goon(1), goon(3)], 0.2);
+    fx.update(0.05);
+    expect(lines.visible).toBe(true);
+    fx.clear();
+    expect(lines.visible).toBe(false);
+    expect(fx.active).toBe(false);
+    fx.update(0.016);
+    expect(lines.visible).toBe(false);
+  });
   it('never writes past its buffer', () => {
     const { fx, lines } = setup();
     // bind keeps at most 3 bundles, so only the last 3 of these 5 survive: three bound 3-goon

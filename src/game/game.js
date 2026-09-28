@@ -354,14 +354,20 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       'joker-throw': () => `A yellow bolt means he is throwing. ${key('batarang')} batarang him now!`,
       gas: () => 'Laughing gas! Get out of the green cloud.',
       finish: () => `He is reeling! ${key('special')} Finish him!`,
-      'chain-locked': () => "Chain takedowns unlock at a 6 hit combo, or when two goons nearby haven't seen you.",
-      'chain-cost': () => 'Not enough combo. Rope-a-Dope costs 6, Headbanger 9, Domino Drop 12.',
+      // Plan 6D restores the stealth clause when predator rooms ship.
+      'chain-locked': () => 'Chain takedowns unlock at a 6 hit combo.',
+      // Cost-aware: built from the costs startChain actually charged against (combatSystem.js),
+      // not hardcoded, so a future discount stays correct here too.
+      'chain-cost': (costs = [6, 9, 12]) => `Not enough combo. Rope-a-Dope costs ${costs[0]}, Headbanger ${costs[1]}, Domino Drop ${costs[2]}.`,
       'chain-targets': () => 'A chain takedown needs two goons close by and in sight.',
     };
     events.on('blocked', ({ outcome, target }) => hud.hint((target?.type === 'joker' ? HINTS.joker : HINTS[outcome])(), 3500));
-    events.on('hint', ({ id }) => HINTS[id] && hud.hint(HINTS[id](), 3000));
+    events.on('hint', ({ id, arg }) => HINTS[id] && hud.hint(HINTS[id](arg), 3000));
     events.on('bossStaggered', () => hud.hint(HINTS.finish(), 3500));
     events.on('chainTied', () => prompts.show(['chainTied']));
+    // A dropped chain (teleport, respawn, restart) leaves the tether stretched to stale goon
+    // spots until it times out on its own; clear it the moment the chain actually breaks.
+    events.on('chainBroken', () => chainFx.clear());
     const PROMPT_DONE = {
       throwRelease: 'throw', slam: 'slam', glideStart: 'glide', grapple: 'grapple', grappleBoost: 'grappleBoost', counter: 'counter', cape: 'cape',
       batarangThrow: 'batarang', dodge: 'dodge', special: 'special', jumpKick: 'kick',
