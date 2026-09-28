@@ -41,7 +41,10 @@ export function pickSpot(spots, visited, heroPos, rng, { minDist = 35, maxDist =
   return ok.length ? ok[Math.floor(rng.next() * ok.length)] : null;
 }
 
-export function createCrimeScheduler({ rng, minGap = 120, maxGap = 240, expiry = 180, retry = 20, spots = CRIME_SPOTS, minDist = 35, maxDist = 260, avoidDist = 60 } = {}) {
+export function createCrimeScheduler({
+  rng, minGap = 120, maxGap = 240, expiry = 180, retry = 20, spots = CRIME_SPOTS,
+  minDist = 35, maxDist = 260, avoidDist = 60, abandonDist = 80, abandonTime = 10,
+} = {}) {
   const gap = () => minGap + rng.next() * (maxGap - minGap);
   let timer = gap();
   let active = null;
@@ -52,7 +55,19 @@ export function createCrimeScheduler({ rng, minGap = 120, maxGap = 240, expiry =
     get timer() { return timer; },
     update(dt, { blocked = false, visited = [], heroPos = { x: 0, z: 0 }, avoid = null } = {}) {
       if (active) {
-        if (active.engaged || blocked) return null;
+        if (active.engaged) {
+          // A crime you walked away from mid-fight never expires on its own (the engaged branch
+          // above always returns), so it has to be dropped here instead: 80 m away for 10 s+
+          // (accumulated real time, no allocation) and the squad scatters.
+          const away = Math.hypot(heroPos.x - active.spot.x, heroPos.z - active.spot.z) > abandonDist;
+          active.awayT = away ? active.awayT + dt : 0;
+          if (active.awayT < abandonTime) return null;
+          const crime = active;
+          active = null;
+          timer = gap();
+          return { type: 'abandon', crime };
+        }
+        if (blocked) return null;
         active.age += dt;
         if (active.age < expiry) return null;
         const crime = active;
@@ -70,7 +85,7 @@ export function createCrimeScheduler({ rng, minGap = 120, maxGap = 240, expiry =
       forced = null;
       if (!spot) { timer = retry; return null; }
       serial += 1;
-      active = { id: `crime${serial}`, fightId: `crime:${serial}`, kind, spot, age: 0, engaged: false };
+      active = { id: `crime${serial}`, fightId: `crime:${serial}`, kind, spot, age: 0, engaged: false, awayT: 0 };
       return { type: 'spawn', crime: active };
     },
     engage() { if (active) active.engaged = true; },

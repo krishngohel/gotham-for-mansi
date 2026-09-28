@@ -38,6 +38,25 @@ test('a street crime spawns, is won and counted', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test('an engaged crime you walk far away from for 10 s is dropped, not held forever', async ({ page }) => {
+  const errors = await collectErrors(page);
+  await page.goto('/?at=toNeon&god=1&new=1');
+  await page.waitForFunction(ready, null, { timeout: 90000 });
+  await page.evaluate(() => window.__game.side.crimes.force({ kind: 'robbery', spotId: 'neonNorth' }));
+  await page.waitForFunction(() => !!window.__game.side.crimes.active, null, { timeout: 5000 });
+  await page.evaluate(() => window.__game.teleport({ x: 150, y: 0, z: -14 }));
+  await page.waitForFunction(() => window.__game.side.crimes.active?.engaged === true, null, { timeout: 10000 });
+  // The GCPD rooftop start site is solid ground about 147 m from neonNorth, well past the 80 m
+  // walk-away range (an out-of-bounds spot would trigger the "fell through the world" catch net
+  // and bounce the hero straight back, never actually testing the walk-away). Hold there past
+  // the 10 s grace; that's game time, not wall time, so give this wall-clock headroom too.
+  await page.evaluate(() => window.__game.teleport('start'));
+  await page.waitForFunction(() => window.__game.side.crimes.active === null, null, { timeout: 30000, polling: 500 });
+  await expect(page.locator('.radio.show')).toContainText('The goons scattered.');
+  expect(await page.evaluate(() => window.__game.enemies.length)).toBe(0);
+  expect(errors).toEqual([]);
+});
+
 test('photo mode opens with O, cycles filters and saves a PNG', async ({ page }) => {
   const errors = await collectErrors(page);
   await page.goto('/?at=toNeon&god=1&new=1');

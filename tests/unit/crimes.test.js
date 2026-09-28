@@ -55,12 +55,41 @@ describe('crime scheduler', () => {
     expect(s.update(119, ctx())).toBe(null);
     expect(s.update(1, ctx())?.type).toBe('spawn');
   });
-  it('never expires a crime you are fighting', () => {
+  it('never expires a crime you are fighting nearby', () => {
     const s = createCrimeScheduler({ rng: fixed(0) });
-    s.update(120, ctx());
+    const r = s.update(120, ctx());
     s.engage();
-    expect(s.update(1000, ctx())).toBe(null);
+    const near = { x: r.crime.spot.x, z: r.crime.spot.z };
+    expect(s.update(1000, ctx({ heroPos: near }))).toBe(null);
     expect(s.active.engaged).toBe(true);
+  });
+  it('drops an engaged crime after 80 m away for 10 s, and holds it while closer or briefer', () => {
+    const s = createCrimeScheduler({ rng: fixed(0) });
+    const r = s.update(120, ctx());
+    s.engage();
+    const far = { x: r.crime.spot.x + 100, z: r.crime.spot.z };
+    const near = { x: r.crime.spot.x, z: r.crime.spot.z };
+    // Under 10 s away: still held.
+    expect(s.update(9, ctx({ heroPos: far }))).toBe(null);
+    expect(s.active?.engaged).toBe(true);
+    // Stepping back inside 80 m resets the away clock.
+    expect(s.update(1, ctx({ heroPos: near }))).toBe(null);
+    expect(s.active?.engaged).toBe(true);
+    expect(s.update(9.9, ctx({ heroPos: far }))).toBe(null);
+    expect(s.active?.engaged).toBe(true);
+    // 10 s continuously away: the crime is abandoned.
+    const drop = s.update(0.2, ctx({ heroPos: far }));
+    expect(drop.type).toBe('abandon');
+    expect(drop.crime.id).toBe(r.crime.id);
+    expect(s.active).toBe(null);
+  });
+  it('exactly 80 m away does not start the away clock', () => {
+    const s = createCrimeScheduler({ rng: fixed(0) });
+    const r = s.update(120, ctx());
+    s.engage();
+    const edge = { x: r.crime.spot.x + 80, z: r.crime.spot.z };
+    expect(s.update(1000, ctx({ heroPos: edge }))).toBe(null);
+    expect(s.active?.engaged).toBe(true);
   });
   it('pauses both clocks while blocked', () => {
     const s = createCrimeScheduler({ rng: fixed(0) });
