@@ -28,6 +28,8 @@ import { chainClipNames } from '../combat/chainTimeline.js';
 import { buildStealthClips } from '../actors/stealthAnims.js';
 import { createEnemy } from '../actors/enemy.js';
 import { SITES } from '../world/mapData.js';
+import { checkRooms } from '../stealth/roomCheck.js';
+import { ROOMS } from '../stealth/stealthRooms.js';
 import { pickGrapplePoint } from '../world/grapple.js';
 import { createPickups, createNeonParty } from '../world/storyProps.js';
 import { createCombat } from '../combat/combatSystem.js';
@@ -701,7 +703,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   window.addEventListener('mousedown', () => audio.unlock(), { once: true });
   window.addEventListener('keydown', () => audio.unlock(), { once: true });
 
-  window.__game = { state, renderer, ink, dynRes, camera, scene, world, input, events, audio, voice, settings, sites: SITES, time, get progress() { return progress; }, begin, lightningNow: () => { weather.next = 0; } };
+  window.__game = { state, renderer, ink, dynRes, camera, scene, world, input, events, audio, voice, settings, sites: SITES, time, get progress() { return progress; }, begin, lightningNow: () => { weather.next = 0; }, checkStealthRooms: () => checkRooms(world.collision, world.grapplePoints, ROOMS, SITES) };
 
   // ---------------- frame loop ----------------
   let last = performance.now(), fpsT = 0, fpsN = 0, errors = 0;

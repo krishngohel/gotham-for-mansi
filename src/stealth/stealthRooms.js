@@ -43,7 +43,8 @@ monarchBalcony.encore = monarchBalcony.squad.map((g) => ({ ...g, type: 'rifle' }
 
 // ---- Ace Chemicals Catwalks: the vat hall round the two vats, with a 7 m catwalk "H". ----
 const CX = 124, CZ = -118;
-const columns = [[101, -101], [139, -101], [101, -138], [139, -138]].map(([x, z]) => ({ x, z, y0: 0.15, top: 11 }));
+// The z-138.9 corner (not -138) dodges a chemical barrel scattered there by the district's rng.
+const columns = [[101, -101], [139, -101], [101, -138], [139, -138.9]].map(([x, z]) => ({ x, z, y0: 0.15, top: 11 }));
 const aceCatwalks = {
   id: 'aceCatwalks', name: 'Ace Chemicals Catwalks', site: 'aceCatwalks', entry: 'aceCatwalksEntry', radius: 24,
   bounds: { minX: 98, maxX: 168, minY: -1, maxY: 14, minZ: -141, maxZ: -98 },
@@ -83,7 +84,8 @@ const aceCatwalks = {
     { type: 'rifle', route: route('pingpong', W(102.5, 7, -104.2, 2, NORTH), W(135.5, 7, -104.2, 2, NORTH)) },
     { type: 'rifle', route: route('pingpong', W(120, 7, -106.5, 1, NORTH), W(120, 7, -133.8, 1), W(103, 7, -133.8, 2, SOUTH)) },
     { type: 'rifle', route: route('pingpong', W(104, 0.15, -108, 2, EAST), W(104, 0.15, -130, 2, EAST)) },
-    { type: 'rifle', route: route('loop', W(140, 0.15, -106), W(158, 0.15, -106, 1.5, WEST), W(158, 0.15, -130), W(140, 0.15, -130, 1.5, WEST)) },
+    // The top leg sits at z -107.5, not -106, clearing a chemical barrel the district scatters near 149.9,-105.7.
+    { type: 'rifle', route: route('loop', W(140, 0.15, -107.5), W(158, 0.15, -107.5, 1.5, WEST), W(158, 0.15, -130), W(140, 0.15, -130, 1.5, WEST)) },
   ],
 };
 aceCatwalks.encore = [

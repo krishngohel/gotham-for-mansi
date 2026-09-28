@@ -8,6 +8,7 @@ import { bareTree } from './trees.js';
 import { solid, glow, lightSpot, edgeGrapples, graffiti, waterTower, acUnit, vent, duct } from './cityBuilder.js';
 import { addGargoyle, plinth } from './gargoyles.js';
 import { jokerBillboard, wantedPoster } from './posterArt.js';
+import { buildStealthSets } from './stealthSets.js';
 
 const CONTAINERS = [PALETTE.containerRed, PALETTE.containerBlue, PALETTE.containerGreen, PALETTE.containerOrange, 0x5a5f66];
 
@@ -494,6 +495,7 @@ export function buildDistricts(ctx) {
   docks(ctx);
   neonRow(ctx);
   aceChemicals(ctx);
+  buildStealthSets(ctx);
   clockPlaza(ctx);
   // A few water towers on the warehouses for the docks skyline.
   waterTower(ctx, -52, 16, 172);
