@@ -372,6 +372,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     }
     events.on('word', ({ text, pos, big }) => { const p = toScreen(pos); if (!p.behind) hud.sfx(text, p.x, p.y, big); });
     events.on('zipOn', () => events.emit('word', { text: 'ZZZIP!', pos: hero.pos.clone().setY(hero.pos.y + 2), big: false }));
+    events.on('launcherOn', () => events.emit('word', { text: 'ZZZIP!', pos: hero.pos.clone().setY(hero.pos.y + 2), big: false }));
     events.on('diveStart', () => events.emit('word', { text: 'FWOOSH!', pos: hero.pos.clone(), big: false }));
     events.on('diveImpact', ({ pos, word }) => { if (word !== null) events.emit('word', { text: word ?? 'KA-THOOM!', pos, big: true }); });
     // hard THUD is the hero's own landing only; the boss emits 'land' too (boss.js) but has no `who`.
