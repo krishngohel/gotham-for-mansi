@@ -104,3 +104,11 @@ describe('promptText: WayneTech', () => {
     expect(text).not.toMatch(/[–—]/);
   });
 });
+
+describe('promptText: Bat Swarm', () => {
+  it('swarm shows its key', () => {
+    const text = promptText('swarm', DEFAULT_BINDINGS);
+    expect(text).toContain(keyLabel(DEFAULT_BINDINGS.chain4[0]));
+    expect(text).not.toMatch(/[–—]/);
+  });
+});

@@ -45,6 +45,7 @@ import { createFx } from './fx.js';
 import { createGadgetFx } from '../gadgets/gadgetFx.js';
 import { createBreakables } from '../world/breakables.js';
 import { createChainFx } from './chainFx.js';
+import { createSwarmFx } from './swarmFx.js';
 import { createEncounters } from './encounters.js';
 import { createBalloons } from './balloons.js';
 import { createFlow } from './flow.js';
@@ -238,6 +239,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       dev: params.get('gadgets') === 'all',
     });
     const chainFx = createChainFx(scene);
+    const swarmFx = createSwarmFx(scene);
     const rng = createRng(99);
     // The live WayneTech effects (src/progress/upgrades.js): combat, the hero and the gadgets all
     // read this one object; buying an upgrade refills it (Task 22).
@@ -428,6 +430,9 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       'popper-ground': () => 'Plant your feet to throw the party popper.',
       gas: () => 'Laughing gas! Get out of the green cloud.',
       finish: () => `He is reeling! ${key('special')} Finish him!`,
+      'swarm-locked': () => 'The Bat Swarm is the last Combat upgrade in WayneTech, in the pause menu.',
+      'swarm-cost': (cost) => `Not enough combo. The Bat Swarm needs ${cost}.`,
+      'swarm-targets': () => 'The Bat Swarm needs two goons close by and in sight.',
     };
     events.on('blocked', ({ outcome, target }) => hud.hint((target?.type === 'joker' ? HINTS.joker : HINTS[outcome])(), 3500));
     events.on('hint', ({ id, arg }) => HINTS[id] && hud.hint(HINTS[id](arg), 3000));
@@ -438,8 +443,10 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       ladderOn: 'ladder', ledgeGrab: 'ledge', zipOn: 'zip', wallRun: 'wallrun', diveStart: 'divebomb', takedown: 'takedown',
       wheelSeen: 'gadgetWheel',
       upgradeBought: 'wayneTech',
+      swarmStart: 'swarm',
     };
     for (const [ev, id] of Object.entries(PROMPT_DONE)) events.on(ev, () => prompts.done(id));
+    events.on('upgradeBought', ({ id }) => { if (id === 'swarm') prompts.show(['swarm']); });
     events.on('gadgetUnlocked', ({ id }) => {
       const g = gadgetById(id);
       hud.card(`NEW GADGET: ${g.name.toUpperCase()}`, g.cardText, 7000);
@@ -489,9 +496,10 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     marker.layers.set(1);
     scene.add(marker);
 
-    const ctx = { input, cam: follow, grappleTarget: null, fx, chainFx };
+    const ctx = { input, cam: follow, grappleTarget: null, fx, chainFx, swarmFx };
     let lastCombo = -1;
     let chainLabels = ['1', '2', '3'];
+    let swarmLabel = '4';
     let chainPromptShown = false;
     let detective = 0;
     let palT = 0;
@@ -531,6 +539,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
             if (glideHighT > 3) { prompts.show(['divebomb']); hintShown.divebomb = true; }
           }
           chainLabels = ['chain1', 'chain2', 'chain3'].map((a) => bindingLabel(settings.bindings, a));
+          swarmLabel = bindingLabel(settings.bindings, 'chain4');
         }
         gadgets.update(real, dt, ctx);
         combat.update(dt, ctx);
@@ -538,6 +547,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         side.update(dt, real, { toScreen });
         fx.update(dt);
         gfx.update(dt);
+        swarmFx.update(dt, camera.position);
         wayne.update(dt);
         chainFx.update(dt);
         breakables.update(state.t, hero.pos);
@@ -551,6 +561,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         if (boss.speech) { const p = toScreen(boss.headWorld(new THREE.Vector3())); hud.speechPos(p.x, p.y - 20, !p.behind); }
         if (combat.combo.value !== lastCombo) { lastCombo = combat.combo.value; hud.setCombo(lastCombo, combat.combo.readyAt); }
         hud.setChains(combat.chains, chainLabels);
+        gadgetHud.setSwarm(combat.swarm, swarmLabel);
         if (!chainPromptShown && combat.chains.affordable.some(Boolean)) { chainPromptShown = true; prompts.show(['chain']); }
         marker.visible = !!ctx.grappleTarget && !hero.control;
         if (marker.visible) { marker.position.set(ctx.grappleTarget.x, ctx.grappleTarget.y + 1, ctx.grappleTarget.z); marker.rotation.y += real * 3; }
@@ -584,7 +595,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     }
 
     const api = {
-      hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, side, stage, gfx, breakables, chainFx, photo,
+      hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, side, stage, gfx, breakables, chainFx, swarmFx, photo,
       gadgets, wheelUi, wayne,
       winFight: () => { for (const e of combat.enemies) if (e.alive && e.type !== 'joker') { e.health = 0; e.applyHit({ outcome: 'ko' }, hero.pos); } },
     };

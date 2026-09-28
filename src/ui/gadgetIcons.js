@@ -16,4 +16,7 @@ export const GADGET_ICONS = {
     + '<circle class="fill pop" cx="39" cy="7" r="2.6"/><circle class="fill pop" cx="30" cy="4" r="1.8"/>',
 };
 
+// The Bat Swarm (chain 4): three bats of different sizes, drawn beside the chain icons.
+export const SWARM_ICON = `<path class="fill" d="${batSvgPath(0.17, 14, 16)}"/><path class="fill" d="${batSvgPath(0.22, 31, 22)}"/><path class="fill" d="${batSvgPath(0.15, 17, 35)}"/>`;
+
 export const LOCK_ICON = '<rect class="fill" x="12" y="22" width="24" height="18" rx="3"/><path d="M17 22 V16 C17 9 31 9 31 16 V22"/>';

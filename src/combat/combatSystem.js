@@ -8,6 +8,7 @@ import { createInputBuffer } from './inputBuffer.js';
 import { MOCAP_SPEED, MOCAP_START, MOCAP_BEATS } from '../config/mocap.js';
 import { rootMotionAt } from './reach.js';
 import { CHAIN_RULES, chainForAction, chainAvailability, selectChainTargets, chainCost, tiedGroup, chainOutcome } from './chains.js';
+import { SWARM, swarmTargets, swarmAvailability, swarmTimeline, createSwarmControl } from './batSwarm.js';
 import { buildChainTimeline } from './chainTimeline.js';
 import { createChainControl } from './chainControl.js';
 import { BASE_EFFECTS, damageFactor } from '../progress/upgrades.js';
@@ -44,6 +45,8 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
   const push = new THREE.Vector3();
   // What the chain icons show; refreshed every 0.1 s of game time or when the combo changes.
   let chainAvail = chainAvailability({ combo: 0, origin: hero.pos, enemies: [] });
+  // The Bat Swarm icon (chain 4, WayneTech): refreshed with chainAvail.
+  let swarmAvail = { show: false, affordable: false, cost: SWARM.cost };
   let availT = 0, availCombo = -1;
   // The chain in progress: its control, its targets, and whether it finished on its own.
   let chainRun = null;
@@ -695,6 +698,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
   function tryStart(action, ctx) {
     const chain = chainForAction(action);
     if (chain) return startChain(chain, ctx);
+    if (action === 'chain4') return startSwarm(ctx);
     // The fire key uses whatever gadget is equipped (src/gadgets/gadgetSystem.js).
     if (action === 'batarang' && useGadget) return useGadget(ctx, { inAir: hero.state === 'air' || hero.state === 'glide' });
     const inAir = hero.state === 'air' || hero.state === 'glide';
@@ -749,7 +753,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     return false;
   }
 
-  const ACTIONS = ['block', 'punch', 'kick', 'throw', 'cape', 'batarang', 'dodge', 'special', 'chain1', 'chain2', 'chain3'];
+  const ACTIONS = ['block', 'punch', 'kick', 'throw', 'cape', 'batarang', 'dodge', 'special', 'chain1', 'chain2', 'chain3', 'chain4'];
   const inAirNow = () => hero.state === 'air' || hero.state === 'glide';
 
   // A dive-bomb impact: knocks down every downable goon in range. Armored enemies (brutes)
@@ -848,6 +852,31 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     return true;
   }
 
+  // The Bat Swarm (chain 4, WayneTech). Returns true when the press is used up. It runs as a chain
+  // run too, so a swarm cut short (a teleport, a respawn) lets its goons go like any chain.
+  function startSwarm(ctx) {
+    if (!effects.batSwarm) { events.emit('hint', { id: 'swarm-locked' }); return true; }
+    if (hero.state !== 'ground' || !hero.grounded) return false;
+    const cost = chainCost(SWARM, getChainDiscount());
+    if (combo.value < cost) { events.emit('hint', { id: 'swarm-cost', arg: cost }); return true; }
+    const targets = swarmTargets(hero.pos, enemies, { canSee });
+    if (!targets) { events.emit('hint', { id: 'swarm-targets' }); return true; }
+    combo.take(cost);
+    const timeline = swarmTimeline(targets.length);
+    for (const e of alive()) {
+      if (targets.includes(e)) continue;
+      if (e.state === 'windup') { director.release(e.id); e.glyph = null; e.state = 'engage'; }
+      director.hold(e.id, timeline.duration + 0.6);
+    }
+    const run = { ctl: null, chain: SWARM.id, targets, over: false, prior: hero.invulnerable, t: 0 };
+    hero.invulnerable = Math.max(hero.invulnerable, timeline.duration + 0.2);
+    run.ctl = createSwarmControl(hero, chainApi(ctx, run), { targets, timeline, fx: ctx.swarmFx ?? null });
+    hero.control = run.ctl;
+    chainRun = run;
+    events.emit('swarmStart', { count: targets.length });
+    return true;
+  }
+
   // Something took hero.control away from a chain before it finished (a teleport after a fall
   // into the water, a respawn, the finale): let go of every goon still held, rather than leave
   // them frozen until enemy.js's 5 s failsafe.
@@ -855,6 +884,8 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     if (!chainRun || hero.control === chainRun.ctl) return;
     const run = chainRun;
     chainRun = null;
+    // A swarm's bats leave with it, however it ended.
+    run.ctl.fx?.stop();
     if (run.over) return;
     for (const e of run.targets) e.chainRelease();
     // Give back only what the chain added (what he had before, less the time since, or the usual
@@ -887,6 +918,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     get active() { return engaged().length > 0; },
     get cameraMode() { return hero.control?.camera ?? (engaged().some((e) => e.pos.distanceTo(hero.pos) < 14) ? 'combat' : null); },
     get chains() { return chainAvail; },
+    get swarm() { return swarmAvail; },
     update(dt, ctx) {
       checkChainDropped();
       if (chainRun) chainRun.t += dt;
@@ -896,6 +928,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
         availT = 0.1;
         availCombo = combo.value;
         chainAvail = chainAvailability({ combo: combo.value, origin: hero.pos, enemies, discount: getChainDiscount() });
+        swarmAvail = swarmAvailability({ owned: effects.batSwarm, combo: combo.value, origin: hero.pos, enemies, discount: getChainDiscount() });
       }
       chainT -= dt;
       if (chainT <= 0) { punchChain = 0; kickChain = 0; }

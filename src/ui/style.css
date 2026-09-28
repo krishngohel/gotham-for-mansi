@@ -331,3 +331,13 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0 6px; margin: 0 2px; bo
 @keyframes wtPulse { from { box-shadow: 3px 3px 0 var(--ink); } to { box-shadow: 3px 3px 0 var(--ink), 0 0 0 4px var(--detective); } }
 @media (max-width: 760px) { .wt-trees { grid-template-columns: repeat(2, 1fr); } }
 .pause-menu .mbtn.glow { background: var(--signal); }
+/* Bat Swarm (chain 4, WayneTech): its own icon right after the three chain icons. */
+.gh-swarm { position: absolute; left: 204px; top: 112px; width: 44px; height: 44px; background: var(--paper); border: 3px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); transform: skewX(-12deg); opacity: 0.35; transition: opacity 0.3s; }
+.gh-swarm.hidden { opacity: 0; }
+.gh-swarm.lit { opacity: 1; background: var(--signal); animation: pop 0.18s ease-out; }
+.gh-swarm svg { width: 100%; height: 100%; }
+.gh-swarm .fill { fill: var(--ink); }
+.gh-swarm b { position: absolute; right: -8px; bottom: -10px; font: 22px 'Bangers', cursive; color: var(--paper); -webkit-text-stroke: 1.5px var(--ink); paint-order: stroke fill; }
+/* Bat Swarm finisher: dense ink speed lines, held longer. */
+.hud-speed.swarm { background: repeating-conic-gradient(from 0deg at 50% 50%, rgba(11, 11, 18, 0) 0deg 2deg, rgba(11, 11, 18, 0.75) 2deg 3deg, rgba(11, 11, 18, 0) 3deg 6deg); }
+.hud-speed.swarm.on { animation-duration: 1.3s; }
