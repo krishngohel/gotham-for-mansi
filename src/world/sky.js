@@ -56,14 +56,24 @@ void main() {
 
   vec2 cp = d.xz / max(d.y, 0.05) * 1.1 + vec2(uTime * 0.012, uTime * 0.005);
   float c = fbm(cp);
-  float cloud = floor(smoothstep(0.42, 0.78, c) * 3.0) / 3.0 * smoothstep(0.02, 0.2, h);
-  vec3 cloudCol = mix(uHorizon * 1.5, uGlow, 1.0 - smoothstep(0.05, 0.45, h));
-  col = mix(col, cloudCol, cloud * 0.85);
+  float fade = smoothstep(0.02, 0.2, h);
+  // Two flat tones per cloud and an inked rim where the cloud shape ends.
+  float body = step(0.52, c), core = step(0.64, c);
+  float rim = (1.0 - smoothstep(0.0, 0.018, abs(c - 0.52))) * fade;
+  float cloud = (body * 0.6 + core * 0.4) * fade;
+  vec3 lit = mix(uHorizon * 1.6, uGlow * 1.2, 1.0 - smoothstep(0.05, 0.45, h)); // lit from below by the city
+  vec3 cloudCol = mix(lit * 0.75, lit, core);
+  col = mix(col, cloudCol, cloud * 0.9);
+  col = mix(col, uInk, rim * 0.85);
 
   // Moon behind the clouds.
   float md = acos(clamp(dot(d, normalize(uMoonDir)), -1.0, 1.0));
-  col = mix(col, uPaper * 0.9, smoothstep(0.045, 0.04, md) * (1.0 - cloud * 0.7));
-  col += uPaper * 0.12 * smoothstep(0.25, 0.0, md) * (1.0 - cloud * 0.5);
+  float disc = smoothstep(0.062, 0.058, md);
+  float ring = step(0.5, fract(md * 38.0)) * smoothstep(0.26, 0.07, md) * (1.0 - disc) * 0.18;
+  float moonRim = (1.0 - smoothstep(0.0, 0.004, abs(md - 0.06)));
+  col = mix(col, uPaper * 0.92, disc * (1.0 - cloud * 0.6));
+  col = mix(col, uPaper, ring * (1.0 - cloud));
+  col = mix(col, uInk, moonRim * (1.0 - cloud * 0.6));
 
   vec3 sd = normalize(uSignalDir);
   float cosA = dot(d, sd);
@@ -77,7 +87,8 @@ void main() {
   float bat = texture2D(tBat, e * 0.5 + 0.5).r;
   inside *= uSignalOn; 
   float haze = smoothstep(1.6, 0.9, rad) * front * uSignalOn;
-  col = mix(col, uSignal * 0.55, haze * 0.3 * (0.4 + cloud));
+  float wedge = step(rad, 1.5) * front * uSignalOn;
+  col = mix(col, uSignal * 0.6, wedge * 0.22 * (0.5 + cloud));
   col = mix(col, mix(uSignal, uInk, bat), inside * (0.6 + 0.4 * cloud));
 
   gl_FragColor = vec4(col, 1.0);

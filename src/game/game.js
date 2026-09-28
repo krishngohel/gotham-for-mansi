@@ -441,7 +441,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   window.addEventListener('mousedown', () => audio.unlock(), { once: true });
   window.addEventListener('keydown', () => audio.unlock(), { once: true });
 
-  window.__game = { state, camera, scene, world, input, events, audio, voice, settings, time, get progress() { return progress; }, begin };
+  window.__game = { state, camera, scene, world, input, events, audio, voice, settings, time, get progress() { return progress; }, begin, lightningNow: () => { weather.next = 0; } };
 
   // ---------------- frame loop ----------------
   let last = performance.now(), fpsT = 0, fpsN = 0, errors = 0;
@@ -452,6 +452,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     if (weather.next <= 0) {
       weather.next = 9 + Math.random() * 12;
       weather.flashT = 0.26;
+      if (game) game.hud.sfx('KRAKOOM!', innerWidth * (0.2 + Math.random() * 0.6), innerHeight * (0.12 + Math.random() * 0.15), true);
       setTimeout(() => events.emit('thunder'), 300 + Math.random() * 900);
     }
     if (weather.flashT > 0) weather.flashT -= real;
