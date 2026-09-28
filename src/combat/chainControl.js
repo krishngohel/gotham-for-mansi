@@ -13,6 +13,7 @@ const GRIP_OPEN = 0.62, GRIP_SHUT = 0.24, SNAP_TIME = 0.08, PULL_TIME = 0.18;
 // Domino stomp: head bone to crown, and the heel's sole below the ankle (metres, at scale 1).
 const HEAD_TOP = 0.2, HEEL_SOLE = 0.07;
 const STOMP_HEEL = CHAIN_BEATS.Chain_Stomp.heel;
+const DAZED = 'Idle_Shield_Break'; // the goons' stun clip: how a held goon waits for his turn
 // The action camera per chain: wide over the tangled heap, tight on the heads, high over the crater.
 export const CHAIN_SHOTS = {
   rope: { dist: 4.6, lift: 0.9, back: 1.6 },
@@ -41,7 +42,9 @@ export function createChainControl(hero, api, { chain, targets, stealth, timelin
   // Rope-a-Dope yank: the goons accelerate into each other.
   let pullOn = false, pullT = 0;
 
-  for (const e of targets) api.hold(e);
+  // Held goons stop where they are: a dazed wobble instead of whatever loop they were in (a jog
+  // or a swing kept playing in place until their turn came).
+  for (const e of targets) { api.hold(e); e.ch.animator.play(DAZED, { once: true, timeScale: 0.55, fade: 0.12 }); }
   hero.invulnerable = Math.max(hero.invulnerable, timeline.duration + 0.4);
   hero.vel.set(0, 0, 0);
   hero.cape.setWings(false);

@@ -163,6 +163,21 @@ describe('chain control', () => {
     expect(of(log, 'critical').map((l) => l[1])).toEqual(['g1']);
   });
 
+  it('stops every held goon in a dazed stagger instead of the loop he was in', () => {
+    for (const id of ['rope', 'head', 'domino']) {
+      const targets = squad();
+      const played = targets.map(() => []);
+      targets.forEach((g, i) => { g.ch.animator = { play: (n) => played[i].push(n) }; });
+      const ctl = createChainControl(fakeHero(), fakeApi([], targets), { chain: CHAINS.find((c) => c.id === id), targets, stealth: false, timeline: buildChainTimeline(id, 3) });
+      for (const p of played) expect(p[0], id).toBe('Idle_Shield_Break');
+      // The last goon waits a while in Domino: nothing else plays on him before his stomp.
+      if (id === 'domino') {
+        for (let f = 0; f < 30; f++) ctl.update(1 / 60);
+        expect(played[2]).toEqual(['Idle_Shield_Break']);
+      }
+    }
+  });
+
   it('keeps Batman near the fight', () => {
     for (const id of ['rope', 'head', 'domino']) expect(run(id, squad()).maxDist).toBeLessThan(9);
   });
