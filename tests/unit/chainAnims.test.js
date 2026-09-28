@@ -66,6 +66,15 @@ describe('buildChainClips', () => {
     for (const foot of ['foot_l', 'foot_r']) expect(drop(CHAIN_BEATS.Chain_Stomp.contact, foot) - drop(0.07, foot)).toBeGreaterThan(0.25);
   });
 
+  it('Chain_Stomp puts the left heel where CHAIN_BEATS.heel says on the contact frame', () => {
+    // chainControl lands this heel on a goon's head, so the number and the clip must agree.
+    const b = CHAIN_BEATS.Chain_Stomp;
+    const p = at(built.get('Chain_Stomp'), b.contact, 'foot_l');
+    expect(Math.abs(p.x - b.heel.x)).toBeLessThan(0.04);
+    expect(Math.abs(p.y - b.heel.y)).toBeLessThan(0.04);
+    expect(Math.abs(p.z - b.heel.z)).toBeLessThan(0.04);
+  });
+
   it('starts and ends every clip on the idle pose', () => {
     const idle = clips.get('Idle_Loop');
     const idleQ = new Map(idle.tracks.filter((t) => t.name.endsWith('.quaternion')).map((t) => [t.name, Array.from(t.values.slice(0, 4))]));

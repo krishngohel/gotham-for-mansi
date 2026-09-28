@@ -6,11 +6,13 @@ import { drawProgressMap } from './progressMap.js';
 import MANSI from '../mansi.config.js';
 
 const MOVING_AROUND = ['ladder', 'ledge', 'zip', 'wallrun', 'divebomb', 'takedown'];
+const CHAIN_TIPS = ['chain', 'chainTied'];
 
 const PAD_LAYOUT = [
   ['Move / camera', 'Left stick / right stick'], ['Jump, glide', 'A'], ['Punch', 'X'], ['Kick', 'B'], ['Block, counter', 'Y'],
   ['Grab and throw', 'D-pad right'], ['Grapple', 'LB'], ['Cape stun', 'RB (tap)'], ['Dodge', 'LT'], ['Use gadget', 'RT'], ['Sprint', 'L3'], ['Special takedown', 'R3'],
-  ['Gadget wheel', 'Hold RB, pick with the right stick'], ['Chain takedown 4 (Bat Swarm)', 'Hold Y, then LB'],
+  ['Chain takedowns', 'Hold Y, then D-pad left, up or right'], ['Chain takedown 4 (Bat Swarm)', 'Hold Y, then LB'],
+  ['Gadget wheel', 'Hold RB, pick with the right stick'],
   ['Detective vision', 'View'], ['Photo mode', 'D-pad up'], ['Pause', 'Menu'],
 ];
 
@@ -234,6 +236,11 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
     node.appendChild(cols);
     node.appendChild(el('h3', '', 'Moving around'));
     for (const id of MOVING_AROUND) node.appendChild(el('p', 'tip', promptText(id, settings.bindings)));
+    node.appendChild(el('h3', '', 'Chain takedowns'));
+    for (const id of CHAIN_TIPS) node.appendChild(el('p', 'tip', promptText(id, settings.bindings)));
+    // Plan 6D restores the stealth clause when predator rooms ship. No costs here: WayneTech's
+    // Efficient Chains lowers them, and the chain icons and the cost hint show the live ones.
+    node.appendChild(el('p', 'tip', 'Rope-a-Dope ties up to three goons together. Headbanger smashes two heads together. Domino Drop bounces off every head into a dive-bomb.'));
     const gadgets = gadgetHelp();
     if (gadgets.length) {
       node.appendChild(el('h3', '', 'Gadgets'));

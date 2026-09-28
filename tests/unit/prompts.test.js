@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { promptText, createPromptQueue, PROMPT_IDS } from '../../src/ui/prompts.js';
+import { promptText, createPromptQueue, PROMPT_IDS, chainLockedText, chainCostText } from '../../src/ui/prompts.js';
 import { DEFAULT_BINDINGS, keyLabel } from '../../src/core/bindings.js';
 
 const NEW_IDS = {
@@ -41,6 +41,38 @@ describe('promptText: traversal hints', () => {
 
   it('has no duplicate prompt ids', () => {
     expect(new Set(PROMPT_IDS).size).toBe(PROMPT_IDS.length);
+  });
+});
+
+describe('promptText: chain takedowns', () => {
+  const CHAIN_IDS = { chain: ['chain1', 'chain2', 'chain3'], chainTied: ['punch', 'kick'] };
+  for (const [id, actions] of Object.entries(CHAIN_IDS)) {
+    it(`${id} shows its keys and has no em dash`, () => {
+      const text = promptText(id, DEFAULT_BINDINGS);
+      expect(text.length).toBeGreaterThan(0);
+      expect(text).not.toContain('—');
+      for (const a of actions) expect(text).toContain(keyLabel(DEFAULT_BINDINGS[a][0]));
+    });
+  }
+});
+
+describe('chain prompt and hints with Efficient Chains (merge of 4E and 5FG)', () => {
+  it('the chain prompt names no combo number, since Efficient Chains lowers the threshold', () => {
+    const text = promptText('chain', DEFAULT_BINDINGS).replace(/<kbd>[^<]*<\/kbd>/g, '');
+    expect(text).not.toMatch(/\d/);
+    expect(text).toContain('chain icon');
+  });
+
+  it('the locked hint names the live cheapest cost: 6 by default, 4 with Efficient Chains', () => {
+    expect(chainLockedText()).toBe('Chain takedowns unlock at a 6 hit combo.');
+    expect(chainLockedText([6, 9, 12])).toBe('Chain takedowns unlock at a 6 hit combo.');
+    expect(chainLockedText([4, 7, 10])).toBe('Chain takedowns unlock at a 4 hit combo.');
+    expect(chainLockedText([8, 11, 14])).toBe('Chain takedowns unlock at an 8 hit combo.');
+  });
+
+  it('the cost hint names the costs it is given: the upgraded 4 / 7 / 10', () => {
+    expect(chainCostText()).toBe('Not enough combo. Rope-a-Dope costs 6, Headbanger 9, Domino Drop 12.');
+    expect(chainCostText([4, 7, 10])).toBe('Not enough combo. Rope-a-Dope costs 4, Headbanger 7, Domino Drop 10.');
   });
 });
 

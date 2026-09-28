@@ -5,15 +5,23 @@
 // the normal hit bookkeeping. The finisher gets the slow-motion action shot.
 import * as THREE from 'three';
 import { strikeSpot, midSpot, backSpot, lungePoint, chainHearers } from './chains.js';
+import { CHAIN_BEATS } from './chainTimeline.js';
 
 const HERO_R = 0.35, HERO_H = 1.8;
 const LEDGE_DROP = 0.5; // same guard as a strike lunge: never step down more than this
 const GRIP_OPEN = 0.62, GRIP_SHUT = 0.24, SNAP_TIME = 0.08, PULL_TIME = 0.18;
-// The action camera per chain: wide over the tangled heap, tight on the heads, high over the crater.
+// Domino stomp: head bone to crown, and the heel's sole below the ankle (metres, at scale 1).
+const HEAD_TOP = 0.2, HEEL_SOLE = 0.07;
+const STOMP_HEEL = CHAIN_BEATS.Chain_Stomp.heel;
+const DAZED = 'Idle_Shield_Break'; // the goons' stun clip: how a held goon waits for his turn
+// The action camera per chain: wide over the tangled heap, tight on the heads, high over the crater
+// (looking a little above the pile so Batman, standing in it, fits with headroom), and for the
+// KAPOW that breaks a tied bundle, above the heap rather than under the roof looking up.
 export const CHAIN_SHOTS = {
   rope: { dist: 4.6, lift: 0.9, back: 1.6 },
   head: { dist: 2.4, lift: -0.25, back: 0.5 },
-  domino: { dist: 3.8, lift: 2.6, back: 1.0 },
+  domino: { dist: 4.4, lift: 2.4, back: 1.2, rise: 0.75 },
+  kapow: { dist: 4.4, lift: 1.5, back: 1.4, rise: 0.6 },
 };
 const angleDiff = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 const live = (e) => !!e && e.alive;
@@ -32,10 +40,14 @@ export function createChainControl(hero, api, { chain, targets, stealth, timelin
   let i = 0, t = 0, entered = false, clipOn = false, landed = false, ground = false, done = false;
   // Headbanger: Batman holds the first two goons by the head from the grab to the smash.
   let gripOn = false, gripT = 0, gripUx = 0, gripUz = 1;
+  // Domino Drop: the facing a stomp comes in on.
+  let stompYaw = 0;
   // Rope-a-Dope yank: the goons accelerate into each other.
   let pullOn = false, pullT = 0;
 
-  for (const e of targets) api.hold(e);
+  // Held goons stop where they are: a dazed wobble instead of whatever loop they were in (a jog
+  // or a swing kept playing in place until their turn came).
+  for (const e of targets) { api.hold(e); e.ch.animator.play(DAZED, { once: true, timeScale: 0.55, fade: 0.12 }); }
   hero.invulnerable = Math.max(hero.invulnerable, timeline.duration + 0.4);
   hero.vel.set(0, 0, 0);
   hero.cape.setWings(false);
@@ -49,6 +61,16 @@ export function createChainControl(hero, api, { chain, targets, stealth, timelin
     for (let j = 0; j < n; j++) { x += targets[j].pos.x; z += targets[j].pos.z; }
     center.set(x / n, floorY, z / n);
   }
+  // Where Batman's root goes so the stomp's heel lands on the crown of `e`'s head as he stands
+  // right now: a held goon keeps whatever pose he had (mid-stride, mid-swing), often well below
+  // standing height, so this follows his head through the lunge.
+  function stompSpot(e) {
+    const sy = Math.sin(stompYaw), cy = Math.cos(stompYaw);
+    e.ch.headWorld(to, (HEAD_TOP + HEEL_SOLE) * e.scale);
+    to.x -= STOMP_HEEL.z * sy + STOMP_HEEL.x * cy;
+    to.z -= STOMP_HEEL.z * cy - STOMP_HEEL.x * sy;
+    to.y -= STOMP_HEEL.y;
+  }
   const drops = (x, z) => collision.groundBelow(x, floorY + 0.45, z, HERO_R * 0.6) < floorY - LEDGE_DROP;
 
   function enter(s) {
@@ -61,7 +83,9 @@ export function createChainControl(hero, api, { chain, targets, stealth, timelin
       case 'strike': to.copy(live(e) ? strikeSpot(hero.pos, e.pos, s.stop * e.scale) : hero.pos); to.y = floorY; break;
       case 'between': to.copy(midSpot(targets[0].pos, targets[1].pos)); to.y = floorY; break;
       // A goon something else already knocked out has no head to stand on: land where he lies.
-      case 'head': to.set(e.pos.x, live(e) ? e.pos.y + 1.85 * e.scale : floorY, e.pos.z); break;
+      case 'head':
+        if (live(e)) { stompYaw = Math.atan2(e.pos.x - hero.pos.x, e.pos.z - hero.pos.z); stompSpot(e); } else to.set(e.pos.x, floorY, e.pos.z);
+        break;
       case 'back': to.copy(backSpot(center, hero.pos, s.stop)); to.y = floorY; break;
       case 'apex': to.set(center.x, floorY + s.stop, center.z); break;
       case 'pile': to.copy(center); break;
@@ -84,13 +108,17 @@ export function createChainControl(hero, api, { chain, targets, stealth, timelin
       const a = targets[0].pos, b = targets[1].pos;
       const yaw = Math.atan2(b.x - a.x, b.z - a.z) + Math.PI / 2;
       hero.bat.face(Math.abs(angleDiff(yaw, hero.bat.yaw)) < Math.PI / 2 ? yaw : yaw + Math.PI);
-    } else if (e) faceTo(e.pos.x, e.pos.z);
-    else if (s.at !== 'stay') faceTo(center.x, center.z);
+    } else if (s.at !== 'stay') {
+      // A step that stays put (the Headbanger smash) keeps the facing it has.
+      if (e) faceTo(e.pos.x, e.pos.z); else faceTo(center.x, center.z);
+    }
   }
 
   // The plan is applied as per-frame deltas on top of the resolved position (as strike lunges
   // do), so a wall push-out is kept rather than recomputed through the wall.
   function move(s) {
+    const e = targetOf(s);
+    if (s.at === 'head' && live(e)) stompSpot(e);
     lungePoint(from, to, t / s.lunge, s.arc, lp, s.ease);
     prev.copy(hero.pos);
     hero.pos.x += lp.x - planned.x;
@@ -147,6 +175,20 @@ export function createChainControl(hero, api, { chain, targets, stealth, timelin
     if (k >= 1) pullOn = false;
   }
 
+  // A step aimed at the pile frames its first standing goon (the tied heap). Once they're all
+  // out (the Domino dive), the one nearest the middle: that's where Batman lands, not wherever
+  // the first goon went down.
+  function pileFocus() {
+    const first = targets.find(live);
+    if (first) return first;
+    let best = targets[0], bd = Infinity;
+    for (const e of targets) {
+      const d = Math.hypot(e.pos.x - center.x, e.pos.z - center.z);
+      if (d < bd) { bd = d; best = e; }
+    }
+    return best;
+  }
+
   function land(s) {
     const e = targetOf(s);
     // A step aimed at a goon that something else already knocked out lands nothing (no word).
@@ -178,7 +220,7 @@ export function createChainControl(hero, api, { chain, targets, stealth, timelin
     }
     if (s.thenClip) hero.bat.animator.play(s.thenClip, { once: true, timeScale: 0.9, fade: 0.04 });
     if (s.word && hit) api.word(s.word, at, s.finisher);
-    const focus = e ?? targets.find(live) ?? targets[0];
+    const focus = e ?? pileFocus();
     if (s.finisher) api.critical(focus, { slow: 0.9, scale: 0.25, shot: CHAIN_SHOTS[chain.id], variant: chain.id });
     else if (s.effect === 'heel') api.critical(focus, { slow: 0.35, scale: 0.4, variant: chain.id });
     events.emit('chainContact', { chain: chain.id, effect: s.effect, index: i });

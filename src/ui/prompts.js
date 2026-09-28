@@ -1,5 +1,6 @@
 // Tutorial prompts. Every key shown is read from the live bindings.
 import { bindingLabel } from '../core/bindings.js';
+import { CHAINS } from '../combat/chains.js';
 
 // [id, textFn] pairs, not an object literal: two entries sharing an id used to silently
 // overwrite one another (the divebomb hint clobbered the glide-dive tutorial this way).
@@ -33,6 +34,11 @@ const ENTRIES = [
   ['wallrun', (k) => `Sprint along a wall and press ${k('jump')} to run on it. ${k('jump')} again to kick off.`],
   ['divebomb', (k) => `Gliding high? Press ${k('kick')} to dive bomb and flatten everyone where you land.`],
   ['takedown', (k) => `Hanging under an unaware goon? ${k('punch')} pulls them over the edge. Landing on one from above works too.`],
+  // Plan 6D restores the stealth clause when predator rooms ship.
+  // No combo number: WayneTech's Efficient Chains lowers the threshold (6 to 4), and prompts take
+  // no live arguments, so it points at the chain icons, which light at the live cost.
+  ['chain', (k) => `When your combo lights a chain icon, press ${k('chain1')}, ${k('chain2')} or ${k('chain3')} for a chain takedown that goes goon to goon.`],
+  ['chainTied', (k) => `Tied up! They can't get up for a few seconds. One more hit, ${k('punch')} or ${k('kick')}, knocks the whole bundle out.`],
   ['challenges', () => `Glowing bat pillars start challenges: glide rings, a rooftop run and an arena fight. Walk into one to begin.`],
   ['photo', (k) => `Press ${k('photo')} for photo mode. Frame a shot, add a caption and save it as a picture.`],
   ['gadgetWheel', (k) => `Hold ${k('gadgetWheel')} for the gadget wheel. Time slows while it is open. Point the mouse at a gadget or press 1 to 8, then let go to equip it. ${k('batarang')} uses it.`],
@@ -54,6 +60,22 @@ export function promptText(id, bindings) {
   const move = ['forward', 'left', 'back', 'right'].map((a) => bindingLabel(bindings, a)).join(' ');
   const entry = ENTRIES.find(([eid]) => eid === id);
   return entry ? entry[1](k, move) : '';
+}
+
+// The chain hints (game.js's HINTS). combatSystem.js's startChain emits the costs it actually
+// charged against with the hint, so Efficient Chains (2 off each) shows here too. The base costs
+// are only a fallback for a caller that sends none.
+const BASE_CHAIN_COSTS = CHAINS.map((c) => c.cost);
+// "a 4", "a 6", "an 8", "an 11", "an 18".
+const article = (n) => (n === 8 || n === 11 || n === 18 ? 'an' : 'a');
+
+export function chainLockedText(costs = BASE_CHAIN_COSTS) {
+  const n = Math.min(...costs);
+  return `Chain takedowns unlock at ${article(n)} ${n} hit combo.`;
+}
+
+export function chainCostText(costs = BASE_CHAIN_COSTS) {
+  return `Not enough combo. ${CHAINS[0].name} costs ${costs[0]}, ${CHAINS[1].name} ${costs[1]}, ${CHAINS[2].name} ${costs[2]}.`;
 }
 
 // Queues prompts so they don't talk over each other.

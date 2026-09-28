@@ -166,6 +166,28 @@ describe('Bat Swarm from combat', () => {
     expect(f.log.map((l) => l[0])).toEqual(['start', 'rise', 'stop', 'stop']);
   });
 
+  it('keeps the rest of the combo: the timeout is paused for the whole swarm, like a chain', () => {
+    const { hero, combat } = harness();
+    combat.setEnemies([fighter('a', 0, 3), fighter('b', 2, 4)]);
+    for (let i = 0; i < 20; i++) combat.combo.hit();
+    const f = fx();
+    combat.update(DT, ctxFor('chain4', f));
+    expect(hero.control?.name).toBe('swarm');
+    expect(combat.combo.value).toBe(5);
+    // 2 s of combat with the swarm in control and no hit landing (its control is not stepped):
+    // well past the 1.5 s window, which would have timed the 5 out without the pause.
+    for (let i = 0; i < 120; i++) combat.update(DT, ctxFor(null, f));
+    expect(hero.control?.name).toBe('swarm');
+    expect(combat.combo.value).toBe(5);
+    // Played through: 20 - 15 + 2 staggers + 2 finishes (one each per goon), kept to the end.
+    play(hero, combat, ctxFor(null, f));
+    expect(hero.control).toBeNull();
+    expect(combat.combo.value).toBe(9);
+    // The pause ends with the swarm: an idle player decays to 0 again.
+    for (let i = 0; i < 120; i++) combat.update(DT, ctxFor(null, f));
+    expect(combat.combo.value).toBe(0);
+  });
+
   it('lets every goon go and sends the bats off when the swarm is cut short (a teleport)', () => {
     const { hero, combat, events } = harness();
     const squad = [fighter('a', 0, 3), fighter('b', 2, 4), fighter('c', -2, 4)];

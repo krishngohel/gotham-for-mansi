@@ -11,6 +11,8 @@ vi.mock('../../src/actors/characters.js', () => ({
     yaw: 0,
     face: () => {},
     animator: {
+      // createEnemy primes the chain hold clips up front (Plan 4E, CHAIN_HOLD_CLIPS).
+      prime: () => {},
       play: () => ({ time: 0, getClip: () => ({ duration: 1 }) }),
       update: () => {},
       mixer: { timeScale: 1 },

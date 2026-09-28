@@ -448,6 +448,22 @@ export const SFX = {
     return h + dur + 0.05;
   } },
 
+  // Two heads meeting: a hollow wood-block knock over a short skull thud.
+  konk: { wet: 0.2, max: 2, fn(ctx, out, t, p) {
+    tone(ctx, out, t, { type: 'triangle', freq: 720 * p, to: 540 * p, d: 0.09, gain: 0.45 });
+    tone(ctx, out, t + 0.012, { type: 'triangle', freq: 1080 * p, to: 820 * p, d: 0.06, gain: 0.25 });
+    noise(ctx, out, t, { type: 'bandpass', freq: 1500 * p, Q: 3, d: 0.05, gain: 0.5 });
+    thump(ctx, out, t, p, { from: 150, to: 60, d: 0.14, gain: 0.6 });
+    return t + 0.18;
+  } },
+
+  // The grapple line whipping out and cinching tight.
+  tether: { wet: 0.12, max: 2, fn(ctx, out, t, p) {
+    swish(ctx, out, t, p, { from: 600, peak: 3400, to: 1200, dur: 0.22, gain: 0.35, Q: 3 });
+    metal(ctx, out, t + 0.2, { base: 1600 * p, ratios: [1, 2.4], d: 0.12, gain: 0.12 });
+    return t + 0.34;
+  } },
+
   pickup: { wet: 0.25, max: 2, fn(ctx, out, t, p) {
     const semi = 12 * Math.log2(p);
     [72, 76, 79].forEach((m, i) => {

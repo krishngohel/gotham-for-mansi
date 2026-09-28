@@ -35,7 +35,7 @@ import { createHud } from '../ui/hud.js';
 import { createComicFx } from '../ui/comicFx.js';
 import { createComic } from '../ui/comic.js';
 import { createMenus } from '../ui/menus.js';
-import { createPromptQueue } from '../ui/prompts.js';
+import { createPromptQueue, chainLockedText, chainCostText } from '../ui/prompts.js';
 import { createWaypoint, createBeacon } from '../ui/waypoint.js';
 import { createAudio } from '../audio/audio.js';
 import { createVoice } from '../audio/voice.js';
@@ -238,7 +238,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       // breaks and cache finds still happen for the session but never reach the real save.
       dev: params.get('gadgets') === 'all',
     });
-    const chainFx = createChainFx(scene);
+    const chainFx = createChainFx(scene, camera);
     const swarmFx = createSwarmFx(scene);
     const rng = createRng(99);
     // The live WayneTech effects (src/progress/upgrades.js): combat, the hero and the gadgets all
@@ -434,14 +434,25 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       'swarm-locked': () => 'The Bat Swarm is the last Combat upgrade in WayneTech, in the pause menu.',
       'swarm-cost': (cost) => `Not enough combo. The Bat Swarm needs ${cost}.`,
       'swarm-targets': () => 'The Bat Swarm needs two goons close by and in sight.',
+      // Plan 6D restores the stealth clause when predator rooms ship.
+      // Both cost-aware: built from the costs startChain actually charged against
+      // (combatSystem.js), so Efficient Chains reads 4 / 7 / 10 here (src/ui/prompts.js).
+      'chain-locked': (costs) => chainLockedText(costs),
+      'chain-cost': (costs) => chainCostText(costs),
+      'chain-targets': () => 'A chain takedown needs two goons close by and in sight.',
     };
     events.on('blocked', ({ outcome, target }) => hud.hint((target?.type === 'joker' ? HINTS.joker : HINTS[outcome])(), 3500));
     events.on('hint', ({ id, arg }) => HINTS[id] && hud.hint(HINTS[id](arg), 3000));
     events.on('bossStaggered', () => hud.hint(HINTS.finish(), 3500));
+    events.on('chainTied', () => prompts.show(['chainTied']));
+    // A dropped chain (teleport, respawn, restart) leaves the tether stretched to stale goon
+    // spots until it times out on its own; clear it the moment the chain actually breaks.
+    events.on('chainBroken', () => chainFx.clear());
     const PROMPT_DONE = {
       throwRelease: 'throw', slam: 'slam', glideStart: 'glide', grapple: 'grapple', grappleBoost: 'grappleBoost', counter: 'counter', cape: 'cape',
       batarangThrow: 'batarang', dodge: 'dodge', special: 'special', jumpKick: 'kick',
       ladderOn: 'ladder', ledgeGrab: 'ledge', zipOn: 'zip', wallRun: 'wallrun', diveStart: 'divebomb', takedown: 'takedown',
+      chainStart: 'chain', tiedBreak: 'chainTied',
       wheelSeen: 'gadgetWheel',
       upgradeBought: 'wayneTech',
       swarmStart: 'swarm',
@@ -558,10 +569,12 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         gfx.update(dt);
         swarmFx.update(dt, camera.position);
         wayne.update(dt);
-        chainFx.update(dt);
         breakables.update(state.t, hero.pos);
         if (hero.pos.y < -0.8) { hero.teleport(hero.lastSafe); events.emit('splash'); }
         follow.update(real, gadgets.cameraFocus ?? hero.pos, gadgets.wheelOpen ? NO_LOOK : input.look, gadgets.cameraMode ?? combat.cameraMode ?? hero.cameraMode(), hero.speed);
+        // After follow.update, so the rope ribbon billboards toward this frame's camera, not
+        // last frame's. It reads only goon and hand positions, which are already final.
+        chainFx.update(dt);
         comicFx.update(real, { speed: hero.control?.speed ?? Math.hypot(hero.vel.x, hero.vel.y, hero.vel.z), actionActive: follow.actionActive });
         palT -= real;
         if (palT <= 0) { palT = 0.25; ink.setPalette(paletteAt(camera.position.x, camera.position.z, palBuf)); }

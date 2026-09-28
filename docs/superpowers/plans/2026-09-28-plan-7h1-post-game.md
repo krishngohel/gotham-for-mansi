@@ -16,6 +16,12 @@
 
 **Base:** Branch `postgame`, cut from `main` **after** Plan 4E (`chains`), Plan 3C (`content`), Plan 5FG (`gadgets`) and Plan 6D (stealth) are all merged. Every file and name referenced below is as it stands after those merges. Where this plan says "after 3C" or "5FG's" it names the exact function those plans add. Plan 7H-2 (`2026-09-28-plan-7h2-post-game.md`: Cake Bombs, Balloon Army, Joker's Encore, Endless Party Crashers) is cut from `main` after this plan ships.
 
+**Revisions from the 5FG and 6D final reviews (2026-09-28).** These bind Tasks 2, 4, 9 and 12:
+- 6D now counts `silentTakedown` and `perchDrop` in "Moves learned" only while a predator room is still reachable, or once they are learned (6D's reachability check in `progressTracker.js`). Marvelous Marco's stealth rescue makes the catwalk room reachable again after the credits. Extend that reachability check so an unrescued `magician` counts as reachable. Add a tracker test: a finished save without the two moves reads 8 of 8 before After the Party is active, and 8 of 10 once it is.
+- When Marco's rescue room begins, show the tutorial list from 6D's `tutorialFor('aceCatwalks', progress)`. It puts crouch, silent, perch and perchDrop first for any basic not yet learned. Finished and migrated saves never played Monarch Balcony, so this rescue is where they learn silent takedowns and perch drops. Add a test that a save without the moves gets the basics first.
+- Returning players are told about new things once, with a comic card on the first live frame and a seen-flag saved only after the card shows. 5FG's "WAYNETECH DELIVERY!" and 6D's "MEANWHILE IN GOTHAM" work this way. The After the Party intro comic already covers activation; keep any other post-game announcement to this same pattern.
+- With the pointer unlocked, the first canvas click only re-locks it (main's Safari fix). Scripted runs that enter via `?at=` spend one click first.
+
 ## Global Constraints
 
 - Spec: `docs/superpowers/specs/2026-09-28-full-game-expansion-design.md`, Part H ("After the party: post-game world"), items 1 (Joker Crates), 2 (Missing Guests) and 7 (New Game Plus), plus the post-game objective list, map markers and Progress tracker categories. Keep it a birthday gift: warm, funny, Joker-party tone, with `MANSI.name` (from `src/mansi.config.js`) where it fits.

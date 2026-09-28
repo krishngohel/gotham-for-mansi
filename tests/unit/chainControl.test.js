@@ -96,6 +96,28 @@ describe('chain control', () => {
     expect(of(log, 'word').map((l) => l[1])).toEqual(['KONK!', 'THWACK!']);
   });
 
+  it('Headbanger keeps facing across the two goons from the grab through the smash', () => {
+    // The smash step stays put: it must not turn Batman to face goon 2, which would swing the two
+    // held goons from his hands to in front of and behind him.
+    const log = [];
+    const hero = fakeHero();
+    const targets = squad();
+    const api = fakeApi(log, targets);
+    const finish = api.finish;
+    api.finish = (e) => { log.push(['at', e.id, e.pos.x - hero.pos.x, e.pos.z - hero.pos.z, hero.bat.yaw]); return finish(e); };
+    const ctl = createChainControl(hero, api, { chain: CHAINS[1], targets, stealth: false, timeline: buildChainTimeline('head', 3) });
+    for (let f = 0; f < 600 && !ctl.update(1 / 60); f++);
+    const smash = of(log, 'at').slice(0, 2);
+    expect(smash.map((l) => l[1])).toEqual(['g0', 'g1']);
+    const side = smash.map(([, , dx, dz, yaw]) => {
+      const fwd = dx * Math.sin(yaw) + dz * Math.cos(yaw);
+      expect(Math.abs(fwd)).toBeLessThan(0.05);
+      return dx * Math.cos(yaw) - dz * Math.sin(yaw);
+    });
+    expect(Math.abs(side[0])).toBeGreaterThan(0.2);
+    expect(Math.sign(side[0])).toBe(-Math.sign(side[1]));
+  });
+
   it('Domino Drop stomps each head, bounces high and dive-bombs the pile', () => {
     const { log, maxY, hero } = run('domino', squad());
     expect(of(log, 'finish').map((l) => l[1])).toEqual(['g0', 'g1', 'g2']);
@@ -105,6 +127,55 @@ describe('chain control', () => {
     expect(maxY).toBeGreaterThan(5);
     expect(hero.pos.y).toBeCloseTo(0);
     expect(hero.bat.animator.played).toContain('NinjaJump_Land');
+  });
+
+  it('Domino Drop lands the stomp heel on the crown of each head as the goon stands', () => {
+    // Held goons keep whatever pose they had (mid-stride, mid-swing), so a head can be well below
+    // standing height and off the goon's feet, and bob as they go on (a jog loop keeps playing):
+    // the heel goes to the head as it is on the contact frame, not to a fixed height.
+    const log = [];
+    let frame = 0;
+    const hero = fakeHero();
+    const targets = squad();
+    const lean = [[0.2, 1.3], [-0.15, 1.45], [0, 1.7]];
+    targets.forEach((g, i) => { g.ch.headWorld = (out, lift = 0) => out.set(g.pos.x + lean[i][0], g.pos.y + lean[i][1] - 0.004 * frame + lift, g.pos.z + 0.003 * frame); });
+    const api = fakeApi(log, targets);
+    const finish = api.finish;
+    api.finish = (e) => { log.push(['at', e.ch.headWorld(new THREE.Vector3()), hero.pos.clone(), hero.bat.yaw]); return finish(e); };
+    const ctl = createChainControl(hero, api, { chain: CHAINS[2], targets, stealth: false, timeline: buildChainTimeline('domino', 3) });
+    for (; frame < 600 && !ctl.update(1 / 60); frame++);
+    const h = CHAIN_BEATS.Chain_Stomp.heel;
+    const hits = of(log, 'at');
+    expect(hits).toHaveLength(3);
+    hits.forEach(([, head, p, yaw], i) => {
+      const heel = { x: p.x + h.z * Math.sin(yaw) + h.x * Math.cos(yaw), y: p.y + h.y, z: p.z + h.z * Math.cos(yaw) - h.x * Math.sin(yaw) };
+      expect(Math.hypot(heel.x - head.x, heel.z - head.z), `stomp ${i}`).toBeLessThan(0.05);
+      expect(heel.y - head.y, `stomp ${i}`).toBeGreaterThan(0.15);
+      expect(heel.y - head.y, `stomp ${i}`).toBeLessThan(0.4);
+    });
+  });
+
+  it('Domino Drop frames its finisher on the goon nearest the pile Batman lands in', () => {
+    // Every goon is out by the dive: the action shot must not fall back to the first one stomped,
+    // who can lie metres from where Batman lands.
+    const targets = [fakeGoon('g0', 0, 2), fakeGoon('g1', 0.5, 5), fakeGoon('g2', -0.5, 5.2)];
+    const { log } = run('domino', targets);
+    expect(of(log, 'critical').map((l) => l[1])).toEqual(['g1']);
+  });
+
+  it('stops every held goon in a dazed stagger instead of the loop he was in', () => {
+    for (const id of ['rope', 'head', 'domino']) {
+      const targets = squad();
+      const played = targets.map(() => []);
+      targets.forEach((g, i) => { g.ch.animator = { play: (n) => played[i].push(n) }; });
+      const ctl = createChainControl(fakeHero(), fakeApi([], targets), { chain: CHAINS.find((c) => c.id === id), targets, stealth: false, timeline: buildChainTimeline(id, 3) });
+      for (const p of played) expect(p[0], id).toBe('Idle_Shield_Break');
+      // The last goon waits a while in Domino: nothing else plays on him before his stomp.
+      if (id === 'domino') {
+        for (let f = 0; f < 30; f++) ctl.update(1 / 60);
+        expect(played[2]).toEqual(['Idle_Shield_Break']);
+      }
+    }
   });
 
   it('keeps Batman near the fight', () => {

@@ -5,9 +5,11 @@ import * as THREE from 'three';
 import { createCombat } from '../../src/combat/combatSystem.js';
 import { ENEMY } from '../../src/combat/rules.js';
 import { createRng } from '../../src/core/rng.js';
-import { placeWord } from '../../src/ui/hud.js';
+import { placeWord, wordHalf } from '../../src/ui/hud.js';
+import { chainLockedText, chainCostText } from '../../src/ui/prompts.js';
+import { upgradeEffects } from '../../src/progress/upgrades.js';
 
-function harness({ discount = 0, blocked = false } = {}) {
+function harness({ discount = 0, blocked = false, effects = null } = {}) {
   const bat = {
     yaw: 0, face(y) { bat.yaw = y; }, tilt: { rotation: { set() {} } },
     bone: () => ({ getWorldPosition: (o) => o.set(0, 11.4, 0) }),
@@ -29,7 +31,9 @@ function harness({ discount = 0, blocked = false } = {}) {
     on() {},
   };
   const time = { hitStop() {}, slowMo() {} };
-  const combat = createCombat({ hero, follow, time, events, rng: createRng(1), getDifficulty: () => 'normal', getChainDiscount: () => discount });
+  const combat = effects
+    ? createCombat({ hero, follow, time, events, rng: createRng(1), getDifficulty: () => 'normal', effects })
+    : createCombat({ hero, follow, time, events, rng: createRng(1), getDifficulty: () => 'normal', getChainDiscount: () => discount });
   return { hero, combat, events };
 }
 
@@ -82,6 +86,29 @@ describe('starting a chain from combat', () => {
     combat.update(dt, ctxFor('chain2'));
     expect(hero.control).toBeNull();
     expect(of(events, 'hint').map((ev) => ev.data.id)).toEqual(['chain-cost']);
+  });
+
+  it('emits the upgraded costs with the hint under Efficient Chains, so the copy says 4 / 7 / 10', () => {
+    // The real WayneTech wiring: the effects object and createCombat's default getChainDiscount.
+    const effects = upgradeEffects(['efficient']);
+    expect(effects.chainDiscount).toBe(2);
+    const { hero, combat, events } = harness({ effects });
+    combat.setEnemies([goon('a', 0, 3), goon('b', 1, 4)]);
+    hits(combat, 3);
+    combat.update(dt, ctxFor('chain1'));
+    const locked = of(events, 'hint').at(-1).data;
+    expect(locked).toEqual({ id: 'chain-locked', arg: [4, 7, 10] });
+    expect(chainLockedText(locked.arg)).toBe('Chain takedowns unlock at a 4 hit combo.');
+    hits(combat, 1);
+    combat.update(dt, ctxFor('chain2'));
+    expect(hero.control).toBeNull();
+    const cost = of(events, 'hint').at(-1).data;
+    expect(cost).toEqual({ id: 'chain-cost', arg: [4, 7, 10] });
+    expect(chainCostText(cost.arg)).toBe('Not enough combo. Rope-a-Dope costs 4, Headbanger 7, Domino Drop 10.');
+    // And 4 really is enough for Rope-a-Dope.
+    combat.update(dt, ctxFor('chain1'));
+    expect(hero.control?.name).toBe('chain');
+    expect(combat.combo.value).toBe(0);
   });
 
   it('says there are not enough targets when only one goon is near', () => {
@@ -206,8 +233,80 @@ describe('a chain played through combat', () => {
     expect(b.state).toBe('tied');
     expect(of(events, 'chainTied')[0]?.data.count).toBe(2);
     expect(of(events, 'chainDone')).toHaveLength(1);
-    // Each stagger and the tie count as hits.
-    expect(combat.combo.value).toBeGreaterThanOrEqual(4);
+    // Spec Part E1: a chain spends that much combo and keeps the rest. The combo timeout is
+    // paused for the length of the chain control (combatSystem.js's update loop skips
+    // combo.tick while hero.control.name === 'chain'), so the tether-and-yank lead-in before the
+    // tie can't time the combo out from under it the way it used to. The tie itself still adds
+    // no hits (Minor 2): only the 2 staggers do. 6 - 6 + 2 = 2.
+    expect(combat.combo.value).toBe(2);
+  });
+
+  it('resumes the combo timeout once the chain ends: an idle player still decays to 0', () => {
+    const { hero, combat } = harness();
+    const a = goon('a', 0, 3), b = goon('b', 1, 4);
+    combat.setEnemies([a, b]);
+    hits(combat, 6);
+    combat.update(dt, ctxFor('chain1'));
+    play(hero, combat);
+    expect(hero.control).toBeNull();
+    expect(combat.combo.value).toBe(2);
+    // Well over the 1.5 s window, with no more hits: the pause only covers the chain itself.
+    for (let i = 0; i < 200; i++) combat.update(dt, ctxFor(null));
+    expect(combat.combo.value).toBe(0);
+  });
+
+  // Each of these starts at 12, well above every chain's cost, so "keeps the rest" is visible
+  // regardless of the chain's own cost, and each expected value is `start - cost + hits`, where
+  // `hits` is exactly the number of combo.hit() calls that chain's steps make (counted from
+  // chainTimeline.js's step effects and combatSystem.js's chainApi): stagger and finish
+  // (headSmash/heel/stomp) each count once per goon they land on; tie and shockwave/diveBomb
+  // count for none. None of this depends on how long any step's animation takes, since the combo
+  // timeout no longer runs during the chain at all.
+  it('a 3-goon Rope-a-Dope keeps the rest: 3 staggers, no hit from the tie', () => {
+    const { hero, combat, events } = harness();
+    const a = goon('a', 0, 3), b = goon('b', 1, 4), c = goon('c', -1, 5);
+    combat.setEnemies([a, b, c]);
+    hits(combat, 12);
+    combat.update(dt, ctxFor('chain1'));
+    play(hero, combat);
+    expect(a.state).toBe('tied');
+    expect(b.state).toBe('tied');
+    expect(c.state).toBe('tied');
+    expect(of(events, 'chainTied')[0]?.data.count).toBe(3);
+    // 12 - 6 (rope cost) + 3 (one stagger per goon) = 9.
+    expect(combat.combo.value).toBe(9);
+    expect(combat.combo.value).toBeGreaterThan(0);
+  });
+
+  it('a 3-goon Headbanger keeps the rest: 1 stagger, 2 from the smash, 1 heel', () => {
+    const { hero, combat } = harness();
+    const a = goon('a', 0, 3), b = goon('b', 1, 4), c = goon('c', -1, 5);
+    combat.setEnemies([a, b, c]);
+    hits(combat, 12);
+    combat.update(dt, ctxFor('chain2'));
+    play(hero, combat);
+    expect(a.alive).toBe(false);
+    expect(b.alive).toBe(false);
+    expect(c.alive).toBe(false);
+    // 12 - 9 (headbanger cost) + 4 (1 stagger on the first goon, 2 from the head-smash finish on
+    // the first two, 1 from the flying heel finish on the third) = 7.
+    expect(combat.combo.value).toBe(7);
+    expect(combat.combo.value).toBeGreaterThan(0);
+  });
+
+  it('a 3-goon Domino Drop keeps the rest: 3 stomps, nothing from the dive-bomb', () => {
+    const { hero, combat } = harness();
+    const a = goon('a', 0, 3), b = goon('b', 1, 4), c = goon('c', -1, 5);
+    combat.setEnemies([a, b, c]);
+    hits(combat, 12);
+    combat.update(dt, ctxFor('chain3'));
+    play(hero, combat);
+    expect(a.alive).toBe(false);
+    expect(b.alive).toBe(false);
+    expect(c.alive).toBe(false);
+    // 12 - 12 (domino cost) + 3 (one finish per stomp; the closing shockwave adds no combo hit) = 3.
+    expect(combat.combo.value).toBe(3);
+    expect(combat.combo.value).toBeGreaterThan(0);
   });
 
   it('Headbanger knocks both goons out', () => {
@@ -329,6 +428,44 @@ describe('sound word placement (hud.placeWord)', () => {
   });
   it('ignores boxes that are hidden (zero width)', () => {
     expect(placeWord(640, 360, 200, 100, 0, view, [{ left: 0, right: 0, top: 0, bottom: 0, width: 0 }])).toEqual({ x: 640, y: 360 });
+  });
+  const box = (p, hw, hh) => ({ left: p.x - hw, right: p.x + hw, top: p.y - hh, bottom: p.y + hh, width: 2 * hw });
+  const overlap = (a, b) => a.right > b.left && a.left < b.right && a.bottom > b.top && a.top < b.bottom;
+  it('keeps a new word off a word still on screen (BONK! then KLONK! on the same spot)', () => {
+    const first = placeWord(600, 520, 150, 70, 5, view);
+    const a = wordHalf(150, 70, 5);
+    const live = box(first, a.hw, a.hh);
+    const p = placeWord(610, 525, 160, 70, -8, view, [live]);
+    const b = wordHalf(160, 70, -8);
+    const next = box(p, b.hw, b.hh);
+    expect(overlap(next, live)).toBe(false);
+    expect(next.left).toBeGreaterThanOrEqual(24 - 1e-9);
+    expect(next.right).toBeLessThanOrEqual(1280 - 24 + 1e-9);
+    expect(next.top).toBeGreaterThanOrEqual(24 - 1e-9);
+    expect(next.bottom).toBeLessThanOrEqual(720 - 24 + 1e-9);
+  });
+  it('steps out again when stepping off one box lands on another (a word, then the card)', () => {
+    const card = { left: 880, right: 1256, top: 24, bottom: 132, width: 376 };
+    const { hw, hh } = wordHalf(200, 80, 0);
+    const live = [box({ x: 900, y: 230 }, 110, 50), box({ x: 900, y: 340 }, 110, 50)];
+    const p = placeWord(900, 235, 200, 80, 0, view, [card, ...live]);
+    const b = box(p, hw, hh);
+    for (const o of [card, ...live]) expect(overlap(b, o)).toBe(false);
+    expect(b.right).toBeLessThanOrEqual(1280 - 24 + 1e-9);
+  });
+  it('keeps three quick words in a row apart', () => {
+    const boxes = [];
+    for (const [w, rot] of [[150, 6], [170, -9], [150, 3]]) {
+      const p = placeWord(640, 560, w, 70, rot, view, boxes);
+      const { hw, hh } = wordHalf(w, 70, rot);
+      const b = box(p, hw, hh);
+      for (const o of boxes) expect(overlap(b, o)).toBe(false);
+      boxes.push(b);
+    }
+  });
+  it('flags a screen too crowded to miss every box, and stays on screen', () => {
+    const wall = { left: 0, right: 1280, top: 0, bottom: 720, width: 1280 };
+    expect(placeWord(640, 360, 200, 80, 0, view, [wall])).toEqual({ x: 640, y: 360, crowded: true });
   });
   it('centres a word wider than the screen', () => {
     expect(placeWord(10, 360, 2000, 100, 0, view).x).toBe(640);

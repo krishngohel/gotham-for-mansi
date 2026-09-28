@@ -46,7 +46,9 @@ export function createFollowCamera(camera, collision) {
     snapBehind(yaw, pitch = 0.22) { s.yaw = yaw; s.pitch = pitch; first = true; },
     // Action shot for critical hits: the camera swings low and to the side of the blow,
     // tilts like a comic panel, then eases back. Player control of the orbit is untouched.
-    actionShot(focus, attacker, duration = 0.9, { dist = 3.2, lift = -0.55, back = 1.2 } = {}) {
+    // `rise` lifts the point it looks at above the blow (a shot that must also fit a standing
+    // Batman over a goon lying on the floor).
+    actionShot(focus, attacker, duration = 0.9, { dist = 3.2, lift = -0.55, back = 1.2, rise = 0 } = {}) {
       if (!s.actionEnabled) return;
       const dx = focus.x - attacker.x, dz = focus.z - attacker.z;
       const len = Math.hypot(dx, dz) || 1;
@@ -56,7 +58,7 @@ export function createFollowCamera(camera, collision) {
       action.t = 0;
       action.dur = duration;
       action.focus.copy(focus).lerp(attacker, 0.35);
-      action.focus.y = focus.y - 0.2;
+      action.focus.y = focus.y - 0.2 + rise;
       action.pos.set(action.focus.x + px * side * dist - (dx / len) * back, focus.y + lift, action.focus.z + pz * side * dist - (dz / len) * back);
       action.roll = side * 0.16;
       action.active = true;
