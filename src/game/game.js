@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { loadSettings } from '../core/settings.js';
-import { loadProgress, saveProgress, sanitizeProgress, DEFAULT_PROGRESS } from '../core/save.js';
+import { loadProgress, saveProgress, sanitizeProgress, DEFAULT_PROGRESS, newGameProgress } from '../core/save.js';
 import { createInput } from '../core/input.js';
 import { createEvents, onceEachId } from '../core/events.js';
 import { createTimeControl } from '../core/time.js';
@@ -39,6 +39,7 @@ import { STEPS } from './story.js';
 import { wireAudio } from './sound.js';
 import { createBoss } from './boss.js';
 import { createFinale } from './finale.js';
+import { createSideContent } from './sideContent.js';
 import { createWarmCast } from './warmCast.js';
 import { drawEverything, uploadTextures, readyObjects } from '../render/prewarm.js';
 import { createDynamicRes, sanitizeResScale } from '../render/dynamicRes.js';
@@ -172,7 +173,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     audio.unlock();
     // Don't let the integrated-GPU hint sit over the boss bar once a run is under way.
     if (gpuHintBox) { gpuHintBox.remove(); gpuHintBox = null; }
-    if (fresh) progress = { ...sanitizeProgress(DEFAULT_PROGRESS), balloons: progress.balloons, goldUnlocked: progress.goldUnlocked };
+    if (fresh) progress = newGameProgress(progress);
     progress.suit = suit;
     saveProgress(storage, progress);
     game = buildRun(suit);
@@ -272,15 +273,22 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       },
     };
 
+    // Late-bound: side content needs the flow, and the flow asks side content three questions.
+    const sideHooks = { holdStory: () => false, marker: () => null, onRespawn: () => null };
     const flow = createFlow({
       hero, encounters, hud, events, progress, storage, comic, stage, prompts, waypoint, beacon, balloons, pickups,
-      collision: world.collision, follow, boss, finale, neonParty,
+      collision: world.collision, follow, boss, finale, neonParty, side: sideHooks,
       onCredits: () => {
         document.exitPointerLock?.();
         input.setEnabled(false);
         menus.credits({ final: true, onClose: () => { menus.hide(); input.setEnabled(true); flow.freeRoam(); } });
       },
     });
+    const side = createSideContent({
+      scene, assets, hero, follow, combat, encounters, events, flow, prompts, progress, storage, rng,
+      hudRoot: hudRoot.querySelector('.hud') ?? hudRoot, collision: world.collision, buildings: world.data.buildings,
+    });
+    Object.assign(sideHooks, side.flowHooks);
 
     // ---- HUD reactions ----
     events.on('impact', ({ pos, outcome }) => fx.impact(pos, outcome === 'hit' ? 0.7 : 1.1));
@@ -321,7 +329,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     events.on('step', ({ step }) => { if (step.id === 'toDocks') setTimeout(() => prompts.show(['detective', 'balloons']), 30000); });
 
     // Progress tracking (Plan 3C): one moveLearned event the first time each traversal move happens.
-    const MOVE_IDS = { ladderOn: 'ladder', ledgeGrab: 'ledge', zipOn: 'zipline', wallRun: 'wallrun', diveImpact: 'divebomb' };
+    const MOVE_IDS = { ladderOn: 'ladder', ledgeGrab: 'ledge', zipOn: 'zipline', wallRun: 'wallrun', diveImpact: 'divebomb', throwRelease: 'throw', slam: 'slam', counter: 'counter' };
     onceEachId(events, MOVE_IDS, 'moveLearned');
 
     const sound = wireAudio({ audio, events, hero, combat, flow, settings, voice });
@@ -397,6 +405,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         }
         combat.update(dt, ctx);
         hero.update(dt, ctx);
+        side.update(dt, real, { toScreen });
         fx.update(dt);
         if (hero.pos.y < -0.8) { hero.teleport(hero.lastSafe); events.emit('splash'); }
         follow.update(real, hero.pos, input.look, combat.cameraMode ?? hero.cameraMode(), hero.speed);
@@ -434,7 +443,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     }
 
     const api = {
-      hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn,
+      hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, side, stage,
       winFight: () => { for (const e of combat.enemies) if (e.alive && e.type !== 'joker') { e.health = 0; e.applyHit({ outcome: 'ko' }, hero.pos); } },
     };
     if (params.get('god') === '1') events.on('heroHurt', () => { hero.health = hero.maxHealth; hud.setHealth(1); });
