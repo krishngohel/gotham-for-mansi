@@ -1,5 +1,11 @@
 const KEY = 'gotham-mansi-progress-v1';
 export const BALLOON_COUNT = 12;
+export const DISTRICT_IDS = ['gcpd', 'docks', 'neon', 'ace', 'clock'];
+export const MEDALS = ['bronze', 'silver', 'gold'];
+export const MILESTONE_STEPS = [0, 25, 50, 75, 100];
+export const STAT_KEYS = ['playTime', 'kos', 'longestCombo', 'topGlideSpeed', 'distanceGlided', 'photos'];
+const WHOLE_STATS = new Set(['kos', 'longestCombo', 'photos']);
+const ID = /^[a-zA-Z][a-zA-Z0-9]{0,31}$/;
 
 export const DEFAULT_PROGRESS = {
   step: 0,
@@ -8,21 +14,74 @@ export const DEFAULT_PROGRESS = {
   goldUnlocked: false,
   seenIntro: false,
   finished: false,
+  challenges: {},
+  stats: { playTime: 0, kos: 0, longestCombo: 0, topGlideSpeed: 0, distanceGlided: 0, photos: 0 },
+  crimes: { stopped: 0 },
+  moves: [],
+  districts: [],
+  milestone: 0,
+  unlocks: [],
 };
 
+// Later parts (the post-game in Part H) add saved fields here instead of editing
+// sanitizeProgress. Returns an undo, mainly for tests.
+const extraFields = new Map();
+export function registerProgressField(key, { sanitize }) {
+  if (key in DEFAULT_PROGRESS || extraFields.has(key)) throw new Error(`progress field "${key}" already exists`);
+  extraFields.set(key, sanitize);
+  return () => extraFields.delete(key);
+}
+
+const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+const amount = (v, max = 1e9) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.min(max, v) : 0);
+function idList(v, allowed = null, max = 32) {
+  if (!Array.isArray(v)) return [];
+  return [...new Set(v.filter((s) => typeof s === 'string' && ID.test(s) && (!allowed || allowed.includes(s))))].slice(0, max);
+}
+function sanitizeChallenges(raw) {
+  const out = {};
+  if (!isObj(raw)) return out;
+  for (const [id, r] of Object.entries(raw).slice(0, 32)) {
+    if (!ID.test(id) || !isObj(r)) continue;
+    if (typeof r.best !== 'number' || !Number.isFinite(r.best) || r.best < 0) continue;
+    out[id] = { best: r.best, medal: MEDALS.includes(r.medal) ? r.medal : null };
+  }
+  return out;
+}
+function sanitizeStats(raw) {
+  const r = isObj(raw) ? raw : {};
+  const out = {};
+  for (const k of STAT_KEYS) out[k] = WHOLE_STATS.has(k) ? Math.floor(amount(r[k])) : amount(r[k]);
+  return out;
+}
+
 export function sanitizeProgress(raw = {}) {
-  const r = raw && typeof raw === 'object' ? raw : {};
+  const r = isObj(raw) ? raw : {};
   const balloons = Array.isArray(r.balloons)
     ? [...new Set(r.balloons.filter((b) => Number.isInteger(b) && b >= 0 && b < BALLOON_COUNT))]
     : [];
-  return {
+  const out = {
     step: Number.isInteger(r.step) && r.step >= 0 ? r.step : 0,
     balloons,
     suit: ['m', 'f', 'gold'].includes(r.suit) ? r.suit : null,
     goldUnlocked: r.goldUnlocked === true,
     seenIntro: r.seenIntro === true,
     finished: r.finished === true,
+    challenges: sanitizeChallenges(r.challenges),
+    stats: sanitizeStats(r.stats),
+    crimes: { stopped: Math.floor(amount(isObj(r.crimes) ? r.crimes.stopped : 0, 1e6)) },
+    moves: idList(r.moves),
+    districts: idList(r.districts, DISTRICT_IDS),
+    milestone: MILESTONE_STEPS.includes(r.milestone) ? r.milestone : 0,
+    unlocks: idList(r.unlocks),
   };
+  for (const [key, sanitize] of extraFields) out[key] = sanitize(r[key]);
+  return out;
+}
+
+// A new game restarts the story. Balloons, medals, stats and everything else found stay.
+export function newGameProgress(old) {
+  return { ...sanitizeProgress(old), step: 0, suit: null, seenIntro: false, finished: false };
 }
 
 export function loadProgress(storage) {
