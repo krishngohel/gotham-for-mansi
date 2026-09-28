@@ -10,15 +10,21 @@ const vertexShader = /* glsl */ `
 attribute float aSide;
 attribute float aT;
 attribute float aSeed;
-uniform float uTime, uArea, uHeight, uSpeed, uLen, uWidth;
+attribute float aArea;
+uniform float uTime, uHeight, uSpeed, uLen, uWidth;
 uniform vec3 uCenter;
 uniform vec2 uSlant;
 void main() {
   float speed = uSpeed * (0.8 + 0.4 * aSeed);
   float y = mod(position.y - uTime * speed, uHeight);
   vec3 p;
-  p.x = uCenter.x + mod(position.x - uCenter.x, uArea) - uArea * 0.5 + uSlant.x * y;
-  p.z = uCenter.z + mod(position.z - uCenter.z, uArea) - uArea * 0.5 + uSlant.y * y;
+  // Each streak wraps within its own aArea tile, centred on the camera every frame. A
+  // streak spawned uniformly across [0, aArea) stays uniformly distributed under this
+  // wrap no matter where the camera sits -- unlike weighting a single shared tile, which
+  // only lines the dense region up with the camera when camera.position happens to be a
+  // multiple of that tile size.
+  p.x = uCenter.x + mod(position.x - uCenter.x, aArea) - aArea * 0.5 + uSlant.x * y;
+  p.z = uCenter.z + mod(position.z - uCenter.z, aArea) - aArea * 0.5 + uSlant.y * y;
   p.y = uCenter.y - uHeight * 0.45 + y;
   vec4 vp = viewMatrix * vec4(p, 1.0);
   // Fixed 18 degree slant in screen (view) space: dashDir is the dash's long axis,
@@ -99,7 +105,16 @@ function createSplashes(count) {
     uTime: { value: 0 }, uArea: { value: 22 }, uGround: { value: 0 }, uRate: { value: 1.6 }, uLife: { value: 0.18 },
     uCenter: { value: new THREE.Vector3() }, uColor: { value: new THREE.Color(PALETTE.paper) }, uOpacity: { value: 0.6 },
   };
-  const mesh = new THREE.Mesh(geo, new THREE.ShaderMaterial({ uniforms, vertexShader: splashVertex, fragmentShader: splashFragment, transparent: true, depthWrite: false, depthTest: false, side: THREE.DoubleSide }));
+  const mesh = new THREE.Mesh(geo, new THREE.ShaderMaterial({
+    uniforms, vertexShader: splashVertex, fragmentShader: splashFragment, transparent: true, depthWrite: false,
+    // DoubleSide: the quad is a vertical PlaneGeometry remapped to lie flat on the ground
+    // in the vertex shader (position.xy -> world XZ), which can leave it back-facing from
+    // above depending on winding, so both faces are drawn rather than reordering indices.
+    side: THREE.DoubleSide,
+    // Depth-test normally (so splashes go behind walls/props) but bias them slightly
+    // toward the camera to avoid z-fighting with the ground they sit right on.
+    polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1,
+  }));
   mesh.frustumCulled = false;
   mesh.layers.set(LAYER_FX);
   mesh.renderOrder = 9;
@@ -108,29 +123,30 @@ function createSplashes(count) {
 
 export function createRain(count, { area = 36, height = 24 } = {}) {
   // Each streak is a quad (4 verts, 2 triangles) instead of a GL line, so it can be
-  // drawn thick. Placement is weighted so density within 10 m of the player is 1.5x
-  // the uniform rate and density beyond that is 0.7x, while the streak count (and thus
-  // the total vertex/triangle budget) stays exactly `count`.
+  // drawn thick. Density is layered, not weighted: ~40% of streaks are spawned into a
+  // tight 20 m tile (the near layer) and the rest into the full `area` tile (the far
+  // layer); both wrap centred on the camera (see the vertex shader). Each layer is
+  // uniform within its own tile, so the near layer's higher density (fewer square
+  // metres, same streak count share) holds everywhere the camera goes. Total streak
+  // count is unchanged -- this only redistributes where the existing streaks spawn.
+  const NEAR_AREA = 20;
+  const nearCount = Math.round(count * 0.4);
   const pos = new Float32Array(count * 4 * 3);
   const side = new Float32Array(count * 4);
   const t = new Float32Array(count * 4);
   const seed = new Float32Array(count * 4);
+  const streakArea = new Float32Array(count * 4);
   const index = new Uint32Array(count * 6);
-  const center = area / 2;
   for (let i = 0; i < count; i++) {
-    let x = 0, z = 0;
-    for (let tries = 0; tries < 50; tries++) {
-      x = Math.random() * area; z = Math.random() * area;
-      const d = Math.hypot(x - center, z - center);
-      const w = d < 10 ? 1.5 : 0.7;
-      if (Math.random() < w / 1.5) break;
-    }
+    const a = i < nearCount ? NEAR_AREA : area;
+    const x = Math.random() * a, z = Math.random() * a;
     const y = Math.random() * height, s = Math.random();
     const base = i * 4;
     for (let v = 0; v < 4; v++) pos.set([x, y, z], (base + v) * 3);
     side.set([-1, 1, -1, 1], base);
     t.set([0, 0, 1, 1], base);
     seed.set([s, s, s, s], base);
+    streakArea.set([a, a, a, a], base);
     index.set([base, base + 1, base + 2, base + 1, base + 3, base + 2], i * 6);
   }
   const geo = new THREE.BufferGeometry();
@@ -138,14 +154,17 @@ export function createRain(count, { area = 36, height = 24 } = {}) {
   geo.setAttribute('aSide', new THREE.BufferAttribute(side, 1));
   geo.setAttribute('aT', new THREE.BufferAttribute(t, 1));
   geo.setAttribute('aSeed', new THREE.BufferAttribute(seed, 1));
+  geo.setAttribute('aArea', new THREE.BufferAttribute(streakArea, 1));
   geo.setIndex(new THREE.BufferAttribute(index, 1));
   const uniforms = {
-    uTime: { value: 0 }, uArea: { value: area }, uHeight: { value: height }, uSpeed: { value: 22 },
+    uTime: { value: 0 }, uHeight: { value: height }, uSpeed: { value: 22 },
     // 40% shorter and 1.6x thicker than the original hairline streaks.
     uLen: { value: 0.36 }, uWidth: { value: 0.032 },
     uCenter: { value: new THREE.Vector3() }, uSlant: { value: new THREE.Vector2(0.18, 0.06) },
     uColor: { value: new THREE.Color(PALETTE.paper) }, uOpacity: { value: 0.55 },
   };
+  // DoubleSide: the dash quad's width offset is built in view space and can wind either
+  // way depending on the camera angle, so both faces are drawn rather than tracking that.
   const mesh = new THREE.Mesh(geo, new THREE.ShaderMaterial({ uniforms, vertexShader, fragmentShader, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
   mesh.frustumCulled = false;
   mesh.layers.set(LAYER_FX);
