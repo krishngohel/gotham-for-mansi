@@ -474,11 +474,19 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     state.pauseMenu = true;
     input.setEnabled(false);
     document.exitPointerLock?.();
-    menus.pause({
+    menus.pause(pauseOptions());
+  }
+  // Built fresh on every pause so the info line and the challenge button are current.
+  function pauseOptions() {
+    const side = game.side;
+    const opts = {
       onResume: resume,
       onRestart: () => { resume(); game.flow.respawn(); },
       onTitle: () => { location.search = ''; },
-    });
+      info: side.pauseInfo(),
+      onQuitChallenge: () => { side.challenges.quit(); resume(); },
+    };
+    return opts;
   }
   function resume({ lock = true } = {}) {
     menus.hide();

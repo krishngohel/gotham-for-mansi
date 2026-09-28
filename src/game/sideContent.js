@@ -7,6 +7,9 @@ import { DISTRICT_IDS, saveProgress } from '../core/save.js';
 import { tracker, milestonesCrossed } from './progressTracker.js';
 import { createPlayStats } from './playStats.js';
 import { createSideHud } from '../ui/sideHud.js';
+import { CHALLENGES, pillarPos } from './challenges.js';
+import { createChallengeRunner } from './challengeRunner.js';
+import { CRIME_SPOTS, isCrimeId } from './crimes.js';
 
 export const MILESTONE_TEXT = {
   25: 'A quarter of Gotham, handled. The Joker has started to notice.',
@@ -16,12 +19,36 @@ export const MILESTONE_TEXT = {
 };
 
 export function createSideContent(deps) {
-  const { hero, combat, events, hudRoot, progress, storage } = deps;
+  const { scene, hero, follow, combat, encounters, events, flow, hudRoot, prompts, progress, storage } = deps;
   const save = () => saveProgress(storage, progress);
   const ui = createSideHud(hudRoot);
   const stats = createPlayStats(progress.stats);
   const last = new THREE.Vector3().copy(hero.pos);
   let dirty = true, districtT = 0, saveT = 0;
+
+  const stepType = () => flow.objectives.step?.type ?? null;
+  const offLimits = () => ['boss', 'cutscene'].includes(stepType());
+  const challenges = createChallengeRunner({
+    scene, hero, follow, events, ui, progress, save,
+    hidden: offLimits,
+    // Not in a fight or cutscene, including mid-story. The arena also needs the encounter
+    // system free (a waiting crime squad is fine: the crime is called off at the start).
+    canStart: (ch) => flow.mode === 'play' && !hero.dead && !offLimits() && !combat.active && !encounters.active
+      && (ch.kind !== 'arena' || !encounters.id || isCrimeId(encounters.id)),
+  });
+  const MARKER_RANGE = 60;
+  const tmp = new THREE.Vector3();
+  let pillarHint = false;
+  // Bat markers over pillars within 60 m (the spec's "HUD shows them when you're within 60 m").
+  function markers(toScreen) {
+    for (const p of challenges.pillars) {
+      const far = Math.hypot(hero.pos.x - p.at.x, hero.pos.z - p.at.z) > MARKER_RANGE;
+      if (challenges.active || far || !p.mesh.visible) { ui.marker(p.ch.id, 0, 0, false); continue; }
+      const s = toScreen(tmp.set(p.at.x, p.at.y + 3.6, p.at.z));
+      ui.marker(p.ch.id, s.x, s.y, !s.behind, progress.challenges[p.ch.id]?.medal ?? null);
+      if (!s.behind && !pillarHint) { pillarHint = true; prompts.show(['challenges']); }
+    }
+  }
 
   events.on('ko', () => stats.ko());
   events.on('takedown', () => stats.ko());
@@ -64,18 +91,26 @@ export function createSideContent(deps) {
     stats,
     score: () => tracker.score(progress),
     // dt is game time (slow motion and hit-stop included), real is wall time.
-    update(dt, real) {
+    update(dt, real, view) {
       stats.tick(real);
       stats.combo(combat.combo.value);
       if (hero.state === 'glide') stats.glide(hero.glide.speed, Math.hypot(hero.pos.x - last.x, hero.pos.z - last.z));
       last.copy(hero.pos);
       districtT -= real;
       if (districtT <= 0) { districtT = 0.5; visitDistrict(); }
+      challenges.update(dt); markers(view.toScreen);
       if (dirty) checkMilestones();
       saveT += real;
       if (saveT > 20) { saveT = 0; save(); }
     },
-    flowHooks: { holdStory: () => false, marker: () => null, onRespawn: () => null },
+    challenges,
+    data: { CHALLENGES, CRIME_SPOTS, pillarPos },
+    flowHooks: {
+      holdStory: () => challenges.active,
+      marker: () => (challenges.active ? challenges.nextMarker() : null),
+      onRespawn: () => challenges.takeRespawn(),
+    },
+    pauseInfo: () => ({ challenge: challenges.current?.name ?? null, crimesStopped: progress.crimes.stopped, percent: tracker.score(progress).percent }),
     photoTaken() { stats.photo(); save(); },
   };
 }
