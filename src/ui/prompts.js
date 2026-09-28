@@ -26,6 +26,12 @@ export function promptText(id, bindings) {
     brute: `Brutes can't be countered: their bolt is red. Dodge with ${k('dodge')}, stun with ${k('cape')}, then pile on.`,
     detective: `Press ${k('detective')} for detective vision. It reveals goons, your objective and hidden balloons.`,
     balloons: `Twelve birthday balloons are hidden around Gotham. Each one holds a message.`,
+    ladder: `Walk into a ladder to climb it. ${k('forward')} and ${k('back')} climb, ${k('sprint')} slides down, ${k('jump')} kicks off.`,
+    ledge: `You grab ledges when you fall short. ${k('left')} ${k('right')} shimmy, ${k('forward')} pulls up, ${k('back')} lets go. ${k('jump')} while holding ${k('back')} backflips off.`,
+    zip: `Grapple to a zipline post with ${k('grapple')} or glide into the cable. ${k('jump')} lets go at full speed.`,
+    wallrun: `Sprint along a wall and press ${k('jump')} to run on it. ${k('jump')} again to kick off.`,
+    dive: `Gliding high? Press ${k('kick')} to dive bomb and flatten everyone where you land.`,
+    takedown: `Hanging under an unaware goon? ${k('punch')} pulls them over the edge. Landing on one from above works too.`,
   };
   return P[id] ?? '';
 }
