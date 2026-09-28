@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createClimbables, addLadder, ladderGrab, ladderTopGrab, ladderExit, ladderBottomExit, addZipline, zipPoint, zipClosest, zipSpeed } from '../../src/world/climbables.js';
+import { createClimbables, addLadder, ladderGrab, ladderTopGrab, ladderExit, ladderBottomExit, addZipline, zipPoint, zipSag, zipClosest, zipSpeed, ZIP_SAG } from '../../src/world/climbables.js';
 import { ZIP_ROUTES } from '../../src/world/ziplines.js';
 
 describe('ladders', () => {
@@ -97,6 +97,33 @@ describe('ziplines', () => {
     let v = 2;
     for (let i = 0; i < 120; i++) v = zipSpeed(flat, v, 1 / 60);
     expect(v).toBeGreaterThanOrEqual(8);
+  });
+});
+
+describe('zipSag', () => {
+  const c = createClimbables();
+  const z = addZipline(c, { x: 0, y: 30, z: 0 }, { x: 40, y: 20, z: 0 });
+
+  it('is zero at both ends', () => {
+    expect(zipSag(z, 0)).toBeCloseTo(0, 5);
+    expect(zipSag(z, z.length)).toBeCloseTo(0, 5);
+  });
+  it('peaks at the middle, at ZIP_SAG of the cable length', () => {
+    expect(zipSag(z, z.length / 2)).toBeCloseTo(z.length * ZIP_SAG, 5);
+  });
+  it('is symmetric and always non-negative along the span', () => {
+    for (let k = 0; k <= 1; k += 0.1) {
+      const s = k * z.length;
+      const mirrored = z.length - s;
+      expect(zipSag(z, s)).toBeGreaterThanOrEqual(0);
+      expect(zipSag(z, s)).toBeCloseTo(zipSag(z, mirrored), 5);
+    }
+  });
+  it('matches the drawn cable and the catch check: zipClosest measures against the sagged curve', () => {
+    // A point sitting exactly on the straight chord at mid-span is `zipSag` above the real cable.
+    const mid = zipPoint(z, z.length / 2);
+    const r = zipClosest(z, mid);
+    expect(r.dist).toBeCloseTo(zipSag(z, z.length / 2), 5);
   });
 });
 

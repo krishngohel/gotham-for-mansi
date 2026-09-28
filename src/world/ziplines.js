@@ -2,7 +2,7 @@
 // toward each other by buildZiplines, which snaps them to the roof edge and a post top 2.2 m
 // above the roof.
 import * as THREE from 'three';
-import { addZipline } from './climbables.js';
+import { addZipline, zipSag } from './climbables.js';
 import { solid } from './cityBuilder.js';
 import { LAYER_FX } from '../render/layers.js';
 
@@ -58,11 +58,12 @@ export function buildZiplines(ctx) {
     solid(ctx, 'steel', new THREE.CylinderGeometry(0.09, 0.12, 2.2, 6).translate(a.x, a.y - 1.1, a.z), { collide: false });
     ctx.collision.addBox(a.x - 0.12, a.y - 2.2, a.z - 0.12, a.x + 0.12, a.y - 0.8, a.z + 0.12, 'zipPost');
     solid(ctx, 'steel', new THREE.CylinderGeometry(0.09, 0.12, 2.2, 6).translate(b.x, b.y - 1.1, b.z));
-    // The cable sags 3% in the middle; drawn as an ink line strip.
+    // The cable sags (zipSag, shared with the rider and the catch check) in the middle; drawn as
+    // an ink line strip.
     const n = 24, arr = [];
     for (let i = 0; i <= n; i++) {
       const k = i / n;
-      arr.push(new THREE.Vector3(a.x + d.x * k, a.y + d.y * k - Math.sin(k * Math.PI) * len * 0.03, a.z + d.z * k));
+      arr.push(new THREE.Vector3(a.x + d.x * k, a.y + d.y * k - zipSag(line, k * len), a.z + d.z * k));
     }
     const cable = new THREE.Line(new THREE.BufferGeometry().setFromPoints(arr), new THREE.LineBasicMaterial({ color: 0x0b0b12 }));
     cable.layers.set(LAYER_FX);
