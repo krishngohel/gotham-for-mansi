@@ -166,11 +166,12 @@ describe('the wheel and its slow time never linger', () => {
       expect(t.time.held).toBe(1);
     }
   });
-  it('never opens while dead, while play is stopped, mid chain takedown or in a challenge countdown', () => {
+  it('never opens while dead, while play is stopped, mid chain takedown or Bat Swarm, or in a challenge countdown', () => {
     const cases = [
       (t) => { t.hero.dead = true; },
       (t) => { t.flags.playing = false; },
       (t) => { t.hero.control = { name: 'chain' }; },
+      (t) => { t.hero.control = { name: 'swarm' }; },
       (t) => { t.hero.control = { name: 'countdown' }; },
     ];
     for (const block of cases) {

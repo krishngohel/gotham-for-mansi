@@ -338,6 +338,7 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0 6px; margin: 0 2px; bo
 .gh-swarm svg { width: 100%; height: 100%; }
 .gh-swarm .fill { fill: var(--ink); }
 .gh-swarm b { position: absolute; right: -8px; bottom: -10px; font: 22px 'Bangers', cursive; color: var(--paper); -webkit-text-stroke: 1.5px var(--ink); paint-order: stroke fill; }
-/* Bat Swarm finisher: dense ink speed lines, held longer. */
-.hud-speed.swarm { background: repeating-conic-gradient(from 0deg at 50% 50%, rgba(11, 11, 18, 0) 0deg 2deg, rgba(11, 11, 18, 0.75) 2deg 3deg, rgba(11, 11, 18, 0) 3deg 6deg); }
+/* Bat Swarm finisher: dense speed lines held longer, pale ink in a dark outline so they read over
+   the night scene. */
+.hud-speed.swarm { background: repeating-conic-gradient(from 0deg at 50% 50%, rgba(11, 11, 18, 0) 0deg 1.5deg, rgba(11, 11, 18, 0.9) 1.5deg 2deg, rgba(239, 230, 207, 0.8) 2deg 3.1deg, rgba(11, 11, 18, 0.9) 3.1deg 3.6deg, rgba(11, 11, 18, 0) 3.6deg 6deg); }
 .hud-speed.swarm.on { animation-duration: 1.3s; }

@@ -13,7 +13,7 @@ export const TREES = [
     { id: 'flow', name: 'Steady Flow', text: 'The first hit you take in a combo does not break it.' },
     { id: 'efficient', name: 'Efficient Chains', text: 'Chain takedowns cost 2 less combo.' },
     { id: 'fastFinish', name: 'Fast Finish', text: 'Special takedowns unlock at combo 6 instead of 8.' },
-    { id: 'swarm', name: 'Bat Swarm', text: 'A fourth chain takedown at combo 15: a swarm of bats takes down up to six goons.' },
+    { id: 'swarm', name: 'Bat Swarm', text: 'A fourth chain takedown for a big combo: a swarm of bats takes down up to six goons.' },
   ] },
   { id: 'gadgets', name: 'Gadgets', upgrades: [
     { id: 'triple', name: 'Triple Batarang', text: 'The batarang throws up to three at once, one per goon.' },

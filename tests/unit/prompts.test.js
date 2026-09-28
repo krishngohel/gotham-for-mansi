@@ -110,5 +110,7 @@ describe('promptText: Bat Swarm', () => {
     const text = promptText('swarm', DEFAULT_BINDINGS);
     expect(text).toContain(keyLabel(DEFAULT_BINDINGS.chain4[0]));
     expect(text).not.toMatch(/[–—]/);
+    // No cost in it: every owner has Efficient Chains (the tier before), so a number would mislead.
+    expect(text.replace(/<kbd>[^<]*<\/kbd>/g, '')).not.toMatch(/\d/);
   });
 });

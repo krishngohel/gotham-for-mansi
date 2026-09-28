@@ -19,7 +19,7 @@ export const ACTIONS = [
   { id: 'chain1', label: 'Chain takedown 1: Rope-a-Dope (combo 6)', group: 'Fight' },
   { id: 'chain2', label: 'Chain takedown 2: Headbanger (combo 9)', group: 'Fight' },
   { id: 'chain3', label: 'Chain takedown 3: Domino Drop (combo 12)', group: 'Fight' },
-  { id: 'chain4', label: 'Chain takedown 4: Bat Swarm (combo 15, WayneTech)', group: 'Fight' },
+  { id: 'chain4', label: 'Chain takedown 4: Bat Swarm (WayneTech)', group: 'Fight' },
   { id: 'detective', label: 'Detective vision', group: 'Other' },
   { id: 'help', label: 'Controls help', group: 'Other' },
   { id: 'photo', label: 'Photo mode', group: 'Other' },

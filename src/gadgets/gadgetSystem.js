@@ -10,9 +10,9 @@ import { STEPS } from '../game/story.js';
 import { bindingLabel } from '../core/bindings.js';
 import { promptText } from '../ui/prompts.js';
 
-// Hero controls the wheel never opens over (and closes under): a chain takedown's timeline and a
-// challenge's 3-2-1 countdown.
-const NO_WHEEL = new Set(['chain', 'countdown']);
+// Hero controls the wheel never opens over (and closes under): a chain takedown's timeline (the
+// Bat Swarm's too) and a challenge's 3-2-1 countdown.
+const NO_WHEEL = new Set(['chain', 'swarm', 'countdown']);
 // Mouse pixels (pointer lock) for a full push toward a slot. Small, so a short trackpad swipe
 // (a MacBook in Safari) is enough: past the 0.35 dead zone after about 25 px.
 const WHEEL_PX = 70;

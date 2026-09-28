@@ -183,4 +183,23 @@ describe('Bat Swarm from combat', () => {
     expect(of(events, 'chainBroken').map((ev) => ev.data)).toEqual([{ chain: 'swarm' }]);
     expect(of(events, 'swarmDone')).toHaveLength(0);
   });
+
+  it('reports swarmDone on the finish, so control taken in the last 0.6 s keeps the XP', () => {
+    const { hero, combat, events } = harness();
+    const squad = [fighter('a', 0, 3), fighter('b', 2, 4)];
+    combat.setEnemies(squad);
+    for (let i = 0; i < 15; i++) combat.combo.hit();
+    const f = fx();
+    combat.update(DT, ctxFor('chain4', f));
+    const ctl = hero.control;
+    for (let i = 0; i < 600 && !of(events, 'critical').length; i++) { combat.update(DT, ctxFor(null, f)); ctl.update(DT); }
+    expect(of(events, 'swarmDone').map((ev) => ev.data)).toEqual([{ count: 2 }]);
+    expect(squad.map((e) => e.state)).toEqual(['ko', 'ko']);
+    // A respawn takes control before the end step: nothing is lost, nothing is sent twice.
+    hero.control = null;
+    combat.update(DT, ctxFor(null, f));
+    expect(of(events, 'swarmDone')).toHaveLength(1);
+    expect(of(events, 'chainBroken')).toHaveLength(0);
+    expect(f.log.at(-1)).toEqual(['stop']);
+  });
 });

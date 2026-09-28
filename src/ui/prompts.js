@@ -43,7 +43,7 @@ const ENTRIES = [
   ['gadgetClaw', (k) => `Batclaw: ${k('batarang')} yanks the goon you aim at right to you for a free punch. It rips brute armor off and tears down vent covers and weak railings.`],
   ['gadgetFreeze', (k) => `Freeze blast: ${k('batarang')} traps a goon in ice. One hit shatters it and knocks them out.`],
   ['gadgetPopper', (k) => `Party popper: ${k('batarang')} throws a confetti bomb. Goons nearby forget the fight and dance.`],
-  ['swarm', (k) => `Bat Swarm is ready: at a 15 hit combo, press ${k('chain4')} to call the bats down on up to six goons.`],
+  ['swarm', (k) => `Bat Swarm is ready. When your combo lights the bat icon, press ${k('chain4')} to call the bats down on up to six goons.`],
   ['wayneTech', (k) => `Level up! Press ${k('pause')} and open WayneTech to spend your upgrade point.`],
 ];
 

@@ -12,7 +12,10 @@ export function createGadgetHud(root) {
   swarm.className = 'gh-swarm hidden';
   swarm.innerHTML = `<svg class="g-ico" viewBox="0 0 48 48">${SWARM_ICON}</svg><b></b>`;
   root.appendChild(swarm);
-  let lastSwarm = null, lastSwarmKey = '';
+  const swarmKey = swarm.querySelector('b');
+  // Identity of the last state object and label passed, then what the icon shows now: -1 before
+  // the first call, else 0 hidden, 1 shown dim, 3 lit (bit 0 shown, bit 1 affordable).
+  let lastSwarm = null, lastSwarmKey = null, swarmCode = -1, swarmLabel = null;
   const panel = el.querySelector('.gh-panel'), icon = el.querySelector('.gh-panel svg'), cd = el.querySelector('.gh-cd');
   const pips = el.querySelector('.gh-pips'), key = el.querySelector('.gh-key'), name = el.querySelector('.gh-name');
   let shownId = '', shownMax = -1, shownKey = '';
@@ -50,14 +53,19 @@ export function createGadgetHud(root) {
       if (keyLabel !== shownKey) { key.textContent = keyLabel; shownKey = keyLabel; }
     },
     // The Bat Swarm icon beside Plan 4E's chain icons: shown once owned and the combo is up, lit
-    // when affordable. combat.swarm is a new object only when it was refreshed.
+    // when affordable. combat.swarm is a new object on every refresh (10 a second), so after the
+    // identity check the DOM is touched only when the shown code or the key label changed.
     setSwarm(s, keyLabel) {
       if (s === lastSwarm && keyLabel === lastSwarmKey) return;
       lastSwarm = s;
       lastSwarmKey = keyLabel;
-      swarm.classList.toggle('hidden', !s.show);
-      swarm.classList.toggle('lit', s.affordable);
-      swarm.querySelector('b').textContent = keyLabel;
+      const code = s.show ? (s.affordable ? 3 : 1) : 0;
+      if (code !== swarmCode) {
+        swarmCode = code;
+        swarm.classList.toggle('hidden', code === 0);
+        swarm.classList.toggle('lit', code === 3);
+      }
+      if (keyLabel !== swarmLabel) { swarmLabel = keyLabel; swarmKey.textContent = keyLabel; }
     },
     setVisible(v) { el.style.display = v ? '' : 'none'; },
   };

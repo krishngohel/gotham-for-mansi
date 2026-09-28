@@ -62,9 +62,11 @@ export function createSwarmControl(hero, api, { targets, timeline, fx = null }) 
           api.critical(focus, { slow: 1, scale: 0.25, variant: 'swarm' });
           for (const e of targets) { api.release(e); api.finish(e, { power: 1.6, launch: 3 }); }
           api.word('FLAP FLAP KRAKOOM!', focus.pos, true);
+          // Done as soon as the goons are down, in the same step that lets them go (as chainDone
+          // is): control taken away in the last 0.6 s can't lose the XP.
+          api.events.emit('swarmDone', { count: targets.length });
         } else {
           fx?.stop();
-          api.events.emit('swarmDone', { count: targets.length });
           return true;
         }
       }
