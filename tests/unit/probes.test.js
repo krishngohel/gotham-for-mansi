@@ -77,16 +77,21 @@ describe('wrapCorner', () => {
     expect(w.nx).toBe(1);
     expect(w.x).toBe(10);
   });
-  it('wraps successfully on axis z ledge (east face) with dir 1 toward north', () => {
-    // Test axis z ledge wrapping (already covered by initial test, verify it works)
+  it('refuses to wrap when adjacent face has no headroom (clearAbove check)', () => {
+    // Test clearAbove rejection path specifically. Build: main 10m box with rooftop cover
+    // that blocks headroom above the wrapped-to face but doesn't block the hang spot itself.
+    // Starting ledge on north edge at z=10. Wrap east (dir 1) attempts east face.
+    // Wrapped ledge would be at (10, 10, ~9.65). Pull-up spot at (9.4, ~9.65).
+    // Hang spot at (~10.38, ~7.95, ~9.27).
+    // Rooftop box covers pull-up area but not hang spot (x 8.5-10, y 10-13, z 9-10).
     const c = createCollision({ floor: () => 0 });
     c.addBox(0, 0, 0, 10, 10, 10, 'building');
-    const l = findLedge(c, { x: 10.5, y: 8.2, z: 5 }, -1, 0);
-    expect(l).not.toBe(null);
-    expect(l.axis).toBe('z');
+    c.addBox(8.5, 10, 9, 10, 13, 10, 'building'); // rooftop over pull-up spot
+    const l = findLedge(c, { x: 5, y: 8.2, z: 10.5 }, 0, -1);
+    expect(l).not.toBe(null); // starting ledge exists
     const w = wrapCorner(c, l, 1);
-    expect(w).not.toBe(null);
-    expect(w.axis).toBe('x');
+    // Returns null due to clearAbove failing (rooftop blocks headroom), not blocked check
+    expect(w).toBe(null);
   });
   it('refuses to wrap when adjacent face is blocked', () => {
     // Build: main box plus blocking box at wrap destination
