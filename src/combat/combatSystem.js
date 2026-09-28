@@ -802,7 +802,8 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
       if (e.state === 'windup') { director.release(e.id); e.glyph = null; e.state = 'engage'; }
       director.hold(e.id, timeline.duration + 0.6);
     }
-    const run = { ctl: null, chain: chain.id, targets, over: false };
+    // `prior`: Batman's invulnerability before the chain raised it; `t`: game time since the start.
+    const run = { ctl: null, chain: chain.id, targets, over: false, prior: hero.invulnerable, t: 0 };
     run.ctl = createChainControl(hero, chainApi(ctx, run), { chain, targets, stealth: avail.stealth, timeline });
     hero.control = run.ctl;
     chainRun = run;
@@ -819,7 +820,9 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     chainRun = null;
     if (run.over) return;
     for (const e of run.targets) e.chainRelease();
-    hero.invulnerable = Math.min(hero.invulnerable, 0.3);
+    // Give back only what the chain added (what he had before, less the time since, or the usual
+    // 0.3 s grace). A control that took over owns its own invulnerability: leave it alone.
+    if (!hero.control) hero.invulnerable = Math.min(hero.invulnerable, Math.max(run.prior - run.t, 0.3));
     events.emit('chainBroken', { chain: run.chain });
   }
 
@@ -845,6 +848,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     get chains() { return chainAvail; },
     update(dt, ctx) {
       checkChainDropped();
+      if (chainRun) chainRun.t += dt;
       combo.tick(dt);
       availT -= dt;
       if (availT <= 0 || combo.value !== availCombo) {

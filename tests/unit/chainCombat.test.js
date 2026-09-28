@@ -5,8 +5,9 @@ import * as THREE from 'three';
 import { createCombat } from '../../src/combat/combatSystem.js';
 import { ENEMY } from '../../src/combat/rules.js';
 import { createRng } from '../../src/core/rng.js';
+import { placeWord } from '../../src/ui/hud.js';
 
-function harness({ discount = 0 } = {}) {
+function harness({ discount = 0, blocked = false } = {}) {
   const bat = {
     yaw: 0, face(y) { bat.yaw = y; }, tilt: { rotation: { set() {} } },
     bone: () => ({ getWorldPosition: (o) => o.set(0, 11.4, 0) }),
@@ -18,7 +19,7 @@ function harness({ discount = 0 } = {}) {
     bat, cape: { setWings() {} },
     setState(s) { hero.state = s; },
     heightAboveGround: () => 0,
-    collision: { raycast: () => null, resolveCylinder: (pos) => ({ groundY: pos.y }), groundBelow: () => 10 },
+    collision: { raycast: () => (blocked ? { t: 0.5 } : null), resolveCylinder: (pos) => ({ groundY: pos.y }), groundBelow: () => 10 },
   };
   const follow = { forward: (o) => o.set(0, 0, 1), right: (o) => o.set(-1, 0, 0), addShake() {}, hitKick() {}, actionShot() {} };
   // Each event keeps a snapshot of any vector it carried, to check nobody mutates it later.
@@ -90,6 +91,30 @@ describe('starting a chain from combat', () => {
     combat.update(dt, ctxFor('chain1'));
     expect(hero.control).toBeNull();
     expect(of(events, 'hint').map((ev) => ev.data.id)).toEqual(['chain-targets']);
+    expect(combat.combo.value).toBe(6);
+  });
+
+  it('spends nothing when fewer than 2 goons are eligible (one is down)', () => {
+    const { hero, combat, events } = harness();
+    combat.setEnemies([goon('a', 0, 3), goon('b', 1, 4, { down: true, state: 'down' })]);
+    hits(combat, 9);
+    combat.update(dt, ctxFor('chain1'));
+    expect(hero.control).toBeNull();
+    expect(of(events, 'hint').map((ev) => ev.data.id)).toEqual(['chain-targets']);
+    expect(combat.combo.value).toBe(9);
+  });
+
+  it('spends nothing when the chain is affordable but a wall blocks the line of sight', () => {
+    const { hero, combat, events } = harness({ blocked: true });
+    combat.setEnemies([goon('a', 0, 3), goon('b', 1, 4)]);
+    hits(combat, 6);
+    combat.update(dt, ctxFor(null));
+    expect(combat.chains.affordable[0]).toBe(true);
+    combat.update(dt, ctxFor('chain1'));
+    expect(hero.control).toBeNull();
+    expect(of(events, 'hint').map((ev) => ev.data.id)).toEqual(['chain-targets']);
+    expect(of(events, 'chainStart')).toHaveLength(0);
+    expect(combat.combo.value).toBe(6);
   });
 
   it('spends the cost, holds the targets and hands hero.control to the chain', () => {
@@ -243,15 +268,69 @@ describe('a chain played through combat', () => {
     expect(of(events, 'chainBroken')).toHaveLength(0);
   });
 
-  it('lets go of chained goons when the control is replaced by another one', () => {
+  it('lets go of chained goons when the control is replaced by another one, and leaves its invulnerability alone', () => {
     const { hero, combat } = harness();
     const a = goon('a', 0, 3), b = goon('b', 1, 4);
     combat.setEnemies([a, b]);
     hits(combat, 6);
     combat.update(dt, ctxFor('chain1'));
     hero.control = { name: 'stagger', combat: true, canChain: () => false, update: () => false };
+    hero.invulnerable = 1.6; // set by whatever took over
     combat.update(dt, ctxFor(null));
     expect(a.state).toBe('engage');
     expect(b.state).toBe('engage');
+    expect(hero.invulnerable).toBe(1.6);
+  });
+
+  it('a dropped chain gives back the invulnerability Batman had before it, not more', () => {
+    const { hero, combat } = harness();
+    combat.setEnemies([goon('a', 0, 3), goon('b', 1, 4)]);
+    hits(combat, 6);
+    hero.invulnerable = 1.2;
+    combat.update(dt, ctxFor('chain1'));
+    expect(hero.invulnerable).toBeGreaterThan(2);
+    hero.control = null;
+    combat.update(dt, ctxFor(null));
+    expect(hero.invulnerable).toBeGreaterThan(1.1);
+    expect(hero.invulnerable).toBeLessThanOrEqual(1.2);
+  });
+});
+
+describe('sound word placement (hud.placeWord)', () => {
+  const view = { w: 1280, h: 720 };
+  it('leaves a word well inside the screen where it is', () => {
+    expect(placeWord(640, 360, 200, 100, 0, view)).toEqual({ x: 640, y: 360 });
+  });
+  it('pulls a big tilted word fully back on screen at every edge', () => {
+    for (const [x, y] of [[640, 715], [640, 2], [3, 360], [1279, 360], [-400, 900]]) {
+      const w = 420, h = 110, rot = 12;
+      const p = placeWord(x, y, w, h, rot, view);
+      const r = (rot * Math.PI) / 180;
+      const hw = (1.15 * (w * Math.cos(r) + h * Math.sin(r))) / 2, hh = (1.15 * (w * Math.sin(r) + h * Math.cos(r))) / 2;
+      expect(p.x - hw).toBeGreaterThanOrEqual(24 - 1e-9);
+      expect(p.x + hw).toBeLessThanOrEqual(view.w - 24 + 1e-9);
+      expect(p.y - hh).toBeGreaterThanOrEqual(24 - 1e-9);
+      expect(p.y + hh).toBeLessThanOrEqual(view.h - 24 + 1e-9);
+    }
+  });
+  it('moves a word off the objective card', () => {
+    const card = { left: 900, right: 1252, top: 24, bottom: 130, width: 352 };
+    const p = placeWord(1050, 90, 300, 80, 0, view, [card]);
+    const hw = (1.15 * 300) / 2, hh = (1.15 * 80) / 2;
+    const overlaps = p.x + hw > card.left && p.x - hw < card.right && p.y + hh > card.top && p.y - hh < card.bottom;
+    expect(overlaps).toBe(false);
+  });
+  it('lifts a word above a hint caption showing at the bottom', () => {
+    const hint = { left: 330, right: 950, top: 616, bottom: 676, width: 620 };
+    const p = placeWord(620, 640, 330, 110, 0, view, [null, hint]);
+    const hh = (1.15 * 110) / 2;
+    expect(p.y + hh).toBeLessThanOrEqual(hint.top - 24 + 1e-9);
+    expect(p.x).toBe(620);
+  });
+  it('ignores boxes that are hidden (zero width)', () => {
+    expect(placeWord(640, 360, 200, 100, 0, view, [{ left: 0, right: 0, top: 0, bottom: 0, width: 0 }])).toEqual({ x: 640, y: 360 });
+  });
+  it('centres a word wider than the screen', () => {
+    expect(placeWord(10, 360, 2000, 100, 0, view).x).toBe(640);
   });
 });

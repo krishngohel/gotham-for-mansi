@@ -13,6 +13,31 @@ const CHAIN_ICON = [
   '<path d="M24 5 L24 29 M16 21 L24 31 L32 21 M8 41 L40 41 M12 37 L7 32 M36 37 L41 32"/>',
 ];
 
+// Where a sound word's centre goes so the whole word stays on screen: w x h is its laid-out
+// size, rotDeg its tilt, and the pop animation scales it to 1.15. m keeps it clear of the
+// comic frame. Each box in `avoid` (DOMRect-like: the objective card, a showing hint) the word
+// would cover is stepped out of by the shortest move that stays on screen. A word wider than
+// the screen is centred.
+const POP = 1.15;
+export function placeWord(x, y, w, h, rotDeg, view, avoid = [], m = 24) {
+  const r = (Math.abs(rotDeg) * Math.PI) / 180, c = Math.cos(r), s = Math.sin(r);
+  const hw = (POP * (w * c + h * s)) / 2, hh = (POP * (w * s + h * c)) / 2;
+  const x0 = hw + m, x1 = view.w - hw - m, y0 = hh + m, y1 = view.h - hh - m;
+  const fit = (v, lo, hi) => (lo > hi ? (lo + hi) / 2 : Math.min(hi, Math.max(lo, v)));
+  let px = fit(x, x0, x1), py = fit(y, y0, y1);
+  for (const b of avoid) {
+    if (!b || !(b.width > 0) || px + hw <= b.left || px - hw >= b.right || py + hh <= b.top || py - hh >= b.bottom) continue;
+    const up = b.top - hh - m, down = b.bottom + hh + m, left = b.left - hw - m, right = b.right + hw + m;
+    let best = Infinity, bx = px, by = py;
+    if (up >= y0 && py - up < best) { best = py - up; bx = px; by = up; }
+    if (down <= y1 && down - py < best) { best = down - py; bx = px; by = down; }
+    if (left >= x0 && px - left < best) { best = px - left; bx = left; by = py; }
+    if (right <= x1 && right - px < best) { best = right - px; bx = right; by = py; }
+    px = bx; py = by;
+  }
+  return { x: px, y: py };
+}
+
 export function arcDash(fraction, circumference = C, span = 0.75) {
   const f = Math.min(1, Math.max(0, fraction));
   return `${(f * span * circumference).toFixed(2)} ${circumference.toFixed(2)}`;
@@ -45,6 +70,7 @@ export function createHud(root) {
   let chainKey = '', lastChainState = null, lastChainKeys = null;
   const bar = el.querySelector('.bar');
   const obj = el.querySelector('.obj');
+  const captionEl = el.querySelector('.hud-caption');
   const balloons = el.querySelector('.balloons span');
   const layer = el.querySelector('.hud-layer');
   const glyphs = new Map();
@@ -156,11 +182,15 @@ export function createHud(root) {
       const s = document.createElement('div');
       s.className = big ? 'sfx big' : 'sfx';
       s.textContent = word;
-      s.style.left = `${x}px`;
-      s.style.top = `${y}px`;
-      s.style.setProperty('--r', `${(Math.random() * 24 - 12).toFixed(1)}deg`);
+      const rot = Math.random() * 24 - 12;
+      s.style.setProperty('--r', `${rot.toFixed(1)}deg`);
       s.addEventListener('animationend', () => s.remove());
       layer.appendChild(s);
+      // Measured once per word, now it's laid out: keep it on screen, off the objective card and off a showing hint.
+      const avoid = [captionEl.getBoundingClientRect(), hintEl.classList.contains('show') ? hintEl.getBoundingClientRect() : null];
+      const p = placeWord(x, y, s.offsetWidth, s.offsetHeight, rot, { w: innerWidth, h: innerHeight }, avoid);
+      s.style.left = `${p.x}px`;
+      s.style.top = `${p.y}px`;
     },
   };
 }
