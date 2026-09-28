@@ -56,10 +56,13 @@ void main() {
     uvE += (vec2(vnoise(bp), vnoise(bp + 31.7)) - 0.5) * uTexel * 2.2 * uWobble;
   }
 
+  // Depth edges from the Laplacian of inverse depth: 1/z is linear across any plane in screen
+  // space, so flat floors seen at grazing angles produce no false lines.
   float dc = viewDepth(uvE);
   float ic = 1.0 / dc;
   float lap = 0.0;
   vec3 gxN = vec3(0.0), gyN = vec3(0.0);
+  // A wider kernel close to the camera gives near silhouettes a bolder brush line.
   vec2 texel = uTexel * mix(1.6, 1.0, smoothstep(6.0, 28.0, dc));
   for (int i = -1; i <= 1; i++) {
     for (int j = -1; j <= 1; j++) {
