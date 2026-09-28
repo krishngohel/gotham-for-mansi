@@ -17,7 +17,7 @@ function gridIndex(cols, rows) {
 
 // anchor 'shoulders' is the cape; 'waist' hangs coat tails from the hips (the Joker's).
 export function createCape(ch, color, {
-  cols: COLS = 9, rows: ROWS = 12, topWidth = 0.5, bottomWidth = 1.15, length = 1.32, pointDrop = 0.12, anchor: mode = 'shoulders',
+  cols: COLS = 11, rows: ROWS = 14, topWidth = 0.5, bottomWidth = 1.3, length = 1.36, pointDrop = 0.17, anchor: mode = 'shoulders',
 } = {}) {
   const cloth = createCloth({ cols: COLS, rows: ROWS, topWidth, bottomWidth, length, pointDrop });
   const geo = new THREE.BufferGeometry();
