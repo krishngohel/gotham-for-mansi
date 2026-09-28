@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createClimbables, addLadder, ladderGrab, ladderTopGrab, ladderExit, ladderBottomExit, addZipline, zipPoint, zipClosest, zipSpeed } from '../../src/world/climbables.js';
+import { ZIP_ROUTES } from '../../src/world/ziplines.js';
 
 describe('ladders', () => {
   const c = createClimbables();
@@ -97,4 +98,9 @@ describe('ziplines', () => {
     for (let i = 0; i < 120; i++) v = zipSpeed(flat, v, 1 / 60);
     expect(v).toBeGreaterThanOrEqual(8);
   });
+});
+
+it('zip routes cross real gaps', () => {
+  for (const [a, b] of ZIP_ROUTES) expect(Math.hypot(b.x - a.x, b.z - a.z)).toBeGreaterThan(25);
+  expect(ZIP_ROUTES.length).toBeGreaterThanOrEqual(8);
 });

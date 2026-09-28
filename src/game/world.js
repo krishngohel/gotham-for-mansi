@@ -6,6 +6,7 @@ import { createCollision } from '../world/collision.js';
 import { buildMapData, WORLD, SITES } from '../world/mapData.js';
 import { createCityContext, buildCity, finishCity } from '../world/cityBuilder.js';
 import { buildDistricts } from '../world/districts.js';
+import { buildZiplines } from '../world/ziplines.js';
 import { createSkyDome } from '../world/sky.js';
 import { createBackdrop } from '../world/skyline.js';
 import { createBatsignal } from '../world/batsignal.js';
@@ -38,6 +39,7 @@ export function createWorld(scene, quality) {
   ctx.quality = quality;
   buildCity(ctx, data);
   buildDistricts(ctx);
+  buildZiplines(ctx);
   finishCity(ctx);
 
   // Lighting: a low sky fill so walls turned from the moon fall into shadow, a moon that casts

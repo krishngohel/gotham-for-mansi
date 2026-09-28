@@ -5,10 +5,11 @@ import { PALETTE } from '../config/palette.js';
 import { LAYER_FX } from '../render/layers.js';
 import { createBat } from './characters.js';
 import { createCape } from './cape.js';
-import { ladderGrab, ladderTopGrab } from '../world/climbables.js';
+import { ladderGrab, ladderTopGrab, zipClosest } from '../world/climbables.js';
 import { createLadderControl } from './traverse/ladder.js';
 import { findLedge } from './traverse/probes.js';
 import { createLedgeControl } from './traverse/ledge.js';
+import { createZipControl } from './traverse/zipline.js';
 
 const GRAVITY = 26;
 const JUMP_V = 9.4;
@@ -238,6 +239,13 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
       const ledge = findLedge(collision, pos, fx, fz);
       if (ledge) { h.control = createLedgeControl(h, { collision, events }, { ledge }); return; }
     }
+    // Ziplines: jumping or gliding into a cable catches it, riding from the closest point.
+    if (!h.control && h.lastClimbT > 0.5 && (h.state === 'air' || h.state === 'glide') && climbables.ziplines.length) {
+      for (const line of climbables.ziplines) {
+        const c = zipClosest(line, { x: pos.x, y: pos.y + 2.05, z: pos.z });
+        if (c.dist < 0.9 && c.s < line.length - 3) { h.control = createZipControl(h, { events }, { line, s: c.s }); return; }
+      }
+    }
     const wasGrounded = h.grounded;
     if (r.grounded && vy <= 0.01) {
       if (h.state === 'air' || h.state === 'glide') land(vy);
@@ -303,6 +311,7 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
           pos.y += Math.sin(k * Math.PI) * Math.min(3, total * 0.05);
           vel.set(0, 0, 0);
           if (k >= 1) {
+            if (point.zip) { cable.visible = false; h.control = createZipControl(h, { events }, { line: point.zip, s: 0.5 }); return false; }
             if (boost) {
               // Grapple boost: fling up over the ledge and straight into a glide if jump is held.
               pos.copy(hang);
