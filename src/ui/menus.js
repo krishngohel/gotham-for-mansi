@@ -59,10 +59,12 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
     const node = el('div', 'menu suit-menu');
     node.appendChild(el('h2', '', 'Choose your suit'));
     const row = el('div', 'suits');
-    const suits = [['m', 'The Bat', 'Grey suit, black cape, black bat.'], ['f', 'Bat, with style', 'Dark suit, gold bat, red hair.']];
-    if (gold) suits.push(['gold', 'Gold Birthday', 'Unlocked by finding all twelve balloons.']);
-    for (const [id, name, desc] of suits) {
-      const card = el('button', `suit-card suit-${id}`, `<div class="swatch"></div><div class="sname">${name}</div><div class="sdesc">${desc}</div>`);
+    // Card art: front views from the suit reference sheets. The gold suit reuses Batman's card
+    // with a CSS gold tint.
+    const suits = [['m', 'The Bat', 'Grey suit, black cape, black bat.', 'card_m'], ['f', 'Bat, with style', 'Dark suit, gold bat, red hair.', 'card_f']];
+    if (gold) suits.push(['gold', 'Gold Birthday', 'Unlocked by finding all twelve balloons.', 'card_m']);
+    for (const [id, name, desc, art] of suits) {
+      const card = el('button', `suit-card suit-${id}`, `<div class="swatch"><img src="./assets/art/${art}.webp" alt="" draggable="false"></div><div class="sname">${name}</div><div class="sdesc">${desc}</div>`);
       card.addEventListener('click', () => { sound('uiSelect'); onPick(id); });
       card.addEventListener('mouseenter', () => sound('uiMove'));
       row.appendChild(card);

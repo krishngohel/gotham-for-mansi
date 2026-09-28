@@ -129,12 +129,14 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0 6px; margin: 0 2px; bo
 .title-menu .mlist { width: min(360px, 90%); }
 .title-menu .foot { margin-top: 20px; font: 600 16px 'Barlow Condensed', sans-serif; color: rgba(239, 230, 207, 0.75); letter-spacing: 1px; }
 .suits { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 14px; }
+.suit-menu { width: min(760px, 94vw); }
 .suit-card { display: grid; gap: 6px; padding: 14px; background: #fff8e6; border: 3px solid var(--ink); box-shadow: 5px 5px 0 var(--ink); cursor: pointer; text-align: left; font-family: 'Patrick Hand SC', cursive; transition: transform 0.08s; }
 .suit-card:hover, .suit-card:focus-visible { transform: translateY(-4px) rotate(-1deg); background: var(--signal); outline: none; }
-.suit-card .swatch { height: 90px; border: 3px solid var(--ink); background: linear-gradient(135deg, #5b6474 0 55%, #17181e 55%); position: relative; }
-.suit-card.suit-f .swatch { background: linear-gradient(135deg, #2c2b3a 0 55%, #8e2a1f 55%); }
-.suit-card.suit-gold .swatch { background: linear-gradient(135deg, #d9a92c 0 55%, #3a2a0a 55%); }
-.suit-card .swatch::after { content: ''; position: absolute; left: 50%; top: 50%; width: 60px; height: 26px; transform: translate(-50%, -50%); background: var(--signal); clip-path: polygon(0 20%, 20% 0, 35% 25%, 50% 5%, 65% 25%, 80% 0, 100% 20%, 80% 60%, 65% 45%, 50% 100%, 35% 45%, 20% 60%); }
+.suit-card .swatch { height: 210px; border: 3px solid var(--ink); background: #f4efe2 radial-gradient(ellipse at 50% 35%, rgba(242, 210, 75, 0.35), transparent 60%); position: relative; overflow: hidden; }
+.suit-card .swatch img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 50% 0; transform: scale(1.04); transition: transform 0.12s; }
+.suit-card:hover .swatch img, .suit-card:focus-visible .swatch img { transform: scale(1.1); }
+.suit-card.suit-gold .swatch { background-color: #fbe9b5; }
+.suit-card.suit-gold .swatch img { filter: sepia(1) saturate(2.4) hue-rotate(-12deg) brightness(1.02) contrast(1.05); }
 .suit-card .sname { font: 26px 'Bangers', cursive; letter-spacing: 1px; }
 .suit-card .sdesc { font-size: 17px; line-height: 1.15; }
 .help-menu, .settings-menu { width: min(980px, 94vw); }
