@@ -349,7 +349,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const wheelUi = createGadgetWheel(document.body);
     wheelUi.warm();
     gadgets = createGadgetSystem({
-      hero, combat, follow, time, events, input, fx, gfx, breakables, progress, camera, effects, wheelUi, gadgetHud,
+      hero, combat, follow, time, events, input, fx, gfx, breakables, progress, camera, effects, wheelUi, gadgetHud, stealth,
       collision: world.collision, save: () => saveProgress(storage, progress), getBindings: () => settings.bindings,
       // Live play only: never in a cutscene, a comic, a menu or photo mode.
       isPlaying: () => flow.mode === 'play' && !state.paused && !comic.playing && !photo.active,

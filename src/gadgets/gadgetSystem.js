@@ -20,7 +20,7 @@ const WHEEL_PX = 70;
 export function createGadgetSystem(deps) {
   const {
     hero, combat, follow, time, events, input, fx, gfx, breakables, progress, save, collision, camera, effects,
-    wheelUi, gadgetHud, getBindings, isPlaying, devAll = false, factories = HANDLER_FACTORIES,
+    wheelUi, gadgetHud, getBindings, isPlaying, devAll = false, factories = HANDLER_FACTORIES, stealth = null,
   } = deps;
   const saved = progress.gadgets;
   const state = createGadgetState({ equipped: saved.equipped, unlocked: unlockedIds(progress, STEPS, saved.unlocked), tune: effects });
@@ -40,6 +40,7 @@ export function createGadgetSystem(deps) {
 
   const sys = {
     hero, combat, api: combat.gadgetApi, follow, time, events, input, fx, gfx, breakables, collision, camera, state, effects, progress,
+    stealth,
     cameraFocus: null, cameraMode: null, wheelOpen: false,
     // A ?gadgets=all dev run: handlers must not write progress or call save() while it is set.
     devAll,
