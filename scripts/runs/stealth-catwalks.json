@@ -26,5 +26,5 @@
  {"eval": "const G = window.__game, p = G.world.grapplePoints.find((q) => q.perch && q.gargoyle && Math.abs(q.x - 139) < 0.1 && Math.abs(q.z + 138.9) < 0.1); G.hero.teleport({ x: p.x, y: p.y, z: p.z }, 0); 'escape to the south-east gargoyle'", "wait": 9500},
  {"eval": "const G = window.__game; [G.stealth.alarm, G.stealth.goons.map((g) => [g.mind.alert, g.e.aware])]"},
  {"eval": "window.__game.winFight(); 'finish'", "wait": 2500},
- {"eval": "const G = window.__game; [G.flow.objectives.step.id, JSON.stringify(G.__log)]"}
+ {"eval": "const G = window.__game, n = (k) => G.__log.filter(([e]) => e === k).length; [G.flow.objectives.step.id, n('stealthAlarm') === 2 && n('stealthLost') === 2 ? 'alarm twice, lost twice' : 'WRONG: ' + n('stealthAlarm') + ' alarms, ' + n('stealthLost') + ' lost', JSON.stringify(G.__log)]"}
 ]

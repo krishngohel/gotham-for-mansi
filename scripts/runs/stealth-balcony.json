@@ -2,8 +2,9 @@
  {"eval": "new Promise((r) => { const f = () => (window.__game.stealth?.active ? r('room') : setTimeout(f, 100)); f(); })"},
  {"eval": "window.__game.comic.playing && window.__game.comic.skip()", "wait": 1500},
  {"eval": "const G = window.__game; G.__log = []; for (const n of ['silentTakedown', 'perchDrop', 'takedown', 'stealthAlarm', 'stealthNoise', 'stealthFear', 'fightDone']) G.events.on(n, (d) => G.__log.push([n, d?.kind ?? d?.fear ?? d?.id ?? ''])); 'hooked'"},
+ {"eval": "const G = window.__game; G.__kos = []; G.events.on('takedown', (d) => G.__kos.push(G.stealth.goons.findIndex((g) => g.e === d.target))); 'counting knockouts'"},
  {"shot": "balcony-1-arrive"},
- {"eval": "new Promise((r) => { const f = () => { const e = window.__game.stealth.goons[0].e; e.pos.z > -70 && e.pos.z < -50 && Math.abs(Math.sin(e.yaw)) < 0.05 ? r('rifle 0 mid-leg') : setTimeout(f, 50); }; f(); })"},
+ {"eval": "new Promise((r) => { const t0 = performance.now(); const f = () => { const e = window.__game.stealth.goons[0].e; e.pos.z > -70 && e.pos.z < -50 && Math.abs(Math.sin(e.yaw)) < 0.05 ? r('rifle 0 mid-leg') : performance.now() - t0 > 15000 ? r('rifle 0 never lined up') : setTimeout(f, 50); }; f(); })"},
  {"eval": "const G = window.__game, e = G.stealth.goons[0].e; G.hero.teleport({ x: e.pos.x - Math.sin(e.yaw) * 0.8, y: e.pos.y, z: e.pos.z - Math.cos(e.yaw) * 0.8 }, e.yaw); 'behind rifle 0'", "wait": 100},
  {"press": "KeyZ", "wait": 100},
  {"click": 0, "wait": 1000},
@@ -15,7 +16,7 @@
  {"shot": "balcony-3-perched"},
  {"press": "KeyE", "wait": 700},
  {"shot": "balcony-4-perch-drop"},
- {"wait": 650},
+ {"wait": 350},
  {"eval": "const G = window.__game; [G.stealth.goons[1].e.alive, +G.hero.pos.y.toFixed(1), G.stealth.squad.fear]"},
  {"eval": "const G = window.__game; G.hero.teleport({ x: 206.45, y: 11.4, z: -70 }, -Math.PI / 2); G.hero.state = 'air'; G.hero.grounded = false; G.hero.vel.set(0, -1, 0); 'dropping to the balcony edge'", "wait": 400},
  {"eval": "window.__game.hero.control?.name"},
@@ -29,6 +30,6 @@
  {"wait": 500},
  {"eval": "const G = window.__game, e = G.stealth.goons[3].e; G.hero.teleport({ x: e.pos.x - Math.sin(e.yaw) * 0.8, y: e.pos.y, z: e.pos.z - Math.cos(e.yaw) * 0.8 }, e.yaw); 'behind the thug'", "wait": 100},
  {"click": 0, "wait": 2800},
- {"eval": "const G = window.__game; [G.stealth.goons.map((g) => g.e.alive), G.flow.objectives.step.id]", "wait": 1500},
+ {"eval": "const G = window.__game; [[...G.__kos].sort(), G.flow.objectives.step.id]", "wait": 1500},
  {"eval": "const G = window.__game; [G.flow.objectives.step.id, JSON.stringify(G.__log)]"}
 ]
