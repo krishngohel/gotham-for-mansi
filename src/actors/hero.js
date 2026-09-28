@@ -7,9 +7,10 @@ import { createBat } from './characters.js';
 import { createCape } from './cape.js';
 import { ladderGrab, ladderTopGrab, zipClosest } from '../world/climbables.js';
 import { createLadderControl } from './traverse/ladder.js';
-import { findLedge } from './traverse/probes.js';
+import { findLedge, findRunWall } from './traverse/probes.js';
 import { createLedgeControl } from './traverse/ledge.js';
 import { createZipControl } from './traverse/zipline.js';
+import { createWallRunControl } from './traverse/wallrun.js';
 
 const GRAVITY = 26;
 const JUMP_V = 9.4;
@@ -154,6 +155,8 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
       if (mag > 0.05 && !h.blocking) faceTowards(wish.x, wish.z, 14, dt);
       vel.y = -2;
       if (h.jumpBuffer > 0 && h.state === 'ground') {
+        const wall = input.down('sprint') && h.airRuns < 1 ? findRunWall(collision, pos, vel.x, vel.z) : null;
+        if (wall) { h.jumpBuffer = 0; h.control = createWallRunControl(h, { collision, events }, { wall, speed: h.speed }); return; }
         h.jumpBuffer = 0;
         vel.y = JUMP_V;
         h.grounded = false;
@@ -166,6 +169,10 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
       vel.z += (wish.z * max * mag - vel.z) * Math.min(1, 3 * dt);
       vel.y = Math.max(-48, vel.y - GRAVITY * dt);
       h.airT += dt;
+      if (input.down('sprint') && h.airRuns < 1 && h.jumpBuffer > 0) {
+        const wall = findRunWall(collision, pos, vel.x, vel.z);
+        if (wall) { h.jumpBuffer = 0; h.control = createWallRunControl(h, { collision, events }, { wall, speed: h.speed }); return; }
+      }
       if (h.coyote > 0 && h.jumpBuffer > 0) { vel.y = JUMP_V; h.coyote = 0; h.jumpBuffer = 0; events.emit('jump'); }
       h.coyote = Math.max(0, h.coyote - dt);
       if (mag > 0.05) faceTowards(wish.x, wish.z, 6, dt);
