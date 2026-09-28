@@ -4,11 +4,13 @@ import * as THREE from 'three';
 import { hangPos, wrapCorner } from './probes.js';
 
 const SHIMMY = 1.6;
+const DROP_HOLD = 0.25; // seconds `back` must be held before it drops instead of backflipping
 
 export function createLedgeControl(h, { collision, events }, { ledge }) {
-  let l = ledge, phase = 'catch', t = 0;
+  let l = ledge, phase = 'catch', t = 0, backT = 0;
   const start = h.pos.clone();
   const rightOut = new THREE.Vector3();
+  const hangOut = { x: 0, y: 0, z: 0 };
   h.vel.set(0, 0, 0);
   h.cape.setWings(false);
   h.bat.tilt.rotation.set(0, 0, 0);
@@ -29,7 +31,7 @@ export function createLedgeControl(h, { collision, events }, { ledge }) {
     update(dt, ctx) {
       t += dt;
       const { input, cam } = ctx;
-      const hp = hangPos(l);
+      const hp = hangPos(l, hangOut);
       if (phase === 'catch') {
         const k = Math.min(1, t / 0.12);
         h.pos.lerpVectors(start, hp, k);
@@ -45,8 +47,10 @@ export function createLedgeControl(h, { collision, events }, { ledge }) {
         return false;
       }
       // Hanging.
-      if (input.pressed('jump') && input.move.y < -0.5) {
-        // Backflip away from the wall.
+      const backHeld = input.move.y < -0.5;
+      backT = backHeld ? backT + dt : 0;
+      if (input.pressed('jump') && backHeld && backT < DROP_HOLD) {
+        // Backflip away from the wall: back tapped-and-held (under the drop threshold) plus jump.
         h.vel.set(l.nx * 7, 9, l.nz * 7);
         h.setState('air'); h.airT = 0.25;
         h.bat.face(Math.atan2(l.nx, l.nz));
@@ -59,7 +63,7 @@ export function createLedgeControl(h, { collision, events }, { ledge }) {
         h.bat.animator.play('ClimbUp_1m', { once: true, timeScale: 1.5, fade: 0.08 });
         return false;
       }
-      if (input.move.y < -0.5 || input.pressed('sprint')) {
+      if (input.pressed('sprint') || backT >= DROP_HOLD) {
         h.pos.set(hp.x + l.nx * 0.25, hp.y, hp.z + l.nz * 0.25);
         h.vel.set(0, -1, 0);
         h.setState('air'); h.airT = 0.4;
@@ -80,8 +84,8 @@ export function createLedgeControl(h, { collision, events }, { ledge }) {
         setAlong(v);
         h.bat.animator.play('Shimmy', { fade: 0.1, timeScale: dir });
       } else h.bat.animator.play('Hang_Idle', { fade: 0.15 });
-      const p = hangPos(l);
-      h.pos.set(p.x, p.y, p.z);
+      hangPos(l, hangOut);
+      h.pos.set(hangOut.x, hangOut.y, hangOut.z);
       face();
       return false;
     },

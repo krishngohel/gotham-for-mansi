@@ -46,8 +46,11 @@ export function findLedge(collision, pos, dirX, dirZ, { minRise = 1.2, maxRise =
   return best;
 }
 
-export function hangPos(l) {
-  return { x: l.x + l.nx * HANG_OUT, y: l.y - HANG_DROP, z: l.z + l.nz * HANG_OUT };
+export function hangPos(l, out = {}) {
+  out.x = l.x + l.nx * HANG_OUT;
+  out.y = l.y - HANG_DROP;
+  out.z = l.z + l.nz * HANG_OUT;
+  return out;
 }
 
 // At an outside corner, carry on around onto the adjacent face of the same box.

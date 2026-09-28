@@ -40,6 +40,13 @@ describe('findLedge', () => {
     expect(h.y).toBeCloseTo(10 - 2.05, 5);
     expect(h.z).toBeCloseTo(10.38, 5);
   });
+  it('fills and returns the given out object instead of allocating', () => {
+    const l = findLedge(world(), { x: 5, y: 8.2, z: 10.5 }, 0, -1);
+    const out = {};
+    const h = hangPos(l, out);
+    expect(h).toBe(out);
+    expect(h.y).toBeCloseTo(10 - 2.05, 5);
+  });
 });
 
 describe('wrapCorner', () => {
