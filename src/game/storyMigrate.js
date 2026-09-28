@@ -50,3 +50,12 @@ export function betweenRooms(index, steps = STEPS) {
   const last = steps.findIndex((s) => s.id === 'aceCatwalks');
   return first >= 0 && last >= 0 && index > first && index < last;
 }
+
+// When the predator notice may go up: due, in live play, and never over another card. It also
+// waits out the returning-player gadget cards (the WayneTech delivery and the popper's own card
+// after it, which can both land on the same first live frame): hud.card has no queue and would
+// cut one of them short. The notice is saved as shown only when it actually goes up. Positional
+// arguments: game.js asks every play frame, and an options object would allocate each time.
+export function predatorNoticeReady(notice, live, cardShowing, gadgetNewsPending) {
+  return notice === 'due' && live && !cardShowing && !gadgetNewsPending;
+}

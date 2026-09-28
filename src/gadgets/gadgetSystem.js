@@ -247,6 +247,9 @@ export function createGadgetSystem(deps) {
     },
     handler: (id) => byId.get(id) ?? null,
     refresh() { hudCode = -1; },
+    // True until every returning-player gadget card (the WayneTech delivery, then the popper's own)
+    // has gone up, gaps between them included, so other one-off cards can wait their turn.
+    get newsPending() { return news.length > 0; },
     get wheelOpen() { return wheel.open; },
     get cameraFocus() { return sys.cameraFocus; },
     get cameraMode() { return sys.cameraMode; },

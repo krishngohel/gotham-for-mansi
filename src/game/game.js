@@ -57,7 +57,7 @@ import { createEncounters } from './encounters.js';
 import { createBalloons } from './balloons.js';
 import { createFlow } from './flow.js';
 import { STEPS } from './story.js';
-import { migrateProgress, betweenRooms } from './storyMigrate.js';
+import { migrateProgress, betweenRooms, predatorNoticeReady } from './storyMigrate.js';
 import { wireAudio } from './sound.js';
 import { createBoss } from './boss.js';
 import { tracker } from './progressTracker.js';
@@ -577,8 +577,9 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     // (including the divebomb altitude check, which calls hero.heightAboveGround(), a raycast,
     // so it must not run every frame), and each one stops checking once it has shown.
     let hintCheckT = 0;
-    // Once, on the first frame of play, for a save from before Part D that skipped Monarch Balcony
-    // (storyMigrate.js marks it 'due'): the goons have new tricks and a predator room is ahead.
+    // Once, on the first free moment of play (after any returning-player gadget cards), for a save
+    // from before Part D that skipped Monarch Balcony (storyMigrate.js marks it 'due'): the goons
+    // have new tricks and a predator room is ahead.
     function predatorNotice() {
       progress.predatorNotice = 'shown';
       saveProgress(storage, progress);
@@ -598,7 +599,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       if (playing && !state.paused) {
         if (input.pressed('photo') && flow.mode === 'play' && !hero.dead) { photo.open(); return; }
         if (input.pressed('detective')) state.detectiveOn = !state.detectiveOn;
-        if (progress.predatorNotice === 'due' && flow.mode === 'play' && !hud.cardShowing) predatorNotice();
+        // 'due' first, so the card check (a DOM read) runs only while the notice is still pending.
+        if (progress.predatorNotice === 'due' && predatorNoticeReady(progress.predatorNotice, flow.mode === 'play', hud.cardShowing, gadgets.newsPending)) predatorNotice();
         pickGrapple(real);
         // Grapple is only locked while a fight is actually around you.
         const busy = combat.enemies.some((e) => e.alive && e.aware && !e.room && e.pos.distanceTo(hero.pos) < 12 && Math.abs(e.pos.y - hero.pos.y) < 4);
