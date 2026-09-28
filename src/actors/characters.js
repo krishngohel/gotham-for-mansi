@@ -285,6 +285,8 @@ const GOON_SCHEMES = [
 ];
 const BEANIES = [PALETTE.pants, 0x3a2a24, 0x2f3f5a, 0x4a3a52];
 
+let goonBody = null;
+
 // type: 'grunt' | 'knife' | 'brute'
 export function createGoon(assets, { type = 'grunt', rng = null } = {}) {
   const pick = (arr) => arr[Math.floor((rng ? rng.next() : Math.random()) * arr.length)];
@@ -293,13 +295,19 @@ export function createGoon(assets, { type = 'grunt', rng = null } = {}) {
   const brute = type === 'brute';
   const look = GOON_LOOKS[brute ? 'brute' : type === 'knife' ? 'knife' : pick(['striped', 'striped', 'hoodie'])];
   const scheme = type === 'knife' ? GOON_SCHEMES[1] : brute ? GOON_SCHEMES[3] : pick(GOON_SCHEMES);
-  paintRegions(body, classifyGoonVertex, GOON_COLORS, lm);
+  // Every goon's painted, trimmed body is identical, so they all share one geometry: a new copy
+  // per goon meant megabytes of vertex upload (a 30 ms hitch) each time a wave spawned.
+  if (goonBody) body.geometry = goonBody;
+  else {
+    paintRegions(body, classifyGoonVertex, GOON_COLORS, lm);
+    // Only the head and neck of the base body show; clothes (with their own hands) cover the rest.
+    hideBody(body, (p) => p.y < lm.neckY - 0.02 || Math.abs(p.x) > 0.16);
+    goonBody = body.geometry;
+  }
   body.material = addRim(toonMaterial({ vertexColors: true, normalMap: body.material.normalMap, normalScale: 0.5, palette: Object.values(GOON_COLORS) }), 0x9fc3ff, 0.55);
   body.castShadow = true;
   eyes.visible = false;
   brows.visible = false;
-  // Only the head and neck of the base body show; clothes (with their own hands) cover the rest.
-  hideBody(body, (p) => p.y < lm.neckY - 0.02 || Math.abs(p.x) > 0.16);
   addHullOutline(body, brute ? 0.013 : 0.011);
   ch.xray = addXray(body);
   const skin = addRim(toonMaterial({ color: PALETTE.skinGoon }), 0x9fc3ff, 0.5);

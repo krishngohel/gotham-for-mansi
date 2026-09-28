@@ -39,7 +39,7 @@ import { wireAudio } from './sound.js';
 import { createBoss } from './boss.js';
 import { createFinale } from './finale.js';
 import { createWarmCast } from './warmCast.js';
-import { drawEverything, uploadTextures, looseSkinBounds } from '../render/prewarm.js';
+import { drawEverything, uploadTextures, readyObjects } from '../render/prewarm.js';
 
 async function loadFonts() {
   try {
@@ -191,7 +191,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     let nextId = 0;
     const spawn = (type, p) => {
       const e = createEnemy({ id: `e${nextId++}`, type, assets, scene, collision: world.collision, rng });
-      looseSkinBounds(e.ch.root);
+      readyObjects(e.ch.root);
       e.place(p, Math.atan2(hero.pos.x - p.x, hero.pos.z - p.z) + rng.range(-1, 1));
       return e;
     };

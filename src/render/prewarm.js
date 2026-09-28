@@ -1,5 +1,5 @@
-// First-sight hitch removal. The first time three.js draws an object it compiles any new shader
-// variant (colour, the normal pass override, shadow depth, x-ray), uploads its textures and
+// First-sight hitch removal, and less per-frame shader churn (see readyObjects). The first time
+// three.js draws an object it compiles any new shader variant (colour, the normal pass override, shadow depth, x-ray), uploads its textures and
 // vertex buffers, and for a skinned mesh walks every vertex through its bones to find a culling
 // sphere. Mid-play that shows up as a 50 to 700 ms freeze when a district, a goon type or the
 // Joker first comes into view. These helpers move all of it under the loading screen.
@@ -18,6 +18,31 @@ export function looseSkinBounds(root) {
     _sphere.copy(g.boundingSphere);
     _sphere.radius *= 2;
     o.boundingSphere = _sphere.clone();
+  });
+}
+
+// three.js re-derives a material's shader parameters (about 40 us each, 18 times a frame here)
+// whenever one material is drawn on objects of different kinds. Two cases hit every frame:
+// - the shadow pass shares one depth material between plain, skinned and instanced casters, so
+//   each switch between them recomputes it; giving each kind its own depth material stops that;
+// - three draws a transparent double-sided material twice (back faces, then front) and marks it
+//   changed between the two. Everything that uses one here is a flat plane, a single-colour cone
+//   or an additive or single-colour effect, where the two-pass order makes no visible difference,
+//   so one pass draws the same picture.
+const depthFor = new Map();
+function depthMaterial(kind) {
+  if (!depthFor.has(kind)) depthFor.set(kind, new THREE.MeshDepthMaterial());
+  return depthFor.get(kind);
+}
+export function readyObjects(root) {
+  looseSkinBounds(root);
+  root.traverse((o) => {
+    if (o.castShadow && o.customDepthMaterial === undefined) {
+      if (o.isSkinnedMesh) o.customDepthMaterial = depthMaterial('skinned');
+      else if (o.isInstancedMesh) o.customDepthMaterial = depthMaterial(o.instanceColor ? 'instancedColor' : 'instanced');
+    }
+    const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+    for (const m of mats) if (m.transparent && m.side === THREE.DoubleSide) m.forceSinglePass = true;
   });
 }
 
@@ -48,7 +73,7 @@ export function drawEverything(renderer, ink, scene, camera) {
   const saved = [];
   scene.traverse((o) => { saved.push(o, o.visible, o.frustumCulled); o.visible = true; o.frustumCulled = false; });
   const det = ink.uniforms.uDetective.value;
-  looseSkinBounds(scene);
+  readyObjects(scene);
   try {
     ink.uniforms.uDetective.value = 1;
     ink.render(scene, camera, 0);

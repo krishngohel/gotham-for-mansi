@@ -169,6 +169,16 @@ void main() {
 }
 `;
 
+// The normal pass draws everything with one override material, so the usual grouping by each
+// object's own material buys nothing. Instead: one run per shader variant (plain, instanced,
+// skinned; switching variant makes three re-derive the program, ~40 us each), and front to back
+// inside each run so hidden surfaces fail the depth test early.
+const variantOf = (o) => (o.isSkinnedMesh ? 1 : 0) + (o.isInstancedMesh ? (o.instanceColor ? 4 : 2) : 0) + (o.isBatchedMesh ? 8 : 0);
+function normalPassSort(a, b) {
+  return (a.groupOrder - b.groupOrder) || (a.renderOrder - b.renderOrder)
+    || (variantOf(a.object) - variantOf(b.object)) || (a.z - b.z) || (a.id - b.id);
+}
+
 export function createInkPipeline(renderer, quality) {
   // Half-float targets need EXT_color_buffer_float; fall back to 8-bit where it's missing.
   const floatOK = renderer.extensions.has('EXT_color_buffer_float') || renderer.extensions.has('EXT_color_buffer_half_float');
@@ -245,7 +255,13 @@ export function createInkPipeline(renderer, quality) {
     scene.fog = null;
     scene.overrideMaterial = normalMat;
     renderer.setRenderTarget(normalRT);
+    renderer.setOpaqueSort(normalPassSort);
+    // Nothing moved since the colour pass: skip the second scene-graph matrix walk.
+    const autoMatrices = scene.matrixWorldAutoUpdate;
+    scene.matrixWorldAutoUpdate = false;
     renderer.render(scene, camera);
+    scene.matrixWorldAutoUpdate = autoMatrices;
+    renderer.setOpaqueSort(null);
     scene.overrideMaterial = null;
     scene.background = background;
     scene.fog = fog;
