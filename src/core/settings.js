@@ -19,6 +19,7 @@ export const DEFAULT_SETTINGS = {
   volume: { master: 0.8, music: 0.6, sfx: 0.9 },
   difficulty: 'normal',
   hints: true,
+  autoLedge: true,
 };
 
 const num = (v, min, max, fallback) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fallback);
@@ -74,6 +75,7 @@ export function sanitizeSettings(raw = {}) {
     },
     difficulty: oneOf(r.difficulty, ['story', 'normal', 'hard'], d.difficulty),
     hints: bool(r.hints, d.hints),
+    autoLedge: bool(r.autoLedge, d.autoLedge),
   };
 }
 

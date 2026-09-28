@@ -64,10 +64,39 @@ export function resolveHit(move, enemy) {
   return applyDamage(enemy, m.damage, m.knockdown);
 }
 
+// A dive-bomb shockwave reaches out to `radius` on the ground and 2.5 m up/down.
+export function inShockwave(c, p, radius = 4) {
+  return Math.hypot(p.x - c.x, p.z - c.z) <= radius && Math.abs(p.y - c.y) <= 2.5;
+}
+
+// Whether a glide-state kick should start the dive-bomb attack (instead of the old
+// target-seeking air kick, which still runs below this height).
+export function shouldDiveBomb(state, heightAboveGround, threshold = 6) {
+  return state === 'glide' && heightAboveGround > threshold;
+}
+
 function applyDamage(enemy, damage, knockdown) {
   enemy.health = Math.max(0, enemy.health - damage);
   if (enemy.health <= 0) return { outcome: 'ko', damage, stun: 0 };
   return { outcome: knockdown ? 'knockdown' : 'hit', damage, stun: 0 };
+}
+
+// Whether a hanging ledge takedown can target this enemy: alive, standing, unaware, not the
+// boss or a grabbed goon, and within reach of the ledge's hang point.
+export function canLedgeTakedown(enemy, ledge) {
+  if (!enemy || !ledge || !enemy.alive || enemy.down || enemy.aware) return false;
+  if (enemy.def?.boss || enemy.state === 'grabbed') return false;
+  return Math.abs(enemy.pos.y - ledge.y) < 0.4 &&
+    Math.hypot(enemy.pos.x - ledge.x, enemy.pos.z - ledge.z) < 1.5;
+}
+
+// Whether a hard landing can drop-takedown this enemy: alive, standing, not the boss or a
+// grabbed goon (the boss can never be one-shot), and right under the hero.
+export function canDropTakedown(enemy, heroPos) {
+  if (!enemy || !heroPos || !enemy.alive || enemy.down) return false;
+  if (enemy.def?.boss || enemy.state === 'grabbed') return false;
+  return Math.hypot(enemy.pos.x - heroPos.x, enemy.pos.z - heroPos.z) < 1.2 &&
+    Math.abs(enemy.pos.y - heroPos.y) < 1;
 }
 
 export function damageToHero(attack, { difficulty = 'normal', blocking = false, invulnerable = false } = {}) {

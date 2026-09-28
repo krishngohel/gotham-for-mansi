@@ -38,6 +38,11 @@ describe('settings', () => {
     expect(sanitizeSettings({ lineWobble: false, impactFrames: false }).lineWobble).toBe(false);
     expect(sanitizeSettings({ impactFrames: 3 }).impactFrames).toBe(true);
   });
+  it('keeps autoLedge as a boolean and defaults it on', () => {
+    expect(sanitizeSettings({}).autoLedge).toBe(true);
+    expect(sanitizeSettings({ autoLedge: false }).autoLedge).toBe(false);
+    expect(sanitizeSettings({ autoLedge: 'yes' }).autoLedge).toBe(true);
+  });
 });
 
 describe('progress', () => {

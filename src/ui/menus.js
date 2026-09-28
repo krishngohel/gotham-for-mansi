@@ -1,7 +1,10 @@
 // Title, suit select, pause, settings (with key rebinding), controls help and credits.
 import { ACTIONS, DEFAULT_BINDINGS, keyLabel, rebind } from '../core/bindings.js';
 import { saveSettings } from '../core/settings.js';
+import { promptText } from './prompts.js';
 import MANSI from '../mansi.config.js';
+
+const MOVING_AROUND = ['ladder', 'ledge', 'zip', 'wallrun', 'divebomb', 'takedown'];
 
 const PAD_LAYOUT = [
   ['Move / camera', 'Left stick / right stick'], ['Jump, glide', 'A'], ['Punch', 'X'], ['Kick', 'B'], ['Block, counter', 'Y'],
@@ -106,6 +109,8 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
     for (const [a, k] of PAD_LAYOUT) pad.appendChild(el('div', 'help-row', `<span>${a}</span><kbd>${k}</kbd>`));
     cols.appendChild(pad);
     node.appendChild(cols);
+    node.appendChild(el('h3', '', 'Moving around'));
+    for (const id of MOVING_AROUND) node.appendChild(el('p', 'tip', promptText(id, settings.bindings)));
     node.appendChild(el('p', 'tip', 'Tips: counter every blue bolt, dodge the red ones. Kick or cape-stun knife goons. Batarang the Joker mid-throw.'));
     node.appendChild(button('Back', onBack, 'small'));
     show(node);
@@ -186,6 +191,7 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
       body.appendChild(toggle('Action camera on critical hits', settings.actionCam, (v) => { settings.actionCam = v; }));
       body.appendChild(toggle('Line wobble', settings.lineWobble, (v) => { settings.lineWobble = v; }));
       body.appendChild(toggle('Impact frames (flashing)', settings.impactFrames, (v) => { settings.impactFrames = v; }));
+      body.appendChild(toggle('Auto ledge grab', settings.autoLedge, (v) => { settings.autoLedge = v; }));
     } else if (tab === 'video') {
       body.appendChild(choice('Quality', settings.quality, [['high', 'High'], ['low', 'Low']], (v) => { settings.quality = v; }));
       body.appendChild(el('p', 'note', 'Quality changes apply the next time the game loads.'));
