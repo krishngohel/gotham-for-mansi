@@ -460,9 +460,11 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         hero.update(dt, ctx);
         side.update(dt, real, { toScreen });
         fx.update(dt);
-        chainFx.update(dt);
         if (hero.pos.y < -0.8) { hero.teleport(hero.lastSafe); events.emit('splash'); }
         follow.update(real, hero.pos, input.look, combat.cameraMode ?? hero.cameraMode(), hero.speed);
+        // After follow.update, so the rope ribbon billboards toward this frame's camera, not
+        // last frame's. It reads only goon and hand positions, which are already final.
+        chainFx.update(dt);
         comicFx.update(real, { speed: hero.control?.speed ?? Math.hypot(hero.vel.x, hero.vel.y, hero.vel.z), actionActive: follow.actionActive });
         palT -= real;
         if (palT <= 0) { palT = 0.25; ink.setPalette(paletteAt(camera.position.x, camera.position.z, palBuf)); }

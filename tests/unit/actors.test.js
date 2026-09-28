@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { sanitizeClip, createAnimator } from '../../src/actors/animator.js';
 import { classifySuitVertex, classifyGoonVertex } from '../../src/actors/outfits.js';
 import { heroPlantsFeet, enemyPlantsFeet } from '../../src/actors/characters.js';
+import { CHAIN_HOLD_CLIPS } from '../../src/actors/enemy.js';
 
 const lm = {
   fwd: 1, neckY: 1.5, headCenter: { x: 0, y: 1.66, z: 0.02 }, headRadius: 0.1, headTop: 1.8, eyeY: 1.68,
@@ -62,6 +63,23 @@ describe('animator.prime', () => {
     anim.prime(['A']);
     expect(anim.mixer.existingAction(clip)).toBeTruthy();
     expect(() => anim.prime(['nope'])).toThrow();
+  });
+});
+
+describe('enemy chain-clip priming', () => {
+  it('primes every clip a chain plays on a held goon, so an enemy is created with them already built', () => {
+    const root = new THREE.Object3D();
+    const bone = new THREE.Bone();
+    bone.name = 'pelvis';
+    root.add(bone);
+    const track = () => new THREE.QuaternionKeyframeTrack('pelvis.quaternion', [0, 1], [0, 0, 0, 1, 0, 0, 0, 1]);
+    const clips = new Map(CHAIN_HOLD_CLIPS.map((name) => [name, new THREE.AnimationClip(name, 1, [track()])]));
+    // createEnemy primes ch.animator with exactly CHAIN_HOLD_CLIPS right after createGoon: this
+    // mirrors that call on a mixer built the same way, so it stands for a real enemy's mixer.
+    const anim = createAnimator(root, clips);
+    anim.prime(CHAIN_HOLD_CLIPS);
+    for (const name of CHAIN_HOLD_CLIPS) expect(anim.mixer.existingAction(clips.get(name)), name).toBeTruthy();
+    expect(CHAIN_HOLD_CLIPS).toEqual(['Idle_Shield_Break', 'Hit_Head', 'Hit_Chest', 'Hit_Knockback']);
   });
 });
 

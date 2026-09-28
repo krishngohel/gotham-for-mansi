@@ -5,9 +5,15 @@ import { ENEMY } from '../combat/rules.js';
 
 const IDLE_POSES = ['Idle_Talking_Loop', 'Idle_TalkingPhone_Loop', 'Idle_FoldArms_Loop', 'Idle_Loop'];
 const GRUNT_ATTACKS = ['Punch_Cross', 'Punch_Jab', 'Melee_Hook'];
+// Clips a chain takedown plays straight onto a held goon's mixer (chainControl.js: the daze while
+// waiting for a turn, the head grab, the yank, and enemy.tie's knockback into the tied pose).
+// Primed here, at spawn, so the first chain of a fight doesn't build an action mid-chain; spawn
+// is already spread one goon per frame, so this is cheap.
+export const CHAIN_HOLD_CLIPS = ['Idle_Shield_Break', 'Hit_Head', 'Hit_Chest', 'Hit_Knockback'];
 
 export function createEnemy({ id, type, assets, scene, collision, rng }) {
   const ch = createGoon(assets, { type, rng });
+  ch.animator.prime(CHAIN_HOLD_CLIPS);
   const groundUnderFoot = footGround(collision);
   scene.add(ch.root);
   const def = ENEMY[type];

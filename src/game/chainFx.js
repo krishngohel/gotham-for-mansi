@@ -147,6 +147,10 @@ export function createChainFx(scene, camera = null) {
         if (!have) bundles.splice(b, 1);
       }
       geo.setDrawRange(0, n * I);
+      // Only the live part of the buffer changed this frame: upload that slice, not the whole
+      // 24 KB preallocated buffer.
+      attr.clearUpdateRanges();
+      attr.addUpdateRange(0, n * V * 3);
       attr.needsUpdate = true;
       mesh.visible = n > 0;
     },

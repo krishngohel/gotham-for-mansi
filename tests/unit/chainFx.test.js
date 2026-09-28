@@ -51,9 +51,14 @@ describe('chainFx', () => {
   });
   it('never writes past its buffer', () => {
     const { fx, lines } = setup();
+    // bind keeps at most 3 bundles, so only the last 3 of these 5 survive: three bound 3-goon
+    // bundles, the worst coexisting case. Assert the exact count, not just the overflow cap: a
+    // silently truncated worst case would still pass a bare toBeLessThanOrEqual check.
     for (let b = 0; b < 5; b++) fx.bind([goon(b, { state: 'tied' }), goon(b + 0.5, { state: 'tied' }), goon(b + 1, { state: 'tied' })]);
-    fx.fire(hand, [goon(1), goon(2), goon(3)], 0.1);
     fx.update(0.5);
+    // 3 goons x 2 rings x 10 segments, plus 2 spans per goon after the first: 64 segments a
+    // bundle, times 3 bundles, times 18 indices a segment. That pins the capacity math above.
+    expect(lines.geometry.drawRange.count).toBe(3 * 64 * 18);
     expect(lines.geometry.drawRange.count).toBeLessThanOrEqual(CHAIN_FX_MAX * 18);
   });
   it('draws rope with real width, turned to face the camera, with an ink edge each side', () => {
