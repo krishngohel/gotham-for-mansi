@@ -44,26 +44,43 @@ function makeCharacter(assets, bodyKey) {
   const parts = splitMeshes(model);
   const lm = measureBody(parts.body, parts.eyes);
   const animator = createAnimator(model, assets.clips);
-  // Foot planting: the borrowed clips carry the hips ~4 cm lower than this body's proportions,
-  // which sinks the soles into the floor. After each animation step, lift the model so the
-  // lower toe sits where it does in the bind pose. Tilted poses (gliding) are left alone.
-  const balls = [model.getObjectByName('ball_l'), model.getObjectByName('ball_r')];
-  const ballRest = bindBallHeight(parts.body);
-  const probe = new THREE.Vector3();
+  // Foot planting. The borrowed clips carry the hips a few centimetres lower than this body's
+  // proportions, foot pitch in a stride pushes a toe or heel under the floor, and the worn boots'
+  // soles sit lower than the body's own. After each animation step the actual soles are measured:
+  // the lowest skinned sole vertex of each foot (body feet plus any boots worn by then) against
+  // the ground under that foot, and the model is lifted so the lower one rests on it. Only ever
+  // lifts, never lowers, so a jump's flight phase is untouched. Tilted poses (gliding) are left
+  // alone. ch.groundAt(x, z, y) may be set by the owner to sample the collision ground under each
+  // foot (kerbs, steps); without it the root's ground is assumed flat.
+  const soles = createSoleProbe(root);
+  const footWorld = new THREE.Vector3();
   let lift = 0;
   const advance = animator.update;
   animator.update = (dt) => {
     advance(dt);
     if (Math.abs(tilt.rotation.x) > 0.05 || Math.abs(tilt.rotation.z) > 0.05) { lift *= 0.8; model.position.y = -1 + lift; return; }
     root.updateMatrixWorld(true);
-    let low = Infinity;
-    for (const b of balls) { b.getWorldPosition(probe); root.worldToLocal(probe); low = Math.min(low, probe.y); }
-    const want = Math.max(0, ballRest - (low - lift));
-    lift += (want - lift) * Math.min(1, dt * 25 + 0.2);
+    let want = 0;
+    for (const foot of soles.measure()) {
+      // Ground under this foot, relative to the root's own ground (0 in root space; the root may
+      // be scaled, as the brute's is). Only a step up counts: a foot over a drop hangs level.
+      let ground = 0;
+      if (ch.groundAt) {
+        footWorld.set(foot.x, foot.y, foot.z);
+        root.localToWorld(footWorld);
+        const g = ch.groundAt(footWorld.x, footWorld.z, root.position.y);
+        if (g > -Infinity) ground = Math.max(0, (g - root.position.y) / root.scale.y);
+      }
+      want = Math.max(want, ground - (foot.y - lift));
+    }
+    // Up at once (a sole never waits under the floor), down smoothly so the body settles.
+    lift += (want - lift) * (want > lift ? 1 : Math.min(1, dt * 25 + 0.2));
     model.position.y = -1 + lift;
   };
   const ch = {
-    root, tilt, model, lm, animator, ...parts, yaw: 0,
+    root, tilt, model, lm, animator, ...parts, yaw: 0, groundAt: null,
+    // Builds the foot-planting probe now that the outfit is complete (a creator calls this last).
+    dressed: () => soles.prepare(),
     bone: (name) => model.getObjectByName(name),
     face(yaw) { ch.yaw = yaw; root.rotation.y = yaw + (lm.fwd < 0 ? Math.PI : 0); },
     forward: (out = new THREE.Vector3()) => out.set(Math.sin(ch.yaw), 0, Math.cos(ch.yaw)),
@@ -72,9 +89,111 @@ function makeCharacter(assets, bodyKey) {
   return ch;
 }
 
-function bindBallHeight(body) {
-  const i = body.skeleton.bones.findIndex((b) => b.name === 'ball_l');
-  return new THREE.Vector3().setFromMatrixPosition(body.skeleton.boneInverses[i].clone().invert()).applyMatrix4(body.bindMatrixInverse).y;
+// The sole vertices of every skinned mesh under `root`, skinned on the CPU each frame. A vertex is
+// a sole vertex when it is bound (dominant weight) to a foot, ball, toe-leaf or calf bone and lies
+// within SOLE_BAND of that foot's lowest point in the bind pose (the band covers the toe cap and
+// heel, whichever dips lowest as the foot pitches through a stride, and the boots' sole rims,
+// which are partly weighted to the calf; the shin stays out). That is on the order of a hundred
+// vertices per foot, and each foot uses only two or three bones, whose matrices are built once per
+// frame, so the per-frame cost is negligible. The scan of a geometry for foot-bound vertices is
+// done once per geometry (outfit parts and the goon body are shared by every wearer) and cached,
+// so building a character's probe is a lookup; the warm cast fills the cache under the loading
+// screen.
+const SOLE_BAND = 0.035;
+const FOOT_VERTS = new WeakMap(); // geometry -> { l: [{ index, y }], r: [...] } in the mesh's bind space
+
+function scanFootVerts(mesh) {
+  const { position, skinIndex, skinWeight } = mesh.geometry.attributes;
+  const index = mesh.geometry.index;
+  const n = index ? index.count : position.count;
+  const seen = new Uint8Array(position.count);
+  const bind = new THREE.Vector3();
+  const found = { l: [], r: [] };
+  for (let k = 0; k < n; k++) {
+    const i = index ? index.getX(k) : k;
+    if (seen[i]) continue;
+    seen[i] = 1;
+    let best = 0, bw = -1;
+    for (let c = 0; c < 4; c++) { const wt = skinWeight.getComponent(i, c); if (wt > bw) { bw = wt; best = skinIndex.getComponent(i, c); } }
+    const bone = mesh.skeleton.bones[best]?.name ?? '';
+    const side = /^(foot|ball|calf)(_\w+)?_l$/.test(bone) ? 'l' : /^(foot|ball|calf)(_\w+)?_r$/.test(bone) ? 'r' : null;
+    if (!side) continue;
+    // Bind-pose height in the wearer's model space: the mesh's bind matrix places its bind pose.
+    bind.fromBufferAttribute(position, i).applyMatrix4(mesh.bindMatrix);
+    found[side].push({ index: i, y: bind.y });
+  }
+  return found;
+}
+
+function createSoleProbe(root) {
+  let feet = null; // [{ side, verts: [{ mesh, index }], mats }]
+  const v = new THREE.Vector3(), w = new THREE.Vector3(), sum = new THREE.Vector3();
+  const bind = new THREE.Vector3();
+  const out = [{ side: 'l', x: 0, y: 0, z: 0 }, { side: 'r', x: 0, y: 0, z: 0 }];
+
+  function gather() {
+    const lowest = { l: Infinity, r: Infinity };
+    const meshes = [];
+    root.traverse((o) => {
+      if (!o.isSkinnedMesh || !o.visible || o.material.side === THREE.BackSide || o.material.depthTest === false) return;
+      let found = FOOT_VERTS.get(o.geometry);
+      if (!found) { found = scanFootVerts(o); FOOT_VERTS.set(o.geometry, found); }
+      meshes.push({ mesh: o, found });
+      for (const side of ['l', 'r']) for (const { y } of found[side]) lowest[side] = Math.min(lowest[side], y);
+    });
+    feet = ['l', 'r'].map((side) => {
+      const verts = [];
+      for (const { mesh, found } of meshes) for (const { index, y } of found[side]) if (y < lowest[side] + SOLE_BAND) verts.push({ mesh, index });
+      // Every (skeleton, bone) pair these vertices use, with a matrix slot refreshed per frame.
+      const mats = new Map();
+      for (const { mesh, index } of verts) {
+        let m = mats.get(mesh.skeleton);
+        if (!m) { m = new Map(); mats.set(mesh.skeleton, m); }
+        const { skinIndex, skinWeight } = mesh.geometry.attributes;
+        for (let c = 0; c < 4; c++) if (skinWeight.getComponent(index, c) > 0) m.set(skinIndex.getComponent(index, c), new THREE.Matrix4());
+      }
+      return { side, verts, mats };
+    });
+  }
+
+  // World-space skinning of one vertex, in the wearer's root space.
+  function skinned(mesh, i, target, mats) {
+    const { position, skinIndex, skinWeight } = mesh.geometry.attributes;
+    bind.fromBufferAttribute(position, i).applyMatrix4(mesh.bindMatrix);
+    sum.set(0, 0, 0);
+    for (let c = 0; c < 4; c++) {
+      const wt = skinWeight.getComponent(i, c);
+      if (wt === 0) continue;
+      sum.addScaledVector(w.copy(bind).applyMatrix4(mats.get(skinIndex.getComponent(i, c))), wt);
+    }
+    // bones[].matrixWorld is world space already: back into root space for the caller.
+    return root.worldToLocal(target.copy(sum));
+  }
+
+  // Lowest sole point of each foot in root space (x, z for the ground lookup; y relative to the
+  // root's ground plane). Feet with nothing to measure are skipped.
+  const result = [];
+  return {
+    // Called once the outfit is worn; measure() does it on first use otherwise.
+    prepare: gather,
+    measure() {
+      if (!feet) gather();
+      result.length = 0;
+      for (let f = 0; f < 2; f++) {
+        const foot = feet[f];
+        if (!foot.verts.length) continue;
+        for (const [skeleton, m] of foot.mats) for (const [b, mat] of m) mat.multiplyMatrices(skeleton.bones[b].matrixWorld, skeleton.boneInverses[b]);
+        const o = out[f];
+        o.y = Infinity;
+        for (const { mesh, index } of foot.verts) {
+          skinned(mesh, index, v, foot.mats.get(mesh.skeleton));
+          if (v.y < o.y) { o.y = v.y; o.x = v.x; o.z = v.z; }
+        }
+        result.push(o);
+      }
+      return result;
+    },
+  };
 }
 
 // Moves the triangles whose vertices all satisfy pick(p) (bind-pose position) into a second
@@ -108,6 +227,17 @@ function rigidMesh(geometry, material, pos, rotation = new THREE.Euler()) {
   return m;
 }
 
+// Ground sampler for ch.groundAt: the collision surface under one foot (a small disc, so a kerb
+// or step lifts the foot that is over it and nothing else), ignoring anything more than a step
+// above the character's own ground.
+export const footGround = (collision) => (x, z, rootY) => collision.groundBelow(x, rootY + 0.35, z, 0.02);
+
+// The heroes' costume materials get a higher shadow floor than the rest of the cast, so the grey
+// suit, gold belt and gloves keep their colour on the unlit side at gameplay distance instead of
+// dropping to near-black under the night sky, plus a slightly stronger rim.
+const HERO_LIFT = 0.55;
+const heroRim = (mat) => addRim(mat, 0x9fc3ff, 0.9, [0.5, 0.62], HERO_LIFT);
+
 export function createBat(assets, suit = 'm') {
   const ch = makeCharacter(assets, suit === 'f' ? 'f' : 'm');
   const { body, eyes, brows, lm } = ch;
@@ -121,7 +251,7 @@ export function createBat(assets, suit = 'm') {
     // The head is its own mesh: no normal map, shadows lifted so the face stays a flat skin tone,
     // and on LAYER_FX so the crease pass does not ink the nose and lips. Its silhouette comes from
     // the depth pass plus a thin hull (a wide hull pokes through at the nostrils and lip crease).
-    ch.head = splitBody(body, (p) => p.y > lm.neckY - 0.02, addRim(toonMaterial({ map: paint }), 0x9fc3ff, 0.8, [0.5, 0.62], 0.55));
+    ch.head = splitBody(body, (p) => p.y > lm.neckY - 0.02, addRim(toonMaterial({ map: paint }), 0x9fc3ff, 0.8, [0.5, 0.62], HERO_LIFT));
     ch.head.layers.set(LAYER_FX);
     addHullOutline(ch.head, 0.004);
   } else {
@@ -165,12 +295,12 @@ export function createBat(assets, suit = 'm') {
   const glove = { a: [0x0b0b12, colors.glove], b: [0x0b0b12, colors.glove] };
   const female = suit === 'f';
   hideBody(body, (p) => p.y < lm.kneeY - 0.14 || Math.abs(p.x) > lm.elbowX + 0.07);
-  wear(ch, assets.outfits, female ? 'Female_Ranger_Feet' : 'Male_Ranger_Feet_Boots', (m) => duotone(m.map, m.normalMap, gear));
+  wear(ch, assets.outfits, female ? 'Female_Ranger_Feet' : 'Male_Ranger_Feet_Boots', (m) => duotone(m.map, m.normalMap, gear, HERO_LIFT));
   wear(ch, assets.outfits, female ? 'Female_Ranger_Arms' : 'Male_Ranger_Arms', (m) => (isSkinMaterial(m)
-    ? addRim(toonMaterial({ color: colors.glove }))
-    : duotone(m.map, m.normalMap, glove)));
+    ? heroRim(toonMaterial({ color: colors.glove }))
+    : duotone(m.map, m.normalMap, glove, HERO_LIFT)));
   // Three fins on each gauntlet.
-  const finMat = addRim(toonMaterial({ color: colors.glove }));
+  const finMat = heroRim(toonMaterial({ color: colors.glove }));
   const finGeo = new THREE.ConeGeometry(0.018, 0.075, 3).rotateZ(Math.PI / 2);
   for (const [bone, side] of [['lowerarm_l', 1], ['lowerarm_r', -1]]) {
     const elbow = bindPosition(body, bone);
@@ -181,7 +311,7 @@ export function createBat(assets, suit = 'm') {
     }
   }
   // Utility belt: pouches and a buckle around the waist.
-  const pouchMat = addRim(toonMaterial({ color: colors.belt }));
+  const pouchMat = heroRim(toonMaterial({ color: colors.belt }));
   const waist = lm.beltY;
   const hipZ = bindPosition(body, 'pelvis').z;
   for (let k = 0; k < 8; k++) {
@@ -197,7 +327,7 @@ export function createBat(assets, suit = 'm') {
     new THREE.Vector3(0, waist, surfaceFrontZ(body, waist, lm.fwd) + 0.012 * lm.fwd), new THREE.Euler(0, lm.fwd < 0 ? Math.PI : 0, 0));
   attachRigid(body, 'pelvis', buckle);
   addHullOutline(buckle, 0.004);
-  body.material = addRim(body.material);
+  body.material = heroRim(body.material);
 
   // The painted suits carry the emblem in their texture; the gold suit (vertex regions) wears a
   // flat emblem mesh on the chest instead.
@@ -233,6 +363,7 @@ export function createBat(assets, suit = 'm') {
   ch.suit = suit;
   ch.colors = colors;
   ch.animator.play('Idle_Loop');
+  ch.dressed();
   return ch;
 }
 
@@ -355,6 +486,7 @@ export function createGoon(assets, { type = 'grunt', rng = null } = {}) {
   }
   ch.type = type;
   ch.animator.play('Idle_Loop');
+  ch.dressed();
   return ch;
 }
 
@@ -397,5 +529,6 @@ export function createJoker(assets) {
   const flower = rigidMesh(new THREE.IcosahedronGeometry(0.035, 0), new THREE.MeshBasicMaterial({ color: PALETTE.neonPink }), new THREE.Vector3(0.1, lm.chestY + 0.06, lm.chestFrontZ + 0.02 * lm.fwd));
   attachRigid(body, 'spine_03', flower);
   ch.animator.play('Idle_FoldArms_Loop');
+  ch.dressed();
   return ch;
 }

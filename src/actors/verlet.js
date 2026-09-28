@@ -53,8 +53,10 @@ function applyPins(cloth, pins) {
   }
 }
 
+// floor: a height no free point may drop below (the ground under the wearer), so a hem rests on
+// the roof instead of hanging through it.
 export function stepCloth(cloth, dt, {
-  gravity = [0, -9.8, 0], wind = [0, 0, 0], damping = 0.03, iterations = 6, colliders = [], pins = null,
+  gravity = [0, -9.8, 0], wind = [0, 0, 0], damping = 0.03, iterations = 6, colliders = [], pins = null, floor = -Infinity,
 } = {}) {
   const { n, pos, prev, pinned, cons, rest } = cloth;
   const dt2 = dt * dt;
@@ -93,6 +95,9 @@ export function stepCloth(cloth, dt, {
           pos[k] = s.x + dx * m; pos[k + 1] = s.y + dy * m; pos[k + 2] = s.z + dz * m;
         }
       }
+    }
+    if (floor > -Infinity) {
+      for (let i = 0; i < n; i++) if (!pinned[i] && pos[i * 3 + 1] < floor) { pos[i * 3 + 1] = floor; prev[i * 3 + 1] = Math.max(prev[i * 3 + 1], floor); }
     }
   }
   if (pins) applyPins(cloth, pins);

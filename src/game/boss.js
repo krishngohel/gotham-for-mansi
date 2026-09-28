@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { PALETTE } from '../config/palette.js';
 import { LAYER_FX } from '../render/layers.js';
 import { ENEMY, damageToHero, DIFFICULTY } from '../combat/rules.js';
-import { createJoker } from '../actors/characters.js';
+import { createJoker, footGround } from '../actors/characters.js';
 import { createCape } from '../actors/cape.js';
 import { SITES } from '../world/mapData.js';
 
@@ -27,8 +27,9 @@ const LINES = {
   hurt: ['Is that all?', 'Again! Again!'],
 };
 
-export function createBoss({ assets, scene, rng, combat, events, hud, spawn, despawn, hero, time, getDifficulty }) {
+export function createBoss({ assets, scene, rng, combat, events, hud, spawn, despawn, hero, time, getDifficulty, collision = null }) {
   const ch = createJoker(assets);
+  if (collision) ch.groundAt = footGround(collision);
   scene.add(ch.root);
   const coat = createCape(ch, PALETTE.jokerPurple, { cols: 7, rows: 7, topWidth: 0.42, bottomWidth: 0.62, length: 0.9, pointDrop: 0.08, anchor: 'waist' });
   scene.add(coat.mesh);
