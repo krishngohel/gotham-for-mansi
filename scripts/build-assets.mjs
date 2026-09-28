@@ -1,6 +1,7 @@
 // Converts the Quaternius CC0 source packs in assets-src/ into slim GLBs in public/assets/.
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
+import { optimizeAll } from './optimize-assets.mjs';
 import { dedup, mergeDocuments, prune, resample, textureCompress } from '@gltf-transform/functions';
 import sharp from 'sharp';
 import { mkdir, stat } from 'node:fs/promises';
@@ -76,5 +77,5 @@ await character('Superhero_Female_FullBody.gltf', 'hero_f.glb');
 await character('Hair_Long.gltf', 'hair_long.glb', { keepBaseColor: true });
 await anims('UAL1_Standard.glb', 'anims1.glb', CLIP_SET.anims1);
 await anims('UAL2_Standard.glb', 'anims2.glb', CLIP_SET.anims2);
-for (const f of ['outfits.glb', 'hero_m.glb', 'hero_f.glb', 'hair_long.glb', 'anims1.glb', 'anims2.glb'])
-  console.log(f, ((await stat(path.join(OUT, f))).size / 1e6).toFixed(2), 'MB');
+// Strip unused animation data and pack normals and weights (prints the final sizes).
+await optimizeAll();

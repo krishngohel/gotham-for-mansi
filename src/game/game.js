@@ -39,7 +39,9 @@ import { createFinale } from './finale.js';
 
 async function loadFonts() {
   try {
-    await Promise.all(['64px Bangers', '32px "Patrick Hand SC"', '700 32px "Barlow Condensed"'].map((f) => document.fonts.load(f)));
+    const all = Promise.all(['64px Bangers', '32px "Patrick Hand SC"', '700 32px "Barlow Condensed"'].map((f) => document.fonts.load(f)));
+    // Never hold the game hostage to a slow font server.
+    await Promise.race([all, new Promise((r) => setTimeout(r, 4000))]);
   } catch { /* fonts are a nicety; canvases fall back to Impact */ }
 }
 
@@ -56,13 +58,23 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   const time = createTimeControl();
   const audio = createAudio();
 
+  // Boot timing marks (read with performance.getEntriesByType('mark')).
+  const mark = (n) => performance.mark?.(`boot:${n}`);
+  // Models download while the fonts load (the city's painted signs need the fonts first).
+  const assetsPromise = loadAssets('./assets/', (f) => onProgress(0.1 + f * 0.6)).then((a) => { mark('assets'); return a; });
   await loadFonts();
+  mark('fonts');
   onProgress(0.1);
-  const assetsPromise = loadAssets('./assets/', (f) => onProgress(0.1 + f * 0.6));
   const world = createWorld(scene, quality);
+  mark('world');
   const assets = await assetsPromise;
   for (const c of buildKickClips(SkeletonUtils.clone(assets.bodies.m), assets.clips)) assets.clips.set(c.name, c);
+  mark('clips');
   onProgress(0.9);
+  // Compile the city's shaders behind the loading bar instead of freezing the first frame.
+  try { await renderer.compileAsync(scene, camera); } catch { /* compiles on first draw instead */ }
+  mark('compiled');
+  onProgress(0.97);
 
   let progress = params.has('new') ? sanitizeProgress(DEFAULT_PROGRESS) : loadProgress(storage);
   if (params.has('at')) {
@@ -434,6 +446,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   function frame(now) {
     requestAnimationFrame(frame);
     try { step(now); } catch (err) { if (errors++ < 5) console.error(err); }
+    if (state.frame === 1) mark('firstFrame');
   }
   function step(now) {
     const real = Math.min(0.05, (now - last) / 1000);
@@ -465,8 +478,16 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
 
   applySettings();
   onProgress(1);
+  // One hidden frame of the title view: texture uploads and post-process setup happen under the
+  // loading screen instead of stalling the first visible frame.
+  camera.position.set(Math.sin(orbit) * 95, 82, Math.cos(orbit) * 95 + 10);
+  camera.lookAt(-20, 60, -60);
+  try { world.update(0, 0, camera.position, camera, null); ink.render(scene, camera, 0); } catch (err) { console.error(err); }
+  mark('prewarm');
   requestAnimationFrame(frame);
   state.ready = true;
+  // The Joker's lines download while the title screen is up.
+  setTimeout(() => voice.warm(), 1500);
   // Dev and test shortcuts skip the title: ?at=<step>, ?play=1, ?fight=test.
   if (params.has('at') || params.has('play') || params.has('fight') || params.has('new') && params.has('skip')) begin(params.get('suit') ?? progress.suit ?? 'm', false);
   else showTitle();

@@ -3,7 +3,9 @@ export function wireAudio({ audio, events, hero, combat, flow, voice = null, set
   // The recorded orchestral Happy Birthday (CC0, VOLE.wtf) plays over the finale; the synth
   // birthday waltz carries on afterwards.
   const track = new Audio('./assets/music/birthday-orchestral.mp3');
-  track.preload = 'auto';
+  // Fetched after the first minute of play, long before the finale needs it.
+  track.preload = 'none';
+  setTimeout(() => { track.preload = 'auto'; track.load(); }, 60000);
   let trackPlaying = false;
   track.addEventListener('ended', () => { trackPlaying = false; });
   const on = (ev, fn) => events.on(ev, fn);

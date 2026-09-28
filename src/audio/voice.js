@@ -5,13 +5,15 @@ export function createVoice({ base = './assets/voice/', getVolume, duck = () => 
   const clips = new Map();
   for (const id of LINES) {
     const a = new Audio(`${base}${id}.mp3`);
-    a.preload = 'auto';
+    // Nothing downloads during the loading screen; warm() fetches the lines once the game runs.
+    a.preload = 'none';
     a.addEventListener('ended', () => { if (current === a) { current = null; duck(false); } });
     clips.set(id, a);
   }
   let current = null;
   return {
     LINES,
+    warm() { for (const a of clips.values()) if (a.preload !== 'auto') { a.preload = 'auto'; a.load(); } },
     has: (id) => clips.has(id),
     // interrupt: stop whatever he was saying. Otherwise a new line waits its turn by being skipped.
     say(id, { interrupt = true } = {}) {
