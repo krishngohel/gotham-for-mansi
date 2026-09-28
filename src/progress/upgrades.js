@@ -3,7 +3,7 @@
 export const TREES = [
   { id: 'armor', name: 'Armor', upgrades: [
     { id: 'plating1', name: 'Reinforced Plating', text: 'Max health +25.' },
-    { id: 'kevlar', name: 'Kevlar Weave', text: "Knife slashes and the Joker's thrown gags hurt 30% less." },
+    { id: 'kevlar', name: 'Kevlar Weave', text: "Knife slashes, thrown gags and rifle shots hurt 30% less." },
     { id: 'plating2', name: 'Titanium Plating', text: 'Max health +25 more.' },
     { id: 'medic', name: 'Field Medic', text: 'Out of a fight, health comes back after 2.5 s instead of 6 s, three times as fast.' },
     { id: 'dampers', name: 'Impact Dampers', text: 'Every hit hurts 15% less.' },
@@ -93,9 +93,10 @@ export function upgradeStatus(owned, id, free) {
   return r.reason === 'owned' ? 'owned' : r.reason === 'points' ? 'poor' : 'locked';
 }
 
-// How much of an attack's damage lands. `buzzer` is the Joker's thrown gag.
+// How much of an attack's damage lands. `buzzer` is the Joker's thrown gag; `rifle` the rifle
+// goon's shot.
 export function damageFactor(kind, e) {
-  const k = kind === 'knife' ? e.knifeMult : kind === 'buzzer' ? e.rangedMult : 1;
+  const k = kind === 'knife' ? e.knifeMult : kind === 'buzzer' || kind === 'rifle' ? e.rangedMult : 1;
   return k * e.damageMult;
 }
 

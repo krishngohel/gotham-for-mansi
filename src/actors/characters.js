@@ -423,6 +423,7 @@ const GOON_LOOKS = {
   striped: { parts: ['Male_Peasant_Body', 'Male_Peasant_Legs', 'Male_Peasant_Feet', 'Male_Peasant_Arms'], hat: 'beanie' },
   hoodie: { parts: ['Male_Ranger_Body', 'Male_Peasant_Legs', 'Male_Ranger_Feet_Boots', 'Male_Peasant_Arms', 'Male_Ranger_Head_Hood'], hat: null },
   knife: { parts: ['Male_Ranger_Body', 'Male_Ranger_Legs', 'Male_Ranger_Feet_Boots', 'Male_Ranger_Arms'], hat: 'bandana' },
+  rifle: { parts: ['Male_Ranger_Body', 'Male_Ranger_Legs', 'Male_Ranger_Feet_Boots', 'Male_Ranger_Arms'], hat: 'beanie' },
   brute: { parts: ['Male_Ranger_Body', 'Male_Ranger_Legs', 'Male_Ranger_Feet_Boots', 'Male_Peasant_Arms', 'Male_Ranger_Acc_Pauldron'], hat: null },
   civilian: { parts: ['Male_Peasant_Body', 'Male_Peasant_Legs', 'Male_Peasant_Feet', 'Male_Peasant_Arms'], hat: null },
 };
@@ -438,15 +439,15 @@ const BEANIES = [PALETTE.pants, 0x3a2a24, 0x2f3f5a, 0x4a3a52];
 
 let goonBody = null;
 
-// type: 'grunt' | 'knife' | 'brute' | 'civilian' (a bystander for street crimes, never an enemy)
+// type: 'grunt' | 'knife' | 'brute' | 'rifle' | 'civilian' (a bystander for street crimes, never an enemy)
 export function createGoon(assets, { type = 'grunt', rng = null } = {}) {
   const pick = (arr) => arr[Math.floor((rng ? rng.next() : Math.random()) * arr.length)];
   const ch = makeCharacter(assets, 'm');
   const { body, eyes, brows, lm } = ch;
   const brute = type === 'brute';
   const civilian = type === 'civilian';
-  const look = GOON_LOOKS[civilian ? 'civilian' : brute ? 'brute' : type === 'knife' ? 'knife' : pick(['striped', 'striped', 'hoodie'])];
-  const scheme = civilian ? CIVILIAN_SCHEME : type === 'knife' ? GOON_SCHEMES[1] : brute ? GOON_SCHEMES[3] : pick(GOON_SCHEMES);
+  const look = GOON_LOOKS[civilian ? 'civilian' : brute ? 'brute' : type === 'knife' ? 'knife' : type === 'rifle' ? 'rifle' : pick(['striped', 'striped', 'hoodie'])];
+  const scheme = civilian ? CIVILIAN_SCHEME : type === 'knife' ? GOON_SCHEMES[1] : type === 'rifle' ? GOON_SCHEMES[2] : brute ? GOON_SCHEMES[3] : pick(GOON_SCHEMES);
   // Every goon's painted, trimmed body is identical, so they all share one geometry: a new copy
   // per goon meant megabytes of vertex upload (a 30 ms hitch) each time a wave spawned.
   if (goonBody) body.geometry = goonBody;
@@ -467,7 +468,8 @@ export function createGoon(assets, { type = 'grunt', rng = null } = {}) {
   for (const part of look.parts) {
     clothes.push(...wear(ch, assets.outfits, part, (m) => (isSkinMaterial(m) ? skin : duotone(m.map, m.normalMap, scheme)), { outline: brute ? 0.012 : 0.009 }));
   }
-  for (const m of clothes) addXray(m);
+  ch.xrays = [ch.xray];
+  for (const m of clothes) ch.xrays.push(addXray(m));
   if (brute) ch.root.scale.setScalar(1.25);
 
   const r = lm.headRadius * 1.12;
@@ -506,6 +508,30 @@ export function createGoon(assets, { type = 'grunt', rng = null } = {}) {
     if (lm.fwd < 0) knife.rotation.y = Math.PI;
     attachRigid(body, 'hand_r', knife);
     addHullOutline(blade, 0.004);
+  }
+  if (type === 'rifle') {
+    // A rifle built from blocks: receiver, barrel, wooden stock, magazine and a short scope, held
+    // in the right hand along +z like the knife. ch.muzzle marks the barrel tip for the laser sight
+    // and the tracer.
+    const hand = ch.bone('hand_r');
+    const handPos = new THREE.Vector3().setFromMatrixPosition(body.skeleton.boneInverses[body.skeleton.bones.indexOf(hand)].clone().invert());
+    const gun = new THREE.Group();
+    const dark = toonMaterial({ color: PALETTE.ink }), steel = toonMaterial({ color: 0x6d737c }), wood = toonMaterial({ color: 0x5a3a24 });
+    const parts = [
+      new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.08, 0.34).translate(0, 0, 0.1), dark),
+      new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.5, 8).rotateX(Math.PI / 2).translate(0, 0.02, 0.5), steel),
+      new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.12, 0.24).translate(0, -0.03, -0.16), wood),
+      new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.12, 0.05).translate(0, -0.09, 0.16), dark),
+      new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.12, 8).rotateX(Math.PI / 2).translate(0, 0.07, 0.12), dark),
+    ];
+    for (const m of parts) { gun.add(m); addHullOutline(m, 0.004); }
+    const muzzle = new THREE.Object3D();
+    muzzle.position.set(0, 0.02, 0.76);
+    gun.add(muzzle);
+    gun.position.copy(handPos).add(new THREE.Vector3(-0.04 * lm.fwd, -0.02, 0.02 * lm.fwd));
+    if (lm.fwd < 0) gun.rotation.y = Math.PI;
+    attachRigid(body, 'hand_r', gun);
+    ch.muzzle = muzzle;
   }
   ch.type = type;
   ch.animator.play('Idle_Loop');

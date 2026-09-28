@@ -28,7 +28,7 @@ export function createWarmCast(assets) {
   const fixed = (v) => ({ next: () => v });
   let x = 6;
   for (const v of [0, 0.6, 0.9]) add(createGoon(assets, { type: 'grunt', rng: fixed(v) }), (x += 2));
-  for (const type of ['knife', 'brute']) add(createGoon(assets, { type, rng: fixed(0) }), (x += 2));
+  for (const type of ['knife', 'brute', 'rifle']) add(createGoon(assets, { type, rng: fixed(0) }), (x += 2));
   add(createGoon(assets, { type: 'civilian', rng: fixed(0) }), (x += 2));
   // Side content props share the city's programs, but drawing them once here keeps a first
   // sighting (a new hoop, the crime van) from uploading anything mid-play.

@@ -28,10 +28,21 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
     glyph: null,
     tiedWith: null, tiedT: 0,
     frozenT: 0, danceT: 0, lostT: 0, shattered: false,
+    // Predator stealth (src/stealth/stealthSystem.js): where the goon walks or looks, which room it
+    // belongs to, and whether it can see Batman right now (a rifle only fires when it can).
+    nav: { x: 0, y: 0, z: 0, speed: 0, face: null, lookX: 0, lookZ: 0, arrived: false, px: 0, pz: 0, stuckT: 0 },
+    room: null, seesHero: undefined,
+    get yaw() { return ch.yaw; },
+    get aiming() { return e.state === 'windup' && e.attackKind === 'rifle'; },
     radius: 0.42 * scale,
     get x() { return pos.x; },
     get z() { return pos.z; },
   };
+
+  // Rifle goons fight from range and carry their rifle in every pose.
+  const RIFLE = type === 'rifle';
+  const WALK = RIFLE ? 'Rifle_Walk' : 'Walk_Loop', IDLE = RIFLE ? 'Rifle_Idle' : 'Idle_Loop', LOOK = RIFLE ? 'Rifle_Search' : 'Idle_No_Loop';
+  if (RIFLE) { e.ringDist = rng.range(9, 14); e.idlePose = 'Rifle_Idle'; }
 
   const faceHero = (hero, rate, dt) => {
     const dx = hero.pos.x - pos.x, dz = hero.pos.z - pos.z;
@@ -39,6 +50,13 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
     const delta = Math.atan2(Math.sin(target - ch.yaw), Math.cos(target - ch.yaw));
     ch.face(ch.yaw + (rate ? delta * Math.min(1, rate * dt) : delta));
   };
+  const turnTo = (yaw, rate, dt) => {
+    const d = Math.atan2(Math.sin(yaw - ch.yaw), Math.cos(yaw - ch.yaw));
+    ch.face(ch.yaw + d * Math.min(1, rate * dt));
+  };
+  // States the stealth runtime may steer a goon out of.
+  const NAV = new Set(['idle', 'alert', 'patrol', 'search', 'hunt', 'suspicious', 'look', 'engage', 'recover']);
+  const WALKING = new Set(['patrol', 'search', 'hunt']);
   const play = (name, opts) => ch.animator.play(name, opts);
   function setState(s) { e.state = s; e.t = 0; }
 
@@ -138,7 +156,35 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
     return was;
   };
 
-  e.ready = (hero) => e.state === 'engage' && e.alive && !e.down && e.lostT <= 0 && tmp.set(hero.pos.x - pos.x, 0, hero.pos.z - pos.z).length() < 6.5;
+  // Stealth steering. The runtime calls these every frame; they only change state when the state
+  // changes, so the state timer and animations don't restart.
+  e.canNav = () => e.alive && !e.down && !e.air && !e.countered && NAV.has(e.state);
+  e.goTo = (x, y, z, speed, state = 'patrol', face = null) => {
+    if (Math.hypot(x - e.nav.x, z - e.nav.z) > 0.3) { e.nav.arrived = false; e.nav.stuckT = 0; }
+    e.nav.x = x; e.nav.y = y; e.nav.z = z; e.nav.speed = speed; e.nav.face = face;
+    if (e.state !== state) { setState(state); e.nav.arrived = false; }
+  };
+  e.lookAt = (x, z, state = 'suspicious') => {
+    e.nav.lookX = x; e.nav.lookZ = z;
+    if (e.state !== state) setState(state);
+  };
+  // Hostile and seen: the fight AI takes over.
+  e.engageNow = () => {
+    e.aware = true;
+    if (e.state !== 'engage' && NAV.has(e.state)) setState('engage');
+  };
+  // The squad lost Batman: back under stealth control.
+  e.calm = () => {
+    e.aware = false;
+    e.glyph = null;
+    if (NAV.has(e.state) || e.state === 'windup' || e.state === 'attack') setState('look');
+  };
+
+  e.ready = (hero) => {
+    if (e.state !== 'engage' || !e.alive || e.down || e.lostT > 0) return false;
+    const d = tmp.set(hero.pos.x - pos.x, 0, hero.pos.z - pos.z).length();
+    return def.ranged ? e.seesHero !== false && d < 30 : d < 6.5;
+  };
 
   e.startWindup = (windup, hero) => {
     setState('windup');
@@ -153,6 +199,12 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
       e.windupDur = windup + 0.1;
       e.glyph = 'blue';
       play('Sword_Regular_A', { once: true, timeScale: 0.28, fade: 0.1 });
+    } else if (def.ranged) {
+      // A long, readable aim: the red laser holds on Batman, then one shot.
+      e.attackKind = 'rifle';
+      e.windupDur = windup + 0.55;
+      e.glyph = 'red';
+      play('Rifle_Aim', { fade: 0.1 });
     } else {
       e.attackKind = type === 'joker' ? 'joker' : 'grunt';
       e.windupDur = windup;
@@ -279,18 +331,19 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
           speed = gd > 4 ? def.speed : 1.4;
           moveX = gx / gd; moveZ = gz / gd;
         }
-        if (dist < 8 && e.lostT <= 0) faceHero(hero, 8, dt);
+        if ((dist < 8 || def.ranged) && e.lostT <= 0) faceHero(hero, 8, dt);
         else if (speed) ch.face(Math.atan2(moveX, moveZ));
         if (speed > 2) play('Jog_Fwd_Loop', { fade: 0.2 });
-        else if (speed > 0) play(type === 'brute' ? 'Zombie_Walk_Fwd_Loop' : 'Walk_Loop', { fade: 0.2 });
-        else play(type === 'knife' ? 'Sword_Idle' : type === 'brute' ? 'Idle_FoldArms_Loop' : 'Idle_Loop', { fade: 0.25 });
+        else if (speed > 0) play(type === 'brute' ? 'Zombie_Walk_Fwd_Loop' : WALK, { fade: 0.2 });
+        else play(type === 'knife' ? 'Sword_Idle' : type === 'brute' ? 'Idle_FoldArms_Loop' : IDLE, { fade: 0.25 });
         break;
       }
       case 'windup': {
         faceHero(hero, 10, dt);
         const want = type === 'brute' ? 3 : 2.3;
-        if (dist > want + 0.3) { speed = 2.2; moveX = dx / dist; moveZ = dz / dist; }
+        if (!def.ranged && dist > want + 0.3) { speed = 2.2; moveX = dx / dist; moveZ = dz / dist; }
         if (e.t >= e.windupDur) {
+          if (def.ranged) { setState('attack'); e.glyph = null; break; }
           setState('attack');
           e.lungeFrom.copy(pos);
           const reach = e.attackKind === 'charge' ? 0 : Math.max(0, dist - 1.1);
@@ -304,6 +357,16 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
         break;
       }
       case 'attack': {
+        if (e.attackKind === 'rifle') {
+          faceHero(hero, 10, dt);
+          if (!e.hitDone) {
+            e.hitDone = true;
+            ctx.onRifleFire?.(e);
+            if (e.seesHero !== false && dist < 32) ctx.onAttackLand(e, 'rifle');
+          }
+          if (e.t > 0.45) { setState('recover'); ctx.onAttackEnd(e); }
+          break;
+        }
         if (e.attackKind === 'charge') {
           speed = 12;
           moveX = e.chargeDir.x; moveZ = e.chargeDir.z;
@@ -342,6 +405,27 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
         e.danceT -= dt;
         if (e.danceT <= 0) { e.stunned = false; e.stunT = 0; setState(e.aware ? 'engage' : 'idle'); }
         break;
+      case 'patrol':
+      case 'search':
+      case 'hunt': {
+        e.nav.px = pos.x; e.nav.pz = pos.z;
+        const gx = e.nav.x - pos.x, gz = e.nav.z - pos.z, gd = Math.hypot(gx, gz);
+        if (gd < 0.35) e.nav.arrived = true;
+        if (!e.nav.arrived) {
+          speed = e.nav.speed;
+          moveX = gx / gd; moveZ = gz / gd;
+          turnTo(Math.atan2(moveX, moveZ), 8, dt);
+        } else if (e.nav.face !== null) turnTo(e.nav.face, 4, dt);
+        if (speed > 2.6) play('Jog_Fwd_Loop', { fade: 0.2 });
+        else if (speed > 0) play(WALK, { fade: 0.2, timeScale: Math.max(0.8, speed / 1.7) });
+        else play(IDLE, { fade: 0.25 });
+        break;
+      }
+      case 'suspicious':
+      case 'look':
+        turnTo(Math.atan2(e.nav.lookX - pos.x, e.nav.lookZ - pos.z), e.state === 'look' ? 2.5 : 5, dt);
+        play(e.state === 'look' ? LOOK : IDLE, { fade: 0.25 });
+        break;
       case 'ko':
         break;
       default:
@@ -378,6 +462,11 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
       pos.addScaledVector(e.knock, dt);
       e.knock.multiplyScalar(Math.max(0, 1 - dt * 5));
     }
+    // Room goons never walk off a catwalk or the balcony: they stop at the edge instead.
+    if (speed && e.room && !e.air) {
+      const ahead = collision.groundBelow(pos.x + moveX * 0.6, pos.y + 0.5, pos.z + moveZ * 0.6, 0.15);
+      if (ahead < pos.y - 0.6) { speed = 0; e.nav.arrived = true; }
+    }
     if (speed) { pos.x += moveX * speed * dt; pos.z += moveZ * speed * dt; }
     // Keep apart from other goons and from the hero.
     if (e.alive && !e.down) {
@@ -391,6 +480,12 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
       if (dist < 0.9 && e.state !== 'attack') { pos.x -= (dx / (dist || 1)) * (0.9 - dist); pos.z -= (dz / (dist || 1)) * (0.9 - dist); }
     }
     const r = collision.resolveCylinder(pos, e.radius, 1.8 * scale);
+    // Walking into a wall or a crate: count it as arrived after a second, so the runtime moves on.
+    if (WALKING.has(e.state)) {
+      const moved = Math.hypot(pos.x - e.nav.px, pos.z - e.nav.pz);
+      e.nav.stuckT = !e.nav.arrived && e.nav.speed > 0 && moved < e.nav.speed * dt * 0.25 ? e.nav.stuckT + dt : 0;
+      if (e.nav.stuckT > 1) { e.nav.arrived = true; e.nav.stuckT = 0; }
+    }
     // Walked or slid off an edge: fall instead of teleporting down.
     if (r.groundY < pos.y - 0.6) e.launch(e.knock.x * 0.5, 0, e.knock.z * 0.5);
     else if (r.groundY > -Infinity) pos.y = r.groundY;

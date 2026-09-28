@@ -68,6 +68,15 @@ describe('effects', () => {
   });
 });
 
+describe('rifles and armor', () => {
+  it('Kevlar Weave covers rifle shots like thrown gags', () => {
+    const base = upgradeEffects([]), kev = upgradeEffects(['plating1', 'kevlar']);
+    expect(damageFactor('rifle', base)).toBe(1);
+    expect(damageFactor('rifle', kev)).toBeLessThan(1);
+    expect(damageFactor('rifle', kev)).toBeCloseTo(damageFactor('buzzer', kev));
+  });
+});
+
 describe('wayne save field', () => {
   it('defaults, and keeps valid purchases', () => {
     expect(sanitizeProgress({}).wayne).toEqual({ xp: 0, owned: [], medals: {} });

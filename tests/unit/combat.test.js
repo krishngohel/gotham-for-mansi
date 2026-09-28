@@ -388,3 +388,18 @@ describe('gadget moves', () => {
     expect(resolveHit('shatter', e('brute')).outcome).toBe('ko');
   });
 });
+
+describe('the rifle goon', () => {
+  const rifle = (o = {}) => ({ type: 'rifle', health: ENEMY.rifle.health, stunned: false, down: false, ...o });
+  it('parries punches head-on; a kick breaks the guard; a stun opens it', () => {
+    expect(resolveHit('punch', rifle()).outcome).toBe('parried');
+    expect(resolveHit('kick', rifle()).outcome).toBe('hit');
+    expect(resolveHit('punch', rifle({ stunned: true })).outcome).toBe('hit');
+  });
+  it('cannot be countered, and its shot hurts 25 whether blocked or not', () => {
+    expect(ENEMY.rifle).toMatchObject({ counterable: false, parry: true, ranged: true, damage: 25 });
+    expect(damageToHero('rifle')).toBe(25);
+    expect(damageToHero('rifle', { blocking: true })).toBe(25);
+    expect(damageToHero('rifle', { difficulty: 'story' })).toBe(12.5);
+  });
+});

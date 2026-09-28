@@ -242,6 +242,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     let nextId = 0;
     const spawn = (type, p) => {
       const e = createEnemy({ id: `e${nextId++}`, type, assets, scene, collision: world.collision, rng });
+      // Stealth clips get their mixer actions now, not on the first patrol step or choke.
+      e.ch.animator.prime(type === 'rifle' ? ['Rifle_Idle', 'Rifle_Walk', 'Rifle_Aim', 'Rifle_Search', 'Choked'] : ['Choked']);
       readyObjects(e.ch.root);
       e.place(p, Math.atan2(hero.pos.x - p.x, hero.pos.z - p.z) + rng.range(-1, 1));
       // A goon's first draw builds its bone textures and vertex bindings (~8 ms). A wave of four

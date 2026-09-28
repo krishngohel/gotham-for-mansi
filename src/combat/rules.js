@@ -10,6 +10,7 @@ export const ENEMY = {
   grunt: { health: 4, damage: 10, counterable: true, parry: false, armored: false, speed: 3.3, scale: 1 },
   knife: { health: 4, damage: 15, counterable: true, parry: true, armored: false, speed: 3.5, scale: 1 },
   brute: { health: 10, damage: 20, counterable: false, parry: false, armored: true, speed: 2.4, scale: 1.25 },
+  rifle: { health: 4, damage: 25, counterable: false, parry: true, armored: false, speed: 3.2, scale: 1, ranged: true },
   joker: { health: 30, damage: 12, counterable: true, parry: false, armored: false, speed: 3.6, scale: 1, boss: true },
 };
 
@@ -40,8 +41,8 @@ export const MOVES = {
 };
 
 // How much of each attack a raised guard absorbs.
-export const BLOCK_REDUCTION = { grunt: 0.8, knife: 0.5, brute: 0.4, charge: 0, joker: 0.6, gas: 0, buzzer: 0 };
-const ATTACK_DAMAGE = { grunt: 10, knife: 15, brute: 20, charge: 25, joker: 12, gas: 4, buzzer: 12 };
+export const BLOCK_REDUCTION = { grunt: 0.8, knife: 0.5, brute: 0.4, charge: 0, joker: 0.6, gas: 0, buzzer: 0, rifle: 0 };
+const ATTACK_DAMAGE = { grunt: 10, knife: 15, brute: 20, charge: 25, joker: 12, gas: 4, buzzer: 12, rifle: 25 };
 
 // Mutates enemy.health / enemy.stunned. Returns { outcome, damage, stun }.
 // outcome: 'hit' | 'knockdown' | 'ko' | 'stun' | 'parried' | 'immune'
