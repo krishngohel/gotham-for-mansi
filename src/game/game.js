@@ -11,6 +11,7 @@ import { bindingLabel } from '../core/bindings.js';
 import { getQuality } from '../render/quality.js';
 import { createRenderer } from '../render/renderer.js';
 import { createInkPipeline } from '../render/inkPipeline.js';
+import { paletteAt } from '../render/comicPalette.js';
 import { loadAssets } from '../actors/assets.js';
 import { createHero } from '../actors/hero.js';
 import { buildKickClips } from '../actors/kicks.js';
@@ -51,6 +52,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   const quality = getQuality(params.get('q') ?? settings.quality);
   const renderer = createRenderer(canvas, quality);
   const ink = createInkPipeline(renderer, quality);
+  ink.setComic(quality.comic);
+  ink.setPalette(paletteAt(0, 0));
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(settings.fov, 1, 0.1, 1500);
   const input = createInput({ target: window, bindings: settings.bindings });
