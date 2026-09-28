@@ -9,6 +9,7 @@ import { createBat, createGoon, createJoker } from '../actors/characters.js';
 import { createCape } from '../actors/cape.js';
 import { createPillar, createRingMesh, createVan, createLootBags } from '../world/sideProps.js';
 import { createGadgetWarm } from '../gadgets/gadgetFx.js';
+import { createStealthWarm } from '../stealth/stealthFx.js';
 import { PALETTE } from '../config/palette.js';
 import { LAYER_FX } from '../render/layers.js';
 
@@ -37,6 +38,9 @@ export function createWarmCast(assets) {
   // Every gadget material and geometry (gel, ice, smoke, confetti, lines, debris, textured
   // breakables): drawn once here so no gadget compiles a shader on first use.
   group.add(createGadgetWarm());
+  // Predator stealth visuals (src/stealth/stealthFx.js): vision cones, laser sights, tracers and
+  // muzzle flashes, compiled here so the first stealth room doesn't build a program.
+  group.add(createStealthWarm());
   // The chain takedown's ink tether (src/game/chainFx.js): an FX-layer LineSegments in ink,
   // compiled here with everything else so the first Rope-a-Dope doesn't build a program.
   const tether = new THREE.LineSegments(

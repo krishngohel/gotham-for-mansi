@@ -45,6 +45,7 @@ import { createVoice } from '../audio/voice.js';
 import { createWorld } from './world.js';
 import { createFollowCamera } from './camera.js';
 import { createFx } from './fx.js';
+import { createStealthFx } from '../stealth/stealthFx.js';
 import { createGadgetFx } from '../gadgets/gadgetFx.js';
 import { createBreakables } from '../world/breakables.js';
 import { createChainFx } from './chainFx.js';
@@ -238,6 +239,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     hud.setHealth(1);
     const comicFx = createComicFx(document.body);
     const fx = createFx(scene);
+    const stealthFx = createStealthFx(scene);
     const gfx = createGadgetFx(scene);
     const breakables = createBreakables({
       scene, collision: world.collision, climbables: world.climbables, progress, events, gfx,
@@ -262,6 +264,9 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     hero.combat = combat;
     // Predator stealth: room goons, perches, silent takedowns and perch drops (Part D).
     stealth = createStealth({ hero, combat, events, collision: world.collision, perches: world.grapplePoints.filter((p) => p.perch), rng });
+    // Predator visuals (src/stealth/stealthFx.js): vision cones, laser sights, tracers and flashes.
+    events.on('rifleShot', ({ from, to, hit }) => stealthFx.shot(from, to, hit));
+    events.on('stealthEnd', () => stealthFx.clear());
     const key = (a) => `<kbd>${bindingLabel(settings.bindings, a)}</kbd>`;
     const screen = new THREE.Vector3();
     const toScreen = (v) => { screen.copy(v).project(camera); return { x: (screen.x * 0.5 + 0.5) * innerWidth, y: (-screen.y * 0.5 + 0.5) * innerHeight, behind: screen.z > 1 }; };
@@ -536,6 +541,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         hero.update(dt, ctx);
         side.update(dt, real, { toScreen });
         fx.update(dt);
+        stealthFx.update(dt, stealth.goons, { detective: !!state.detectiveOn, hero });
         gfx.update(dt);
         chainFx.update(dt);
         breakables.update(state.t, hero.pos);
@@ -583,7 +589,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
 
     const api = {
       hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, side, stage, gfx, breakables, chainFx, photo,
-      gadgets, wheelUi, stealth,
+      gadgets, wheelUi, stealth, stealthFx,
       winFight: () => { for (const e of combat.enemies) if (e.alive && e.type !== 'joker') { e.health = 0; e.applyHit({ outcome: 'ko' }, hero.pos); } },
     };
     if (params.get('god') === '1') events.on('heroHurt', () => { hero.health = hero.maxHealth; hud.setHealth(1); });
