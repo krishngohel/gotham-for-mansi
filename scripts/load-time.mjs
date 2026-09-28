@@ -5,7 +5,7 @@ import { chromium } from 'playwright-core';
 const url = process.argv[2] ?? 'http://localhost:5202/';
 const mbps = Number(process.argv[3] ?? 40);
 const cpu = Number(process.argv[4] ?? 2);
-const browser = await chromium.launch({ args: ['--ignore-gpu-blocklist', '--use-angle=d3d11'] });
+const browser = await chromium.launch({ args: ['--mute-audio', '--ignore-gpu-blocklist', '--use-angle=d3d11'] });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 const cdp = await page.context().newCDPSession(page);
 await cdp.send('Network.enable');

@@ -6,7 +6,7 @@
 import { chromium } from 'playwright-core';
 
 const base = process.argv[2] ?? 'http://localhost:5206/';
-const browser = await chromium.launch({ args: ['--ignore-gpu-blocklist', '--use-angle=d3d11'] });
+const browser = await chromium.launch({ args: ['--mute-audio', '--ignore-gpu-blocklist', '--use-angle=d3d11'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 await page.goto(`${base}?at=toNeon&god=1&new=1`);
 await page.waitForFunction(() => window.__game?.side && window.__game.state.frame > 20, null, { timeout: 90000 });

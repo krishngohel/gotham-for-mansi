@@ -22,7 +22,7 @@ await server.listen();
 const port = server.config.server.port;
 const url = `http://127.0.0.1:${port}/tools/pose-viewer.html${flags.kicks ? `?kicks=${encodeURIComponent(flags.kicks)}` : ''}`;
 
-const browser = await chromium.launch({ headless: true, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const browser = await chromium.launch({ headless: true, args: ['--mute-audio', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const page = await browser.newPage({ viewport: { width: 1024, height: 640 } });
 const errors = [];
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });

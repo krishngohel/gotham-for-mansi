@@ -9,7 +9,7 @@ const spots = [
   ['ace chemicals', 'toFactory', { x: 140, y: 25.1, z: -160 }, Math.PI, 0.3],
   ['clock plaza', 'toTower', { x: -62, y: 58, z: -148 }, Math.PI, 0.1],
 ];
-const browser = await chromium.launch({ channel: process.env.CHANNEL ?? 'msedge', args: ['--ignore-gpu-blocklist', '--disable-gpu-vsync', '--disable-frame-rate-limit'] });
+const browser = await chromium.launch({ channel: process.env.CHANNEL ?? 'msedge', args: ['--mute-audio', '--ignore-gpu-blocklist', '--disable-gpu-vsync', '--disable-frame-rate-limit'] });
 for (const q of ['high', 'low']) {
   const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
   for (const [name, step, p, yaw, pitch] of spots) {
