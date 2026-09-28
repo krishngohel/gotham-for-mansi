@@ -206,8 +206,27 @@ describe('a chain played through combat', () => {
     expect(b.state).toBe('tied');
     expect(of(events, 'chainTied')[0]?.data.count).toBe(2);
     expect(of(events, 'chainDone')).toHaveLength(1);
-    // Each stagger and the tie count as hits.
-    expect(combat.combo.value).toBeGreaterThanOrEqual(4);
+    // The tie no longer refunds its cost (ruling: chains always cost something), and the tether
+    // and yank before it take over a second: longer than the 1.5 s combo window since the last
+    // stagger, so the combo times out on its own before the tie could have propped it back up.
+    // Rope-a-Dope nets a full loss, not a wash.
+    expect(combat.combo.value).toBe(0);
+  });
+
+  it('a 3-goon Rope-a-Dope nets a combo loss too: tying still refunds nothing', () => {
+    const { hero, combat, events } = harness();
+    const a = goon('a', 0, 3), b = goon('b', 1, 4), c = goon('c', -1, 5);
+    combat.setEnemies([a, b, c]);
+    hits(combat, 9);
+    combat.update(dt, ctxFor('chain1'));
+    play(hero, combat);
+    expect(a.state).toBe('tied');
+    expect(b.state).toBe('tied');
+    expect(c.state).toBe('tied');
+    expect(of(events, 'chainTied')[0]?.data.count).toBe(3);
+    // Started at 9: a net loss, same as the 2-goon case above.
+    expect(combat.combo.value).toBeLessThan(9);
+    expect(combat.combo.value).toBe(0);
   });
 
   it('Headbanger knocks both goons out', () => {

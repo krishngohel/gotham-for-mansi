@@ -752,13 +752,15 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
 
   // The hooks a chain lands its steps through (chainControl.js), so chains share this file's hit
   // bookkeeping: director slots, combo, impact events, hit-stop, critical and shockwave.
-  function chainApi(ctx, run) {
+  // `run` is optional: Plan 5FG's Bat Swarm calls this with no run of its own yet, so the run
+  // bookkeeping below just no-ops for it rather than throwing.
+  function chainApi(ctx, run = null) {
     return {
       events, time, collision: hero.collision, fx: ctx.chainFx ?? null,
       enemies: () => enemies,
       hold(e) { e.chainHold(); director.release(e.id); },
       // Only a chain that plays to its end releases its targets itself.
-      release(e) { run.over = true; e.chainRelease(); },
+      release(e) { if (run) run.over = true; e.chainRelease(); },
       stagger(e) {
         push.set(e.pos.x - hero.pos.x, 0, e.pos.z - hero.pos.z);
         if (push.lengthSq() > 1e-6) e.pos.addScaledVector(push.normalize(), 0.25);
@@ -771,7 +773,10 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
       },
       finish: finishTarget,
       tie(list) {
-        for (const e of list) { e.tie(list, CHAIN_RULES.tiedTime); director.release(e.id); combo.hit(); }
+        // No combo.hit() here: the stagger hits already paid for landing the chain, and a tie
+        // that refunded its own cost too made Rope-a-Dope net free (ruling: chains always cost
+        // something).
+        for (const e of list) { e.tie(list, CHAIN_RULES.tiedTime); director.release(e.id); }
         events.emit('chainTied', { count: list.length });
       },
       critical,
@@ -789,7 +794,8 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     const avail = chainAvailability({ combo: combo.value, origin: hero.pos, enemies, discount });
     if (!avail.affordable[k]) {
       const why = !avail.show ? 'chain-locked' : !avail.stealth && combo.value < avail.costs[k] ? 'chain-cost' : 'chain-targets';
-      events.emit('hint', { id: why });
+      // The costs behind the hint, so a future discount doesn't leave the copy hardcoded (5FG).
+      events.emit('hint', { id: why, arg: avail.costs });
       return true;
     }
     const targets = selectChainTargets(hero.pos, inputDir(ctx), enemies, { canSee, onlyUnaware: avail.stealth });
@@ -797,8 +803,10 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     if (!avail.stealth) combo.take(chainCost(chain, discount));
     const timeline = buildChainTimeline(chain.id, targets.length, BEATS);
     // Everyone else waits: wind-ups in progress are called off and nobody starts one mid-chain.
+    // A boss never shares `enemies` with goons today, but skip it on principle: its state is its
+    // own fight's, never the chain's to rewrite.
     for (const e of alive()) {
-      if (targets.includes(e)) continue;
+      if (targets.includes(e) || e.def?.boss) continue;
       if (e.state === 'windup') { director.release(e.id); e.glyph = null; e.state = 'engage'; }
       director.hold(e.id, timeline.duration + 0.6);
     }
