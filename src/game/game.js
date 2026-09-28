@@ -357,7 +357,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       parried: () => `Knife goons parry punches. ${key('kick')} kick or ${key('cape')} cape-stun them first.`,
       immune: () => `Brutes shrug off hits. ${key('cape')} cape-stun first, then punch away.`,
       'brute-counter': () => `A red bolt can't be countered. ${key('dodge')} dodge out of the way!`,
-      'special-locked': () => 'Special takedowns unlock at an 8 hit combo.',
+      // "an 8", "a 6" (Fast Finish).
+      'special-locked': () => `Special takedowns unlock at ${combat.combo.readyAt === 8 ? 'an' : 'a'} ${combat.combo.readyAt} hit combo.`,
       joker: () => `The Joker slips every punch. Hit him with a batarang ${key('batarang')} while he winds up a throw!`,
       'joker-throw': () => `A yellow bolt means he is throwing. ${key('batarang')} batarang him now!`,
       gas: () => 'Laughing gas! Get out of the green cloud.',
@@ -474,7 +475,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         hero.updateCape(dt);
         boss.update(dt);
         if (boss.speech) { const p = toScreen(boss.headWorld(new THREE.Vector3())); hud.speechPos(p.x, p.y - 20, !p.behind); }
-        if (combat.combo.value !== lastCombo) { lastCombo = combat.combo.value; hud.setCombo(lastCombo); }
+        if (combat.combo.value !== lastCombo) { lastCombo = combat.combo.value; hud.setCombo(lastCombo, combat.combo.readyAt); }
         hud.setChains(combat.chains, chainLabels);
         if (!chainPromptShown && combat.chains.affordable.some(Boolean)) { chainPromptShown = true; prompts.show(['chain']); }
         marker.visible = !!ctx.grappleTarget && !hero.control;

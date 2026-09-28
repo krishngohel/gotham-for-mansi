@@ -10,6 +10,7 @@ import { rootMotionAt } from './reach.js';
 import { CHAIN_RULES, chainForAction, chainAvailability, selectChainTargets, chainCost, tiedGroup, chainOutcome } from './chains.js';
 import { buildChainTimeline } from './chainTimeline.js';
 import { createChainControl } from './chainControl.js';
+import { BASE_EFFECTS, damageFactor } from '../progress/upgrades.js';
 
 const PUNCHES = ['Punch_Jab', 'Punch_Cross', 'Punch_Jab'];
 // Regular kicks alternate the front push kick and the roundhouse (the front kick alone at
@@ -30,8 +31,8 @@ const CHAIN = 4;
 // Clip beats the chain timelines don't carry themselves: the mocap kicks (Kick_Front, Kick_Flying).
 const BEATS = MOCAP_BEATS;
 
-export function createCombat({ hero, follow, time, events, rng, getDifficulty, reach = {}, getChainDiscount = () => 0 }) {
-  const combo = createCombo({ timeout: 1.5, ready: 8 });
+export function createCombat({ hero, follow, time, events, rng, getDifficulty, reach = {}, effects = BASE_EFFECTS, getChainDiscount = () => effects.chainDiscount, useGadget = null }) {
+  const combo = createCombo({ timeout: 1.5, ready: effects.specialAt, shield: effects.comboShield });
   let difficulty = getDifficulty();
   const director = createDirector({ ...DIFFICULTY[difficulty], rng });
   let enemies = [];
@@ -96,6 +97,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
 
   function landHit(move, target, { word: w, power = 1, stopTime = 0.06, launch = 0, crit = false } = {}) {
     if (target.state === 'tied') return breakTied(target);
+    if (target.state === 'frozen') return shatter(target);
     const result = resolveHit(move, target);
     const wasAttacking = target.applyHit(result, hero.pos, { power, launch });
     if (wasAttacking) director.release(target.id);
@@ -151,6 +153,38 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     critical(target, { slow: 0.6, scale: 0.3, variant: 'rope' });
     if (kos && engaged().length === 0) events.emit('lastHit', { target });
     return { outcome: kos ? 'ko' : 'knockdown', damage: 0, stun: 0 };
+  }
+
+  // Freeze blast: any hit on the ice knocks the goon out (enemy.applyHit does the same for hits
+  // that don't come through landHit, like the dive-bomb shockwave).
+  function shatter(target) {
+    target.applyHit({ outcome: 'ko', damage: 0, stun: 0 }, hero.pos, { power: 1.2, launch: 2 });
+    director.release(target.id);
+    combo.hit();
+    time.hitStop(0.12);
+    follow.addShake(0.16);
+    target.ch.headWorld(chest, -0.3);
+    events.emit('impact', { pos: chest.clone(), move: 'shatter', outcome: 'ko', target, crit: true });
+    events.emit('iceShatter', { target, pos: chest.clone() });
+    events.emit('word', { text: 'KRSSSH!', pos: chest.clone(), big: true });
+    events.emit('ko', { target });
+    if (engaged().length === 0) { events.emit('lastHit', { target }); critical(target, { slow: 0.9, scale: 0.22 }); }
+    return { outcome: 'ko', damage: 0, stun: 0 };
+  }
+
+  // Knocks down every goon in reach of `center` with `move` (explosive gel). Brutes shrug it off
+  // unless stunned (resolveHit), the Joker is never touched, ice shatters. Returns how many went down.
+  function areaBlast(center, radius, move, { power = 1.6, launch = 6, dy = 2.5 } = {}) {
+    let n = 0;
+    for (const e of enemies) {
+      if (!e.alive || e.def.boss) continue;
+      if (Math.hypot(e.pos.x - center.x, e.pos.z - center.z) > radius || Math.abs(e.pos.y - center.y) > dy) continue;
+      if (e.state === 'frozen') { shatter(e); n += 1; continue; }
+      if (e.down) continue;
+      const r = landHit(move, e, { power, launch });
+      if (r.outcome !== 'immune' && r.outcome !== 'parried') n += 1;
+    }
+    return n;
   }
 
   // ---- moves (hero.control objects) ----
@@ -375,27 +409,28 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     };
   }
 
-  function batarang(target, fx) {
-    let t = 0, thrown = false;
-    faceTo(target);
+  function batarang(targets, fx) {
+    let t = 0, thrown = 0;
+    faceTo(targets[0]);
     hero.bat.animator.play('OverhandThrow', { once: true, timeScale: 1.9, fade: 0.05 });
+    const end = 0.35 + (targets.length - 1) * 0.05;
     return {
       name: 'batarang', combat: true,
-      canChain: () => t > 0.25,
+      canChain: () => t > 0.25 + (targets.length - 1) * 0.05,
       update(dt) {
         t += dt;
-        if (!thrown && t > 0.14) {
-          thrown = true;
+        while (thrown < targets.length && t > 0.14 + thrown * 0.05) {
+          const target = targets[thrown++];
           hero.bat.bone('hand_r').getWorldPosition(chest);
-          events.emit('batarangThrow');
-          fx.batarang(chest.clone(), () => target.ch.headWorld(new THREE.Vector3(), -0.25), () => {
+          if (thrown === 1) events.emit('batarangThrow', { count: targets.length });
+          fx.batarang(chest.clone(), (out) => target.ch.headWorld(out, -0.25), () => {
             if (!target.alive) return;
             const r = landHit('batarang', target);
             if (target.state === 'windup' || target.state === 'attack') director.release(target.id);
             events.emit('batarangHit', { target, result: r });
           });
         }
-        return t > 0.35;
+        return t > end;
       },
     };
   }
@@ -635,7 +670,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     if (hero.dead) return;
     if (hero.invulnerable > 0) { events.emit('evaded', { e }); return; }
     const blocking = hero.blocking && kind !== 'charge';
-    const dmg = damageToHero(kind, { difficulty, blocking });
+    const dmg = Math.round(damageToHero(kind, { difficulty, blocking }) * damageFactor(kind, effects) * 100) / 100;
     hero.health = Math.max(0, hero.health - dmg);
     combo.damaged();
     punchChain = kickChain = 0;
@@ -660,6 +695,8 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
   function tryStart(action, ctx) {
     const chain = chainForAction(action);
     if (chain) return startChain(chain, ctx);
+    // The fire key uses whatever gadget is equipped (src/gadgets/gadgetSystem.js).
+    if (action === 'batarang' && useGadget) return useGadget(ctx, { inAir: hero.state === 'air' || hero.state === 'glide' });
     const inAir = hero.state === 'air' || hero.state === 'glide';
     const all = alive().filter((e) => e.state !== 'grabbed');
     const list = action === 'block' ? all : all.filter(canSee);
@@ -698,7 +735,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     if (action === 'cape' && !inAir) { hero.control = capeStun(); return true; }
     if (action === 'batarang') {
       const target = selectTarget(hero.pos, inputDir(ctx, true), list, { range: 26, maxAngle: 1.2 });
-      if (target) { hero.control = batarang(target, ctx.fx); return true; }
+      if (target) { hero.control = batarang([target], ctx.fx); return true; }
       return false;
     }
     if (action === 'dodge' && !inAir) { hero.control = dodge(ctx); return true; }
@@ -835,6 +872,10 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     // already acted on it itself, so it can't also fire a real strike/kick once that control
     // hands hero.control back.
     consumeInput(action) { inputBuffer.consume(action); },
+    // What gadgets land their hits through: the same bookkeeping as every other move.
+    gadgetApi: { landHit, areaBlast, canSee, inputDir, alive, director, critical, batarang, faceTo },
+    // Re-read the WayneTech effects after a purchase.
+    applyEffects() { combo.setReady(effects.specialAt); combo.setShield(effects.comboShield); },
     get enemies() { return enemies; },
     setEnemies(list) {
       enemies = list;
@@ -865,7 +906,8 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
       // control lets go. A press a traversal control acts on itself (the ledge takedown's own
       // punch, the glide dive-bomb's kick) is cleared via consumeInput() right where that
       // control consumes it, so it can't also fire a real move later.
-      for (const a of ACTIONS) if (ctx.input.pressed(a)) inputBuffer.press(a);
+      // Nothing is buffered while the gadget wheel is open (ctx.lockInput).
+      if (!ctx.lockInput) for (const a of ACTIONS) if (ctx.input.pressed(a)) inputBuffer.press(a);
       inputBuffer.tick(dt);
       const buffer = inputBuffer.value;
       const ctl = hero.control;
@@ -878,7 +920,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
       // jump-kick/diveBomb here) only when the dive will actually fire this frame, or while
       // one is already in progress. Below the height threshold the old air kick still runs.
       const glideKick = buffer === 'kick' && (shouldDiveBomb(hero.state, hero.heightAboveGround()) || ctl?.name === 'dive');
-      if (buffer && free && hero.state !== 'roll' && ctl?.name !== 'grapple' && !glideKick) {
+      if (!ctx.lockInput && buffer && free && hero.state !== 'roll' && ctl?.name !== 'grapple' && !glideKick) {
         if (tryStart(buffer, ctx)) inputBuffer.consume(buffer);
       }
       // Hold block to guard when nothing else is going on.
@@ -893,7 +935,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
       }
       for (const id of director.tick(dt, ready)) {
         const e = enemies.find((x) => x.id === id);
-        if (e) e.startWindup(DIFFICULTY[difficulty].windup, hero);
+        if (e) e.startWindup(DIFFICULTY[difficulty].windup + (e.def.counterable ? effects.counterWindow : 0), hero);
       }
       for (const e of enemies) if (!e.alive || (e.state !== 'windup' && e.state !== 'attack')) { if (director.active.has(e.id) && e.state !== 'attack') director.release(e.id); }
     },

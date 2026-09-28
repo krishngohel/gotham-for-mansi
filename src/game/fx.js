@@ -48,7 +48,15 @@ export function createFx(scene) {
   const batShape = new THREE.Shape(batOutline().map(([x, y]) => new THREE.Vector2(x * 0.004, y * 0.004)));
   const batGeo = new THREE.ExtrudeGeometry(batShape, { depth: 0.015, bevelEnabled: false }).rotateX(-Math.PI / 2);
   const batMat = new THREE.MeshBasicMaterial({ color: PALETTE.ink });
+  // Six batarangs, built once and reused (a Triple Batarang throws three at a time).
   const rangs = [];
+  for (let i = 0; i < 6; i++) {
+    const m = new THREE.Mesh(batGeo, batMat);
+    m.visible = false;
+    scene.add(m);
+    rangs.push({ m, getTarget: null, onHit: null, t: 0, live: false, aim: new THREE.Vector3() });
+  }
+  const to = new THREE.Vector3();
 
   return {
     impact(pos, size = 0.9) {
@@ -58,13 +66,21 @@ export function createFx(scene) {
       p.t = 0; p.life = 0.16; p.size = size;
       p.m.visible = true;
     },
-    // Throws a batarang from `from` to a moving target getter; calls onHit when it arrives.
+    // Throws a batarang from `from` at a moving target: getTarget(out) writes the aim point into
+    // `out`. Calls onHit when it arrives. With all six in the air, the oldest lands early.
     batarang(from, getTarget, onHit) {
-      const m = new THREE.Mesh(batGeo, batMat);
-      m.position.copy(from);
-      m.layers.set(0);
-      scene.add(m);
-      rangs.push({ m, getTarget, onHit, t: 0 });
+      let r = null;
+      for (const x of rangs) {
+        if (!x.live) { r = x; break; }
+        if (!r || x.t > r.t) r = x;
+      }
+      if (r.live) { r.live = false; r.onHit(); }
+      r.m.position.copy(from);
+      r.m.visible = true;
+      r.getTarget = getTarget;
+      r.onHit = onHit;
+      r.t = 0;
+      r.live = true;
     },
     update(dt) {
       for (const p of pool) {
@@ -76,17 +92,17 @@ export function createFx(scene) {
         p.m.scale.setScalar(s);
         p.m.material.opacity = 1 - Math.max(0, k - 0.6) / 0.4;
       }
-      for (let i = rangs.length - 1; i >= 0; i--) {
-        const r = rangs[i];
+      for (const r of rangs) {
+        if (!r.live) continue;
         r.t += dt;
-        const target = r.getTarget();
-        const to = target.clone().sub(r.m.position);
+        r.getTarget(r.aim);
+        to.copy(r.aim).sub(r.m.position);
         const d = to.length();
         const step = 38 * dt;
         r.m.rotation.y += dt * 30;
         if (d <= step || r.t > 1.5) {
-          scene.remove(r.m);
-          rangs.splice(i, 1);
+          r.live = false;
+          r.m.visible = false;
           if (d <= step + 0.5) r.onHit();
           continue;
         }
