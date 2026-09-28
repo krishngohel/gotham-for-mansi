@@ -10,7 +10,8 @@ import { createSideHud } from '../ui/sideHud.js';
 import { CHALLENGES, pillarPos } from './challenges.js';
 import { createChallengeRunner } from './challengeRunner.js';
 import { attachArena } from './arenaChallenge.js';
-import { CRIME_SPOTS, isCrimeId } from './crimes.js';
+import { CRIME_SPOTS, isCrimeId, crimeBlocked } from './crimes.js';
+import { createCrimeDirector } from './crimeDirector.js';
 
 export const MILESTONE_TEXT = {
   25: 'A quarter of Gotham, handled. The Joker has started to notice.',
@@ -20,7 +21,7 @@ export const MILESTONE_TEXT = {
 };
 
 export function createSideContent(deps) {
-  const { scene, hero, follow, combat, encounters, events, flow, hudRoot, prompts, progress, storage } = deps;
+  const { scene, hero, follow, combat, encounters, events, flow, hudRoot, prompts, progress, storage, assets, rng, collision } = deps;
   const save = () => saveProgress(storage, progress);
   const ui = createSideHud(hudRoot);
   const stats = createPlayStats(progress.stats);
@@ -38,6 +39,11 @@ export function createSideContent(deps) {
       && (ch.kind !== 'arena' || !encounters.id || isCrimeId(encounters.id)),
   });
   attachArena(challenges, { events, encounters, ui });
+  const crimes = createCrimeDirector({
+    scene, assets, rng, events, encounters, ui, progress, save, collision,
+    blocked: () => crimeBlocked({ mode: flow.mode, stepType: stepType(), challenge: challenges.active, fightId: encounters.id }),
+    avoid: () => flow.target,
+  });
   const MARKER_RANGE = 60;
   const tmp = new THREE.Vector3();
   let pillarHint = false;
@@ -101,16 +107,18 @@ export function createSideContent(deps) {
       districtT -= real;
       if (districtT <= 0) { districtT = 0.5; visitDistrict(); }
       challenges.update(dt); markers(view.toScreen);
+      crimes.update(dt, hero.pos, progress.districts);
       if (dirty) checkMilestones();
       saveT += real;
       if (saveT > 20) { saveT = 0; save(); }
     },
     challenges,
+    crimes,
     data: { CHALLENGES, CRIME_SPOTS, pillarPos },
     flowHooks: {
-      holdStory: () => challenges.active,
-      marker: () => (challenges.active ? challenges.nextMarker() : null),
-      onRespawn: () => challenges.takeRespawn(),
+      holdStory: () => challenges.active || crimes.holdStory(),
+      marker: () => (challenges.active ? challenges.nextMarker() : crimes.marker()),
+      onRespawn: () => { crimes.onRespawn(); return challenges.takeRespawn(); },
     },
     pauseInfo: () => ({ challenge: challenges.current?.name ?? null, crimesStopped: progress.crimes.stopped, percent: tracker.score(progress).percent }),
     photoTaken() { stats.photo(); save(); },
