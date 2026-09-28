@@ -88,8 +88,13 @@ export function createBat(assets, suit = 'm') {
   const ch = makeCharacter(assets, suit === 'f' ? 'f' : 'm');
   const { body, eyes, brows, lm } = ch;
   const colors = SUIT_COLORS[suit];
-  paintRegions(body, classifySuitVertex, colors, lm);
-  body.material = toonMaterial({ vertexColors: true, normalMap: body.material.normalMap, palette: Object.values(colors) });
+  const paint = suit !== 'gold' ? assets.suitTex?.[suit] : null;
+  if (paint) {
+    body.material = toonMaterial({ map: paint, normalMap: body.material.normalMap });
+  } else {
+    paintRegions(body, classifySuitVertex, colors, lm);
+    body.material = toonMaterial({ vertexColors: true, normalMap: body.material.normalMap, palette: Object.values(colors) });
+  }
   body.castShadow = true;
   eyes.visible = false;
   brows.visible = false;
@@ -161,19 +166,23 @@ export function createBat(assets, suit = 'm') {
   addHullOutline(buckle, 0.004);
   body.material = addRim(body.material);
 
-  const shape = new THREE.Shape(batOutline().map(([x, y]) => new THREE.Vector2(x, y)));
-  // The female body's emblem sits above the bust, on the flat of the upper chest.
-  const emblemY = lm.chestY + (suit === 'f' ? 0.085 : 0);
-  const emblemZ = suit === 'f' ? surfaceFrontZ(body, emblemY, lm.fwd) : lm.chestFrontZ;
-  const emblemGeo = new THREE.ShapeGeometry(shape).scale(suit === 'f' ? 0.0024 : 0.0033, suit === 'f' ? 0.0024 : 0.0033, 1);
-  const emblem = rigidMesh(
-    emblemGeo,
-    new THREE.MeshBasicMaterial({ color: colors.emblem, polygonOffset: true, polygonOffsetFactor: -2 }),
-    new THREE.Vector3(0, emblemY, emblemZ + 0.012 * lm.fwd),
-    new THREE.Euler(0, lm.fwd < 0 ? Math.PI : 0, 0),
-  );
-  emblem.castShadow = false;
-  attachRigid(body, 'spine_03', emblem);
+  // The painted suits carry the emblem in their texture; the gold suit (vertex regions) wears a
+  // flat emblem mesh on the chest instead.
+  if (!paint) {
+    const shape = new THREE.Shape(batOutline().map(([x, y]) => new THREE.Vector2(x, y)));
+    // The female body's emblem sits above the bust, on the flat of the upper chest.
+    const emblemY = lm.chestY + (suit === 'f' ? 0.085 : 0);
+    const emblemZ = suit === 'f' ? surfaceFrontZ(body, emblemY, lm.fwd) : lm.chestFrontZ;
+    const emblemGeo = new THREE.ShapeGeometry(shape).scale(suit === 'f' ? 0.0024 : 0.0033, suit === 'f' ? 0.0024 : 0.0033, 1);
+    const emblem = rigidMesh(
+      emblemGeo,
+      new THREE.MeshBasicMaterial({ color: colors.emblem, polygonOffset: true, polygonOffsetFactor: -2 }),
+      new THREE.Vector3(0, emblemY, emblemZ + 0.012 * lm.fwd),
+      new THREE.Euler(0, lm.fwd < 0 ? Math.PI : 0, 0),
+    );
+    emblem.castShadow = false;
+    attachRigid(body, 'spine_03', emblem);
+  }
 
   if (suit === 'f') {
     const src = [];
