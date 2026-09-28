@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveHit, damageToHero, ENEMY, DIFFICULTY, inShockwave } from '../../src/combat/rules.js';
+import { resolveHit, damageToHero, ENEMY, DIFFICULTY, inShockwave, shouldDiveBomb } from '../../src/combat/rules.js';
 import { selectTarget } from '../../src/combat/targeting.js';
 import { createCombo } from '../../src/combat/combo.js';
 import { createDirector } from '../../src/combat/director.js';
@@ -187,6 +187,17 @@ describe('inShockwave', () => {
   it('defaults to a 4 m radius', () => {
     expect(inShockwave({ x: 0, y: 0, z: 0 }, { x: 3.9, y: 0, z: 0 })).toBe(true);
     expect(inShockwave({ x: 0, y: 0, z: 0 }, { x: 4.1, y: 0, z: 0 })).toBe(false);
+  });
+});
+
+describe('shouldDiveBomb', () => {
+  it('only triggers while gliding above 6 m', () => {
+    expect(shouldDiveBomb('glide', 6.1)).toBe(true);
+    expect(shouldDiveBomb('glide', 25)).toBe(true);
+    expect(shouldDiveBomb('glide', 6)).toBe(false);
+    expect(shouldDiveBomb('glide', 5.9)).toBe(false);
+    expect(shouldDiveBomb('air', 20)).toBe(false);
+    expect(shouldDiveBomb('ground', 20)).toBe(false);
   });
 });
 

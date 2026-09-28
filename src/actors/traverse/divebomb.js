@@ -21,9 +21,10 @@ export function createDiveControl(h, { events, combat }) {
       h.vel.z += (fwd.z * 8 - h.vel.z) * Math.min(1, dt * 3);
       h.vel.y = Math.max(-42, h.vel.y - 60 * dt);
       h.bat.tilt.rotation.x = 1.2 * h.bat.lm.fwd;
-      // A direct hit on a goon caught on the way down.
+      // A direct hit on a goon caught on the way down. Bosses and grabbed goons are
+      // excluded, same as the shockwave and the rest of combat.
       for (const e of combat.enemies) {
-        if (e.alive && !e.down && !hit.has(e.id) && e.pos.distanceTo(h.pos) < 1.1) {
+        if (e.alive && !e.down && !e.def?.boss && e.state !== 'grabbed' && !hit.has(e.id) && e.pos.distanceTo(h.pos) < 1.1) {
           hit.add(e.id);
           const result = resolveHit('diveBomb', e);
           const wasAttacking = e.applyHit(result, h.pos, { power: 1.6, launch: 5 });

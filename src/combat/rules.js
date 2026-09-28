@@ -69,6 +69,12 @@ export function inShockwave(c, p, radius = 4) {
   return Math.hypot(p.x - c.x, p.z - c.z) <= radius && Math.abs(p.y - c.y) <= 2.5;
 }
 
+// Whether a glide-state kick should start the dive-bomb attack (instead of the old
+// target-seeking air kick, which still runs below this height).
+export function shouldDiveBomb(state, heightAboveGround, threshold = 6) {
+  return state === 'glide' && heightAboveGround > threshold;
+}
+
 function applyDamage(enemy, damage, knockdown) {
   enemy.health = Math.max(0, enemy.health - damage);
   if (enemy.health <= 0) return { outcome: 'ko', damage, stun: 0 };

@@ -1,6 +1,6 @@
 // Freeflow combat: turns hero input into moves against enemies and resolves enemy attacks on the hero.
 import * as THREE from 'three';
-import { resolveHit, damageToHero, DIFFICULTY, inShockwave } from './rules.js';
+import { resolveHit, damageToHero, DIFFICULTY, inShockwave, shouldDiveBomb } from './rules.js';
 import { selectTarget } from './targeting.js';
 import { createCombo } from './combo.js';
 import { createDirector } from './director.js';
@@ -615,9 +615,10 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
       if (bufferT <= 0) buffer = null;
       const ctl = hero.control;
       const free = !hero.dead && (!ctl || (ctl.combat && ctl.canChain()));
-      // A buffered kick while gliding (or mid dive-bomb) belongs to hero.js's own dive
-      // trigger, not the old target-seeking jump-kick/diveBomb here.
-      const glideKick = buffer === 'kick' && (hero.state === 'glide' || ctl?.name === 'dive');
+      // A buffered kick belongs to hero.js's own dive trigger (not the old target-seeking
+      // jump-kick/diveBomb here) only when the dive will actually fire this frame, or while
+      // one is already in progress. Below the height threshold the old air kick still runs.
+      const glideKick = buffer === 'kick' && (shouldDiveBomb(hero.state, hero.heightAboveGround()) || ctl?.name === 'dive');
       if (buffer && free && hero.state !== 'roll' && ctl?.name !== 'grapple' && !glideKick) {
         if (tryStart(buffer, ctx)) buffer = null;
       }
