@@ -4,7 +4,7 @@ import { saveSettings } from '../core/settings.js';
 import { promptText } from './prompts.js';
 import MANSI from '../mansi.config.js';
 
-const MOVING_AROUND = ['ladder', 'ledge', 'zip', 'wallrun', 'dive', 'takedown'];
+const MOVING_AROUND = ['ladder', 'ledge', 'zip', 'wallrun', 'divebomb', 'takedown'];
 
 const PAD_LAYOUT = [
   ['Move / camera', 'Left stick / right stick'], ['Jump, glide', 'A'], ['Punch', 'X'], ['Kick', 'B'], ['Block, counter', 'Y'],

@@ -1,39 +1,47 @@
 // Tutorial prompts. Every key shown is read from the live bindings.
 import { bindingLabel } from '../core/bindings.js';
 
+// [id, textFn] pairs, not an object literal: two entries sharing an id used to silently
+// overwrite one another (the divebomb hint clobbered the glide-dive tutorial this way).
+// An array makes that a checkable bug instead, via the "no duplicate ids" test in
+// tests/unit/prompts.test.js, which walks PROMPT_IDS below.
+const ENTRIES = [
+  ['move', (k, move) => `Move with <kbd>${move}</kbd>. Click the screen to aim the camera with your mouse.`],
+  ['look', (k) => `Follow the yellow beacon and the marker to your next objective. ${k('help')} shows every control.`],
+  ['glide', (k) => `Run off the edge and hold ${k('jump')} in the air to glide.`],
+  ['dive', (k) => `Gliding: hold ${k('sprint')} to dive and build speed, then hold ${k('back')} to swoop back up. Speed buys height.`],
+  ['grapple', (k) => `Look at a ledge until the blue marker appears, then press ${k('grapple')} to grapple up.`],
+  ['grappleBoost', (k) => `Tap ${k('jump')} during a grapple to launch over the ledge and keep gliding.`],
+  ['punch', (k) => `Click ${k('punch')} to punch. You leap to whichever goon you steer toward.`],
+  ['kick', (k) => `Press ${k('kick')} to kick. Kicks hit harder and reach farther. In the air it is a jump-kick.`],
+  ['counter', (k) => `A blue bolt over a goon means an attack is coming. Tap ${k('block')} to counter it.`],
+  ['block', (k) => `Hold ${k('block')} to block when a counter is too late.`],
+  ['throw', (k) => `Press ${k('throw')} next to a goon to grab and hurl them. Aim at their friends to bowl them over.`],
+  ['slam', (k) => `Jump and press ${k('punch')} in the air to slam down and knock over everyone around you.`],
+  ['finisher', () => `Keep hitting the same goon: every 4th punch is a haymaker and every 3rd kick a spinning heel kick.`],
+  ['dodge', (k) => `Press ${k('dodge')} to dodge roll. Rolling toward a goon vaults right over them.`],
+  ['knife', () => `Knife goons parry punches. Kick them or stun them with your cape first.`],
+  ['cape', (k) => `Press ${k('cape')} to swirl your cape and stun everyone in front of you.`],
+  ['batarang', (k) => `Press ${k('batarang')} to throw a batarang. It stuns goons and interrupts attacks from far away.`],
+  ['special', (k) => `Chain 8 hits and the combo turns yellow. Press ${k('special')} for a special takedown.`],
+  ['brute', (k) => `Brutes can't be countered: their bolt is red. Dodge with ${k('dodge')}, stun with ${k('cape')}, then pile on.`],
+  ['detective', (k) => `Press ${k('detective')} for detective vision. It reveals goons, your objective and hidden balloons.`],
+  ['balloons', () => `Twelve birthday balloons are hidden around Gotham. Each one holds a message.`],
+  ['ladder', (k) => `Walk into a ladder to climb it. ${k('forward')} and ${k('back')} climb, ${k('sprint')} slides down, ${k('jump')} kicks off.`],
+  ['ledge', (k) => `You grab ledges when you fall short. ${k('left')} ${k('right')} shimmy, ${k('forward')} pulls up, ${k('back')} lets go. ${k('jump')} while holding ${k('back')} backflips off.`],
+  ['zip', (k) => `Grapple to a zipline post with ${k('grapple')} or glide into the cable. ${k('jump')} lets go at full speed.`],
+  ['wallrun', (k) => `Sprint along a wall and press ${k('jump')} to run on it. ${k('jump')} again to kick off.`],
+  ['divebomb', (k) => `Gliding high? Press ${k('kick')} to dive bomb and flatten everyone where you land.`],
+  ['takedown', (k) => `Hanging under an unaware goon? ${k('punch')} pulls them over the edge. Landing on one from above works too.`],
+];
+
+export const PROMPT_IDS = ENTRIES.map(([id]) => id);
+
 export function promptText(id, bindings) {
   const k = (a) => `<kbd>${bindingLabel(bindings, a)}</kbd>`;
   const move = ['forward', 'left', 'back', 'right'].map((a) => bindingLabel(bindings, a)).join(' ');
-  const P = {
-    move: `Move with <kbd>${move}</kbd>. Click the screen to aim the camera with your mouse.`,
-    look: `Follow the yellow beacon and the marker to your next objective. ${k('help')} shows every control.`,
-    glide: `Run off the edge and hold ${k('jump')} in the air to glide.`,
-    dive: `Gliding: hold ${k('sprint')} to dive and build speed, then hold ${k('back')} to swoop back up. Speed buys height.`,
-    grapple: `Look at a ledge until the blue marker appears, then press ${k('grapple')} to grapple up.`,
-    grappleBoost: `Tap ${k('jump')} during a grapple to launch over the ledge and keep gliding.`,
-    punch: `Click ${k('punch')} to punch. You leap to whichever goon you steer toward.`,
-    kick: `Press ${k('kick')} to kick. Kicks hit harder and reach farther. In the air it is a jump-kick.`,
-    counter: `A blue bolt over a goon means an attack is coming. Tap ${k('block')} to counter it.`,
-    block: `Hold ${k('block')} to block when a counter is too late.`,
-    throw: `Press ${k('throw')} next to a goon to grab and hurl them. Aim at their friends to bowl them over.`,
-    slam: `Jump and press ${k('punch')} in the air to slam down and knock over everyone around you.`,
-    finisher: `Keep hitting the same goon: every 4th punch is a haymaker and every 3rd kick a spinning heel kick.`,
-    dodge: `Press ${k('dodge')} to dodge roll. Rolling toward a goon vaults right over them.`,
-    knife: `Knife goons parry punches. Kick them or stun them with your cape first.`,
-    cape: `Press ${k('cape')} to swirl your cape and stun everyone in front of you.`,
-    batarang: `Press ${k('batarang')} to throw a batarang. It stuns goons and interrupts attacks from far away.`,
-    special: `Chain 8 hits and the combo turns yellow. Press ${k('special')} for a special takedown.`,
-    brute: `Brutes can't be countered: their bolt is red. Dodge with ${k('dodge')}, stun with ${k('cape')}, then pile on.`,
-    detective: `Press ${k('detective')} for detective vision. It reveals goons, your objective and hidden balloons.`,
-    balloons: `Twelve birthday balloons are hidden around Gotham. Each one holds a message.`,
-    ladder: `Walk into a ladder to climb it. ${k('forward')} and ${k('back')} climb, ${k('sprint')} slides down, ${k('jump')} kicks off.`,
-    ledge: `You grab ledges when you fall short. ${k('left')} ${k('right')} shimmy, ${k('forward')} pulls up, ${k('back')} lets go. ${k('jump')} while holding ${k('back')} backflips off.`,
-    zip: `Grapple to a zipline post with ${k('grapple')} or glide into the cable. ${k('jump')} lets go at full speed.`,
-    wallrun: `Sprint along a wall and press ${k('jump')} to run on it. ${k('jump')} again to kick off.`,
-    dive: `Gliding high? Press ${k('kick')} to dive bomb and flatten everyone where you land.`,
-    takedown: `Hanging under an unaware goon? ${k('punch')} pulls them over the edge. Landing on one from above works too.`,
-  };
-  return P[id] ?? '';
+  const entry = ENTRIES.find(([eid]) => eid === id);
+  return entry ? entry[1](k, move) : '';
 }
 
 // Queues prompts so they don't talk over each other.

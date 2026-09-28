@@ -41,7 +41,9 @@ export function wireAudio({ audio, events, hero, combat, flow, voice = null, set
   on('wallKick', () => audio.play('whoosh'));
   on('diveStart', () => audio.play('glideStart'));
   on('diveImpact', () => audio.play('land', { gain: 1.4 }));
-  on('takedown', () => { audio.play('heavy', { gain: 1.1, pitch: 0.8 }); audio.play('takedown', { gain: 0.6 }); });
+  // No separate 'takedown' wiring: combat.takedown() (combatSystem.js) already calls critical(),
+  // which emits 'critical', already handled above (heavy + takedown stinger). Wiring 'takedown'
+  // too would double-play that pair on every hanging/drop takedown.
   on('impact', ({ move, outcome }) => {
     if (outcome === 'parried' || outcome === 'immune') { audio.play('block', { pitch: outcome === 'immune' ? 0.7 : 1.1 }); return; }
     if (outcome === 'stun') { audio.play('batarangHit', { gain: 0.5, pitch: 0.8 }); return; }
