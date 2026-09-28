@@ -41,7 +41,7 @@ import { createBoss } from './boss.js';
 import { createFinale } from './finale.js';
 import { createWarmCast } from './warmCast.js';
 import { drawEverything, uploadTextures, readyObjects } from '../render/prewarm.js';
-import { createDynamicRes } from '../render/dynamicRes.js';
+import { createDynamicRes, sanitizeResScale } from '../render/dynamicRes.js';
 import { gpuRenderer, gpuShortName, maybeShowGpuHint } from '../ui/gpuInfo.js';
 
 async function loadFonts() {
@@ -57,7 +57,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   const settings = loadSettings(storage);
   const quality = getQuality(params.get('q') ?? settings.quality);
   const renderer = createRenderer(canvas, quality);
-  const ink = createInkPipeline(renderer, quality);
+  const ink = createInkPipeline(renderer, quality, { gpuTime: params.get('gputime') === '1' });
   ink.setComic(quality.comic);
   ink.setPalette(paletteAt(0, 0));
   const scene = new THREE.Scene();
@@ -110,12 +110,12 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   document.body.appendChild(fpsEl);
   const gpu = gpuRenderer(renderer.getContext());
   const gpuName = gpuShortName(gpu);
-  maybeShowGpuHint(document.body, gpu, storage);
+  let gpuHintBox = maybeShowGpuHint(document.body, gpu, storage);
   // Dynamic resolution rides on top of the Render scale setting (?dynres=0 turns it off, for
   // benchmarks run with vsync off, where there is no refresh budget to aim for).
   const dynRes = createDynamicRes({ min: 0.6, onChange: () => applyResolution() });
   function applyResolution() {
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.pixelRatioCap) * settings.renderScale * dynRes.scale);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.pixelRatioCap) * sanitizeResScale(settings.renderScale, dynRes.scale));
     resize();
   }
 
@@ -128,7 +128,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     ink.uniforms.uHalftoneAmount.value = settings.halftone;
     ink.setComic({ ...quality.comic, wobble: settings.lineWobble ? quality.comic.wobble : 0 });
     dynRes.setEnabled(settings.dynamicRes && params.get('dynres') !== '0');
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.pixelRatioCap) * settings.renderScale * dynRes.scale);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.pixelRatioCap) * sanitizeResScale(settings.renderScale, dynRes.scale));
     fpsEl.style.display = settings.showFps ? '' : 'none';
     game?.follow.configure(settings);
     if (game) {
@@ -170,6 +170,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   function begin(suit, fresh) {
     menus.hide();
     audio.unlock();
+    // Don't let the integrated-GPU hint sit over the boss bar once a run is under way.
+    if (gpuHintBox) { gpuHintBox.remove(); gpuHintBox = null; }
     if (fresh) progress = { ...sanitizeProgress(DEFAULT_PROGRESS), balloons: progress.balloons, goldUnlocked: progress.goldUnlocked };
     progress.suit = suit;
     saveProgress(storage, progress);
@@ -418,6 +420,10 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
           else hud.glyph(e.id, 0, 0, false);
         }
         hud.pruneGlyphs(glyphIds);
+      } else {
+        // Play stopped (paused, a cutscene, the finale) mid-effect: without this, speed lines or
+        // the action panel border can freeze on screen instead of easing out.
+        comicFx?.update(real, { speed: 0, actionActive: false });
       }
       detective += ((state.detectiveOn && playing ? 1 : 0) - detective) * Math.min(1, real * 6);
       ink.uniforms.uDetective.value = detective;

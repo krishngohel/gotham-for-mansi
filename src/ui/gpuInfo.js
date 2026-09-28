@@ -23,16 +23,34 @@ export function looksIntegrated(raw) {
   return /Intel|AMD Radeon\(TM\) Graphics|Radeon\(TM\) Graphics|Radeon Graphics|Microsoft Basic Render|SwiftShader|llvmpipe/i.test(raw);
 }
 
-// Shows the hint once; dismissing it keeps it away for good (per browser).
-export function maybeShowGpuHint(root, raw, storage) {
+// Windows-only advice was wrong (and useless) on a Mac; word it per platform instead.
+function detectPlatform(nav = (typeof navigator !== 'undefined' ? navigator : null)) {
+  const ua = `${nav?.userAgent ?? ''} ${nav?.platform ?? ''}`;
+  if (/Mac|iPhone|iPad|iPod/i.test(ua)) return 'mac';
+  if (/Win/i.test(ua)) return 'windows';
+  return 'other';
+}
+
+function gpuHintAdvice(platform) {
+  if (platform === 'windows') {
+    return 'open Windows Settings > System > Display > Graphics, pick your browser, set it to High performance, then restart the browser.';
+  }
+  if (platform === 'mac') {
+    return 'plug in power or disable Low Power Mode, since macOS favors the integrated GPU on battery.';
+  }
+  return "check your browser's settings for a high-performance GPU option.";
+}
+
+// Shows the hint once; dismissing it keeps it away for good (per browser). Also removed by the
+// caller once a run begins, so it never sits over the boss bar.
+export function maybeShowGpuHint(root, raw, storage, platform = detectPlatform()) {
   if (!looksIntegrated(raw)) return null;
   try { if (storage?.getItem(HINT_KEY)) return null; } catch { /* storage blocked: show it */ }
   const box = document.createElement('div');
   box.className = 'gpu-hint';
   const text = document.createElement('p');
   text.textContent = `This browser is drawing with ${gpuShortName(raw)}, which looks like integrated graphics. `
-    + 'For smooth play, open Windows Settings > System > Display > Graphics, pick your browser, '
-    + 'set it to High performance, then restart the browser.';
+    + `For smooth play, ${gpuHintAdvice(platform)}`;
   const ok = document.createElement('button');
   ok.textContent = 'Got it';
   ok.addEventListener('click', () => {

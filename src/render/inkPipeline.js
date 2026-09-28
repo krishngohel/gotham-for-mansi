@@ -179,7 +179,7 @@ function normalPassSort(a, b) {
     || (variantOf(a.object) - variantOf(b.object)) || (a.z - b.z) || (a.id - b.id);
 }
 
-export function createInkPipeline(renderer, quality) {
+export function createInkPipeline(renderer, quality, { gpuTime = false } = {}) {
   // Half-float targets need EXT_color_buffer_float; fall back to 8-bit where it's missing.
   const floatOK = renderer.extensions.has('EXT_color_buffer_float') || renderer.extensions.has('EXT_color_buffer_half_float');
   const type = floatOK ? THREE.HalfFloatType : THREE.UnsignedByteType;
@@ -228,9 +228,12 @@ export function createInkPipeline(renderer, quality) {
   }
 
   // GPU time of each frame's passes (EXT_disjoint_timer_query_webgl2, where the browser has it),
-  // read a frame or two late without stalling. Feeds the dynamic resolution scaler.
+  // read a frame or two late without stalling. Diagnostic only: dynamic resolution scales off
+  // missed-frame counts, not this (see render/dynamicRes.js); perf-ablate.mjs and dynres-check.mjs
+  // read ink.gpuMs directly. The query itself has a small but real per-frame cost, so it is only
+  // created when the URL has ?gputime=1.
   const gl = renderer.getContext();
-  const timer = gl.getExtension?.('EXT_disjoint_timer_query_webgl2') ?? null;
+  const timer = gpuTime ? (gl.getExtension?.('EXT_disjoint_timer_query_webgl2') ?? null) : null;
   const pending = [];
   let gpuMs = null;
   function pollTimer() {

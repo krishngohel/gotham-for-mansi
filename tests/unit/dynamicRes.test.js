@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createDynamicRes, snapRefresh } from '../../src/render/dynamicRes.js';
+import { createDynamicRes, snapRefresh, sanitizeResScale } from '../../src/render/dynamicRes.js';
 
 // Feeds `seconds` of frames spaced `dt` ms apart, with a work estimate per frame.
 const run = (d, seconds, dt, busy = null) => { for (let t = 0; t < seconds * 1000; t += dt) d.update(dt, typeof busy === 'function' ? busy(t) : busy); };
@@ -83,5 +83,22 @@ describe('dynamic resolution', () => {
     run(d, 5, hz144 * 2, 12);
     d.setEnabled(false);
     expect(d.scale).toBe(1);
+  });
+});
+
+describe('sanitizeResScale', () => {
+  it('floors the product of Render scale and dynamic resolution, not each factor alone', () => {
+    // 0.5 render scale * 0.6 dynres min = 0.3, which is below the floor.
+    expect(sanitizeResScale(0.5, 0.6)).toBe(0.5);
+    expect(sanitizeResScale(0.5, 0.5)).toBe(0.5);
+  });
+  it('leaves the product alone once it clears the floor', () => {
+    expect(sanitizeResScale(1, 0.8)).toBeCloseTo(0.8);
+    expect(sanitizeResScale(0.8, 0.8)).toBeCloseTo(0.64);
+    expect(sanitizeResScale(1, 1)).toBe(1);
+  });
+  it('accepts a custom floor', () => {
+    expect(sanitizeResScale(0.5, 0.5, 0.3)).toBeCloseTo(0.3);
+    expect(sanitizeResScale(0.6, 0.6, 0.3)).toBeCloseTo(0.36);
   });
 });

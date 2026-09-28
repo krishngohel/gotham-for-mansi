@@ -23,6 +23,14 @@ export function snapRefresh(hz) {
   return best;
 }
 
+// The Render scale setting and dynamic resolution's own scale both shrink the same pixel ratio,
+// so they multiply together. Each has its own floor (Render scale stops at 0.5, dynamic
+// resolution's `min` defaults to 0.6), but the *product* can still fall well under either one on
+// a weak GPU (0.5 * 0.6 = 0.3): floor the combined scale instead of trusting the factors alone.
+export function sanitizeResScale(renderScale, dynResScale, floor = 0.5) {
+  return Math.max(floor, renderScale * dynResScale);
+}
+
 export function createDynamicRes({ min = 0.6, max = 1, step = 0.05, onChange = () => {} } = {}) {
   let enabled = true;
   let scale = max;
