@@ -76,6 +76,8 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
     h.crouched = v;
     events.emit(v ? 'crouchOn' : 'crouchOff');
   }
+  // A perch drop in a predator room lands Batman in a crouch (src/stealth/takedowns.js).
+  h.setCrouch = setCrouch;
 
   function faceTowards(dx, dz, rate, dt) {
     const target = Math.atan2(dx, dz);

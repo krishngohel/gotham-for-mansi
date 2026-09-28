@@ -1,7 +1,8 @@
 // The two stealth takedowns, as hero controls (like the traversal controls in src/actors/traverse/).
 // - silent: Batman steps in behind a goon that hasn't noticed him and chokes it out over 2 s.
 //   Goons within 3 m hear it (STEALTH.noise.takedown). If he is hit first he lets go, and the goon wakes up hostile.
-// - perchDrop: from a gargoyle, Batman leaps down onto a goon and knocks it out.
+// - perchDrop: from a gargoyle, Batman leaps down onto a goon and knocks it out. In a predator room
+//   he lands in a crouch, and the room judges the drop once, where it lands (stealthSystem witness).
 // Both hold the goon with 4E's chainHold (no AI, no physics) until it is taken down.
 import * as THREE from 'three';
 import { STEALTH } from './vision.js';
@@ -122,8 +123,10 @@ export function createPerchDrop(h, api, { target, rules = STEALTH }) {
   h.bat.face(Math.atan2(target.pos.x - from.x, target.pos.z - from.z));
   h.bat.animator.play('NinjaJump_Start', { once: true, fade: 0.05 });
   api.events.emit('perchDropStart', { target });
-  return {
+  const ctl = {
     name: 'perchDrop', camera: 'drop', combat: true, target,
+    // In a predator room he lands in a crouch (set on the hit), like a silent takedown keeps his.
+    keepCrouch: false,
     canChain: () => hit && t > dur + 0.2,
     update(dt) {
       t += dt;
@@ -141,6 +144,10 @@ export function createPerchDrop(h, api, { target, rules = STEALTH }) {
           h.grounded = true;
           h.setState('ground');
           h.bat.animator.play('NinjaJump_Land', { once: true, fade: 0.05 });
+          if (api.quiet?.()) {
+            ctl.keepCrouch = true;
+            if (h.setCrouch) h.setCrouch(true); else h.crouched = true;
+          }
           api.noise(target.pos, rules.noise.perch, 'perch');
           api.events.emit('word', { text: 'KRUNCH!', pos: head, big: true });
           api.events.emit('perchDrop', { target });
@@ -150,4 +157,5 @@ export function createPerchDrop(h, api, { target, rules = STEALTH }) {
     },
     knockOff() { if (!hit) { hit = true; target.chainRelease(); } },
   };
+  return ctl;
 }

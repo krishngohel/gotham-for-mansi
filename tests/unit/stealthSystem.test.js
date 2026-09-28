@@ -321,6 +321,55 @@ describe('a predator room at run time', () => {
     expect(u.stealth.start('kick')).toBe(true);
     expect(u.hero.control.name).toBe('perchDrop');
   });
+  // A perch drop while the squad is searching (Task 18): judged once, where it lands.
+  function dropWhileSearching({ watcher }) {
+    const t = setup({ perches: [{ x: 0, y: 6, z: 2, perch: true }], hero: [0, 6, 2] });
+    // Goon 1 searches 6 m south of the landing: watching it (facing north) or facing away.
+    t.goons[1].pos.set(0, 0, 6.6);
+    t.goons[1].yaw = watcher ? Math.PI : 0;
+    t.goons[2].pos.set(-30, 0, 0);
+    for (const i of [1, 2]) Object.assign(t.mind(i), { alert: 'search', meter: 0.75, searchLeft: 20 });
+    t.step(0.1);
+    expect(t.stealth.prompt).toBe('perch');
+    expect(t.stealth.start('kick')).toBe(true);
+    const frame = () => { const done = t.hero.control.update(0.05); t.stealth.update(0.05); if (done) t.hero.control = null; };
+    return { t, frame };
+  }
+  it('a perch drop seen by a searching goon (in its cone, in range, in sight) raises the alarm as it lands', () => {
+    const { t, frame } = dropWhileSearching({ watcher: true });
+    while (!t.goons[0].state.startsWith('ko')) frame();
+    expect(t.hero.crouched).toBe(true);
+    expect(names(t.seen, 'stealthAlarm')).toHaveLength(1);
+    expect(t.mind(1).alert).toBe('engage');
+  });
+  it('a perch drop nobody sees does not raise the alarm: hearers only look, and nobody spots him mid-landing', () => {
+    const { t, frame } = dropWhileSearching({ watcher: false });
+    while (!t.goons[0].state.startsWith('ko')) frame();
+    expect(t.hero.crouched).toBe(true);
+    expect(t.hero.control.keepCrouch).toBe(true);
+    // The goon heard it (8 m) and goes to look where the drop happened.
+    t.stealth.update(0.05);
+    expect(t.mind(1).alert).toBe('search');
+    expect(t.mind(1).target.z).toBeCloseTo(t.goons[0].pos.z, 1);
+    // It turns round while he is still landing: no meter from that.
+    t.goons[1].yaw = Math.PI;
+    const before = t.mind(1).meter;
+    while (t.hero.control) frame();
+    expect(t.mind(1).meter).toBeLessThanOrEqual(before);
+    expect(names(t.seen, 'stealthAlarm')).toHaveLength(0);
+    // Once he can move again, the normal rules apply: standing there in its view, he is found.
+    t.step(1);
+    expect(names(t.seen, 'stealthAlarm')).toHaveLength(1);
+  });
+  it('outside a predator room a perch drop does not land in a crouch', () => {
+    const t = setup({ perches: [{ x: 0, y: 6, z: 2, perch: true }], hero: [0, 6, 2] });
+    t.stealth.end();
+    t.step(0.1);
+    expect(t.stealth.start('kick')).toBe(true);
+    while (t.goons[0].alive) t.hero.control.update(0.05);
+    expect(t.hero.crouched).toBe(false);
+    expect(t.hero.control.keepCrouch).toBe(false);
+  });
   it('registers the stealth moves so a finished old save keeps 100% and an early one counts 10', () => {
     const at = (id) => STEPS.findIndex((x) => x.id === id);
     expect(moveList()).toEqual([...BASE_MOVES, 'silentTakedown', 'perchDrop']);

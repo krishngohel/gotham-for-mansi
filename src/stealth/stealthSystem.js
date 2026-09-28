@@ -5,7 +5,7 @@
 // hero.perched up to date. Allocation-free per frame: every goon record, sense and goal is built
 // in begin(), and line-of-sight rays run at 10 Hz per goon.
 import { STEALTH, spotCheck, sightRange, inShadow, inRect, canLook, hears, perchedOn, pickSilentTarget, pickPerchDrop, smokeBlocks } from './vision.js';
-import { HOSTILE, createSquad, createMind, thinkGoon, thinkSquad, alarmAll, smokeReset, struck, noteTakedown, fearSpeed, huddles, pickLine } from './brain.js';
+import { HOSTILE, createSquad, createMind, thinkGoon, thinkSquad, alarmAll, goHostile, smokeReset, struck, noteTakedown, fearSpeed, huddles, pickLine } from './brain.js';
 import { createPatrol, stepPatrol, huddleSpot, pickSpot } from './patrol.js';
 import { ROOMS, roomSquad, roomSpots } from './stealthRooms.js';
 import { createSilentTakedown, createPerchDrop } from './takedowns.js';
@@ -36,7 +36,7 @@ export function createStealth({ hero, combat, events, collision, perches = [], r
   // goon walks off at 1.6 m/s, so a press just after it goes still counts with a little more reach.
   let silentAgo = Infinity;
   const graceRules = { ...rules, silentReach: rules.silentReach * (rules.silentGraceReach ?? 1) };
-  const api = { events, noise, takedown: (e, kind, opts) => combat.takedown(e, kind, opts) };
+  const api = { events, noise, takedown: (e, kind, opts) => combat.takedown(e, kind, opts), quiet: () => !!room };
 
   function hearAt(g, at) {
     g.noiseAt.x = at.x; g.noiseAt.y = at.y; g.noiseAt.z = at.z;
@@ -101,6 +101,26 @@ export function createStealth({ hero, combat, events, collision, perches = [], r
     if (n) events.emit('stealthNoise', { pos, radius, kind, count: n });
     return n;
   }
+
+  // A perch drop is judged once, where it lands. A goon that isn't hostile and has the landing in
+  // its cone, in range and in sight (Batman crouched, as he lands) saw it happen: it shouts. The
+  // others only heard it (the drop's noise sends them to look). Until Batman can move again, no
+  // goon that isn't hostile builds its meter from seeing him: the landing was the moment to spot.
+  function witness(target) {
+    if (!room) return;
+    view.crouched = !!hero.crouched;
+    view.perched = false;
+    view.flying = false;
+    view.hidden = !!room.vent && view.crouched && inRect(hero.pos, room.vent);
+    for (const g of goons) {
+      if (g.e === target || !g.e.alive || !canLook(g.e) || HOSTILE.has(g.mind.alert)) continue;
+      if (look(g) < 0) continue;
+      goHostile(g.mind, squad, hero.pos);
+      shout(g);
+      return;
+    }
+  }
+  const dropJudged = () => hero.control?.name === 'perchDrop';
 
   // How far away this goon sees Batman right now, or -1: the pure checks, then one ray.
   function look(g) {
@@ -248,10 +268,11 @@ export function createStealth({ hero, combat, events, collision, perches = [], r
       for (const g of goons) if (g.e.alive) g.slot = k++;
       lastAlive = alive;
     }
+    const judging = dropJudged();
     for (const g of goons) {
       const e = g.e;
       if (!e.alive || !canLook(e)) continue;
-      sense.seesAt = g.seesAt;
+      sense.seesAt = judging && !HOSTILE.has(g.mind.alert) ? -1 : g.seesAt;
       sense.range = g.range;
       sense.noise = g.noise;
       g.noise = null;
@@ -301,6 +322,7 @@ export function createStealth({ hero, combat, events, collision, perches = [], r
   events.on('footstep', (d) => { if (room) noise(hero.pos, d?.sprint ? rules.noise.sprint : rules.noise.step, 'step'); });
   events.on('land', (d) => { if (room && d?.hard && d.who === 'hero') noise(hero.pos, rules.noise.land, 'land'); });
   events.on('batarangWall', (d) => { if (room) noise(d.pos, rules.noise.batarang, 'batarang'); });
+  events.on('perchDrop', (d) => witness(d?.target));
   events.on('smoke', (d) => {
     if (!room) return;
     cloud.x = d.pos.x; cloud.y = d.pos.y; cloud.z = d.pos.z;
