@@ -120,15 +120,16 @@ export function createFlow(d) {
     }, 1500);
   });
 
-  function respawn() {
+  function respawn({ manual = false } = {}) {
     hero.dead = false;
     hero.health = hero.maxHealth;
     hud.setHealth(1);
     hud.clearGlyphs();
     const finished = objectives.done || STEPS[objectives.index]?.type === 'credits';
     // Side content first: it clears a crime fight or a challenge and may want the hero back at a
-    // challenge marker instead of the story checkpoint.
-    const over = side.onRespawn();
+    // challenge marker instead of the story checkpoint. `manual` distinguishes a pause-menu
+    // "Restart from checkpoint" (the hero was never actually knocked down) from a real death.
+    const over = side.onRespawn({ manual });
     const p = over ?? (finished ? { ...SITES.start } : respawnPoint());
     // Face the objective, not whatever wall we happened to be looking at.
     const aim = over || finished ? null : target;

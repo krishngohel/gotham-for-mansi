@@ -201,7 +201,10 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0 6px; margin: 0 2px; bo
 }
 
 /* ---- side content (Plan 3C) ---- */
-.ch-panel { position: absolute; left: 28px; top: 24px; min-width: 220px; padding: 8px 14px 10px; background: var(--paper); color: var(--ink); border: 3px solid var(--ink); box-shadow: 5px 5px 0 var(--ink); transform: rotate(-1deg); display: none; }
+/* top: 130px keeps this clear of .hud-combo (left: 34px, top: 22px, ~100px tall at full digits),
+   which sits right above it in the arena where the combo matters most. .radio and .side-toast
+   are pushed down to match so the whole left column still stacks without overlap. */
+.ch-panel { position: absolute; left: 28px; top: 130px; min-width: 220px; padding: 8px 14px 10px; background: var(--paper); color: var(--ink); border: 3px solid var(--ink); box-shadow: 5px 5px 0 var(--ink); transform: rotate(-1deg); display: none; }
 .ch-panel.show { display: block; }
 .ch-name { font: 22px 'Bangers', cursive; letter-spacing: 1px; color: var(--balloon); -webkit-text-stroke: 1px var(--ink); }
 .ch-time { font: 700 34px/1 'Barlow Condensed', sans-serif; }
@@ -218,8 +221,8 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0 6px; margin: 0 2px; bo
 .ch-hint { position: absolute; left: 50%; bottom: 150px; transform: translateX(-50%) rotate(-1deg); padding: 8px 16px; background: var(--signal); color: var(--ink); border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); font: 22px 'Patrick Hand SC', cursive; opacity: 0; transition: opacity 0.3s; }
 .ch-hint.show { opacity: 1; }
 .radio, .side-toast { position: absolute; left: 28px; max-width: 360px; padding: 8px 14px 10px; color: var(--ink); border: 3px solid var(--ink); box-shadow: 5px 5px 0 var(--ink); transform: translateX(-16px) rotate(-1.5deg); opacity: 0; transition: opacity 0.3s, transform 0.3s; }
-.radio { top: 150px; background: var(--signal); }
-.side-toast { top: 250px; background: #fffdf5; }
+.radio { top: 256px; background: var(--signal); }
+.side-toast { top: 356px; background: #fffdf5; }
 .radio.show, .side-toast.show { opacity: 1; transform: translateX(0) rotate(-1.5deg); }
 .radio-title, .toast-title { font: 20px 'Bangers', cursive; letter-spacing: 1.5px; color: var(--balloon); -webkit-text-stroke: 1px var(--ink); }
 .radio-text, .toast-text { font: 21px/1.2 'Patrick Hand SC', cursive; }

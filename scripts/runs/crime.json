@@ -1,0 +1,16 @@
+[
+  { "wait": 1200 },
+  { "eval": "window.__game.side.crimes.force({ kind: 'van', spotId: 'neonNorth' })" },
+  { "wait": 800 },
+  { "eval": "document.querySelector('.radio.show .radio-text')?.textContent" },
+  { "shot": "crime-radio" },
+  { "eval": "window.__game.teleport({ x: 150, y: 0, z: -6 })" },
+  { "wait": 1500 },
+  { "shot": "crime-squad" },
+  { "press": "KeyE" }, { "wait": 400 }, { "click": 0 }, { "wait": 400 }, { "press": "KeyE" }, { "wait": 400 }, { "click": 0 }, { "wait": 400 },
+  { "eval": "(async () => { const g = window.__game; for (let i = 0; i < 30 && g.side.crimes.active; i++) { g.winFight(); await new Promise((r) => setTimeout(r, 600)); } return g.progress.crimes.stopped; })()" },
+  { "wait": 800 },
+  { "shot": "crime-stopped" },
+  { "press": "Escape" }, { "wait": 300 },
+  { "eval": "document.querySelector('.pause-menu .note')?.textContent" }
+]

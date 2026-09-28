@@ -48,7 +48,7 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
   const ladderOpts = { reach: 0.7, facingX: undefined, facingZ: undefined }; // reused options for ladderGrab
 
   const h = {
-    bat, cape, pos, vel, collision, dead: false,
+    bat, cape, cable, pos, vel, collision, dead: false,
     state: 'ground', stateT: 0, grounded: true, airT: 0, coyote: 0, jumpBuffer: 0,
     health: 100, maxHealth: 100,
     glide: { speed: 0, heading: 0 },

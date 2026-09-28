@@ -9,7 +9,7 @@
 //
 // Usage: node scripts/fps-sweep.mjs [baseUrl] [high|low]
 // Env:   OUT=<file.json> writes the raw result; SHOTS=<dir> saves a screenshot at each spot;
-//        ONLY=main|fight|boss|gadgets runs one page only; EXTRA=<query> replaces the default extra URL params (dynres=0).
+//        ONLY=main|fight|boss|side|gadgets runs one page only; EXTRA=<query> replaces the default extra URL params (dynres=0).
 import { chromium } from 'playwright-core';
 import { writeFileSync, mkdirSync } from 'node:fs';
 
@@ -141,6 +141,44 @@ if (!only || only === 'boss') {
   meta.errorsBoss = errors;
   await p.close();
 }
+if (!only || only === 'side') {
+  const { p, errors } = await openGame('at=toNeon&god=1&new=1');
+  await p.waitForTimeout(1500);
+  await skipComic(p);
+  await label(p, 'warmup');
+  await p.waitForTimeout(5000);
+  // A glide challenge with its hoops up.
+  await label(p, 'challenge');
+  await p.evaluate(() => window.__game.side.challenges.start('neonSlalom'));
+  await p.waitForTimeout(2600);
+  await p.keyboard.down('KeyW');
+  await p.waitForTimeout(350);
+  await p.keyboard.down('Space');
+  await p.waitForTimeout(6000);
+  if (shots) { await label(p, 'shot'); await p.screenshot({ path: `${shots}/side-challenge.png` }); await label(p, 'challenge'); }
+  await p.keyboard.up('Space');
+  await p.keyboard.up('KeyW');
+  await p.evaluate(() => window.__game.side.challenges.quit());
+  // A street crime: the squad arrives, the civilian cowers, the fight.
+  await label(p, 'arrive:crime');
+  await p.evaluate(() => window.__game.side.crimes.force({ kind: 'mugging', spotId: 'neonNorth' }));
+  await p.waitForTimeout(500);
+  await p.evaluate(() => { const g = window.__game; g.hero.teleport({ x: 150, y: 0, z: -8 }, Math.PI); g.follow.snapBehind(Math.PI); });
+  await p.waitForTimeout(1500);
+  await label(p, 'crime');
+  for (let i = 0; i < 12; i++) { await p.keyboard.press(i % 3 ? 'KeyE' : 'KeyW'); await p.waitForTimeout(400); }
+  // Photo mode: every filter and frame.
+  await label(p, 'photo');
+  await p.evaluate(() => window.__game.photo.open());
+  for (let i = 0; i < 4; i++) { await p.keyboard.press('Digit1'); await p.waitForTimeout(700); }
+  for (let i = 0; i < 3; i++) { await p.keyboard.press('Digit2'); await p.waitForTimeout(700); }
+  if (shots) { await label(p, 'shot'); await p.screenshot({ path: `${shots}/side-photo.png` }); await label(p, 'photo'); }
+  await p.evaluate(() => window.__game.photo.close());
+  all.push(...await collect(p, 'side'));
+  meta.errorsSide = errors;
+  await p.close();
+}
+
 if (!only || only === 'gadgets') {
   const { p, errors } = await openGame('fight=test&god=1&gadgets=all');
   await p.waitForTimeout(1500);

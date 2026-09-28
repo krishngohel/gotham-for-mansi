@@ -82,6 +82,28 @@ describe('side content progress fields', () => {
     expect(p.unlocks).toEqual(['goldStandard']);
     expect(p.stats.kos).toBe(40);
   });
+  it('loads a legacy save (no side content fields at all) and fills safe defaults', () => {
+    const st = memoryStorage();
+    // Shaped like a save written before Plan 3C: none of challenges, stats, crimes, moves,
+    // districts, milestone or unlocks exist yet.
+    const legacy = { step: 17, balloons: [0, 3, 6], suit: 'gold', goldUnlocked: true, finished: false, seenIntro: true };
+    saveProgress(st, legacy);
+    const p = loadProgress(st);
+    expect(p.step).toBe(17);
+    expect(p.balloons).toEqual([0, 3, 6]);
+    expect(p.suit).toBe('gold');
+    expect(p.goldUnlocked).toBe(true);
+    expect(p.finished).toBe(false);
+    expect(p.seenIntro).toBe(true);
+    expect(p.challenges).toEqual({});
+    expect(p.stats).toEqual(DEFAULT_PROGRESS.stats);
+    expect(p.crimes).toEqual({ stopped: 0 });
+    expect(p.moves).toEqual([]);
+    expect(p.districts).toEqual([]);
+    expect(p.milestone).toBe(0);
+    expect(p.unlocks).toEqual([]);
+    expect(p).toEqual({ ...DEFAULT_PROGRESS, ...legacy });
+  });
   it('lets later parts register their own saved fields', () => {
     const undo = registerProgressField('crates', { sanitize: (raw) => (Array.isArray(raw) ? raw.filter(Number.isInteger) : []) });
     expect(sanitizeProgress({ crates: [1, 'x', 3] }).crates).toEqual([1, 3]);
