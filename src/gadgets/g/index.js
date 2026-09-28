@@ -5,6 +5,7 @@ import { createGelHandler } from './gel.js';
 import { createSmokeHandler } from './smoke.js';
 import { createLauncherHandler } from './launcher.js';
 import { createClawHandler } from './claw.js';
+import { createFreezeHandler } from './freeze.js';
 
 export const HANDLER_FACTORIES = {
   batarang: createBatarangHandler,
@@ -13,4 +14,5 @@ export const HANDLER_FACTORIES = {
   smoke: createSmokeHandler,
   launcher: createLauncherHandler,
   claw: createClawHandler,
+  freeze: createFreezeHandler,
 };
