@@ -4,6 +4,7 @@ import { resolveHit, damageToHero, DIFFICULTY, inShockwave, shouldDiveBomb } fro
 import { selectTarget } from './targeting.js';
 import { createCombo } from './combo.js';
 import { createDirector } from './director.js';
+import { createInputBuffer } from './inputBuffer.js';
 
 const PUNCHES = ['Punch_Jab', 'Punch_Cross', 'Punch_Jab'];
 const KICKS = ['Kick_Front', 'Kick_Round'];
@@ -19,8 +20,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
   let difficulty = getDifficulty();
   const director = createDirector({ ...DIFFICULTY[difficulty], rng });
   let enemies = [];
-  let buffer = null;
-  let bufferT = 0;
+  const inputBuffer = createInputBuffer(0.3);
   let punchChain = 0, kickChain = 0, chainT = 0;
   const tmp = new THREE.Vector3(), dir = new THREE.Vector3(), chest = new THREE.Vector3();
   const pick = (a) => a[Math.floor(rng.next() * a.length)];
@@ -607,6 +607,10 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
     director,
     shockwave,
     takedown,
+    // Clears a buffered press early when a traversal control (ledge takedown, glide dive-bomb)
+    // already acted on it itself, so it can't also fire a real strike/kick once that control
+    // hands hero.control back.
+    consumeInput(action) { inputBuffer.consume(action); },
     get enemies() { return enemies; },
     setEnemies(list) {
       enemies = list;
@@ -623,18 +627,14 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
       if (chainT <= 0) { punchChain = 0; kickChain = 0; }
       const d = getDifficulty();
       if (d !== difficulty) { difficulty = d; director.configure(DIFFICULTY[d]); }
-      // Buffer the latest press so freeflow chains feel responsive. A press that lands while
-      // a traversal control (ledge, ladder, zipline, wallrun, grapple, dive...) owns
-      // hero.control is presumed consumed by that control instead (e.g. the ledge takedown's
-      // own punch check, or the glide dive-bomb's kick check) and must not linger in the
-      // buffer to fire a real strike/airSlam once the player is back in freeflow.
-      for (const a of ACTIONS) {
-        if (!ctx.input.pressed(a)) continue;
-        if (hero.control && !hero.control.combat) continue;
-        buffer = a; bufferT = 0.3;
-      }
-      bufferT -= dt;
-      if (bufferT <= 0) buffer = null;
+      // Buffer the latest press so freeflow chains feel responsive, e.g. a block/counter tap
+      // or an attack press during a grapple, ladder, zip or wall run fires the moment that
+      // control lets go. A press a traversal control acts on itself (the ledge takedown's own
+      // punch, the glide dive-bomb's kick) is cleared via consumeInput() right where that
+      // control consumes it, so it can't also fire a real move later.
+      for (const a of ACTIONS) if (ctx.input.pressed(a)) inputBuffer.press(a);
+      inputBuffer.tick(dt);
+      const buffer = inputBuffer.value;
       const ctl = hero.control;
       const free = !hero.dead && (!ctl || (ctl.combat && ctl.canChain()));
       // A buffered kick belongs to hero.js's own dive trigger (not the old target-seeking
@@ -642,7 +642,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
       // one is already in progress. Below the height threshold the old air kick still runs.
       const glideKick = buffer === 'kick' && (shouldDiveBomb(hero.state, hero.heightAboveGround()) || ctl?.name === 'dive');
       if (buffer && free && hero.state !== 'roll' && ctl?.name !== 'grapple' && !glideKick) {
-        if (tryStart(buffer, ctx)) buffer = null;
+        if (tryStart(buffer, ctx)) inputBuffer.consume(buffer);
       }
       // Hold block to guard when nothing else is going on.
       hero.blocking = (!hero.control || hero.control.name === 'blockStagger') && hero.grounded && ctx.input.down('block') && engaged().length > 0;

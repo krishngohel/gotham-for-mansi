@@ -54,6 +54,7 @@ export function createLedgeControl(h, { collision, events }, { ledge }) {
           h.bat.animator.play('Ledge_Yank', { once: true, fade: 0.05 });
           e.launch(l.nx * 3, 2, l.nz * 3);
           h.combat.takedown(e, 'ledge');
+          h.combat.consumeInput('punch');
         }
       }
       const backHeld = input.move.y < -0.5;

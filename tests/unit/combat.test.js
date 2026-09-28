@@ -3,6 +3,7 @@ import { resolveHit, damageToHero, ENEMY, DIFFICULTY, inShockwave, shouldDiveBom
 import { selectTarget } from '../../src/combat/targeting.js';
 import { createCombo } from '../../src/combat/combo.js';
 import { createDirector } from '../../src/combat/director.js';
+import { createInputBuffer } from '../../src/combat/inputBuffer.js';
 import { createRng } from '../../src/core/rng.js';
 
 const foe = (type, extra = {}) => ({ type, health: ENEMY[type].health, stunned: false, down: false, ...extra });
@@ -151,6 +152,49 @@ describe('director', () => {
   it('skips enemies that are not ready', () => {
     const d = createDirector({ maxWindups: 2, gap: [0, 0], minSpacing: 0, rng: createRng(1) });
     expect(d.tick(0.1, [{ id: 'a', ready: false }])).toEqual([]);
+  });
+});
+
+describe('inputBuffer', () => {
+  it('holds the latest press until consumed or read', () => {
+    const b = createInputBuffer(0.3);
+    expect(b.value).toBe(null);
+    b.press('punch');
+    expect(b.value).toBe('punch');
+  });
+  it('a later press overwrites an earlier one', () => {
+    const b = createInputBuffer(0.3);
+    b.press('punch');
+    b.press('kick');
+    expect(b.value).toBe('kick');
+  });
+  it('ages out after the window with nothing consuming it', () => {
+    const b = createInputBuffer(0.3);
+    b.press('punch');
+    b.tick(0.2);
+    expect(b.value).toBe('punch');
+    b.tick(0.11);
+    expect(b.value).toBe(null);
+  });
+  it('consume clears only the matching action, leaving a different buffered action alone', () => {
+    const b = createInputBuffer(0.3);
+    b.press('kick');
+    b.consume('punch');
+    expect(b.value).toBe('kick');
+    b.consume('kick');
+    expect(b.value).toBe(null);
+  });
+  it('consuming an empty buffer is a no-op', () => {
+    const b = createInputBuffer(0.3);
+    b.consume('punch');
+    expect(b.value).toBe(null);
+  });
+  it('a press right after a consume buffers normally again', () => {
+    const b = createInputBuffer(0.3);
+    b.press('punch');
+    b.consume('punch');
+    b.press('block');
+    expect(b.value).toBe('block');
   });
 });
 

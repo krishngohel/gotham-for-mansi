@@ -225,6 +225,7 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
       bat.tilt.rotation.z += (-turn / dt * 0.12 - bat.tilt.rotation.z) * Math.min(1, dt * 4);
       if (input.pressed('kick') && shouldDiveBomb(h.state, heightAboveGround()) && h.combat) {
         h.control = createDiveControl(h, { events, combat: h.combat });
+        h.combat.consumeInput('kick');
         return;
       }
       if (!input.down('jump')) {
