@@ -27,10 +27,12 @@ export function createAnimator(root, clips) {
   };
   return {
     mixer,
-    play(name, { fade = 0.15, once = false, timeScale = 1 } = {}) {
+    // `startAt` begins the clip partway in (clip seconds), which skips a long wind-up.
+    play(name, { fade = 0.15, once = false, timeScale = 1, startAt = 0 } = {}) {
       const next = action(name);
       if (next === current && !once) { next.timeScale = timeScale; return next; }
       next.reset();
+      next.time = startAt;
       next.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, Infinity);
       next.clampWhenFinished = once;
       next.timeScale = timeScale;
