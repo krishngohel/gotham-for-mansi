@@ -141,6 +141,12 @@ describe('after the chain', () => {
     const a = goon('a', 1, 0, { aware: false }), b = goon('b', 7, 0, { aware: false }), c = goon('c', 9, 0, { aware: false }), d = goon('d', 2, 0);
     expect(chainHearers(O, [a, b, c, d], [a]).map((e) => e.id)).toEqual(['b']);
   });
+  it('chainHearers skips a tied or downed goon: waking it mid-tie/getup would fight its own state machine', () => {
+    const tied = goon('tied', 1, 0, { aware: false, down: true, state: 'tied' });
+    const downed = goon('down', 2, 0, { aware: false, down: true, state: 'down' });
+    const standing = goon('up', 3, 0, { aware: false });
+    expect(chainHearers(O, [tied, downed, standing], []).map((e) => e.id)).toEqual(['up']);
+  });
   it('tiedGroup is everyone still tied with the goon that was hit', () => {
     const a = goon('a', 0, 0, { state: 'tied', down: true }), b = goon('b', 1, 0, { state: 'tied', down: true }), c = goon('c', 2, 0, { state: 'ko', alive: false });
     a.tiedWith = [b, c]; b.tiedWith = [a, c];

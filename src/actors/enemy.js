@@ -7,9 +7,12 @@ const IDLE_POSES = ['Idle_Talking_Loop', 'Idle_TalkingPhone_Loop', 'Idle_FoldArm
 const GRUNT_ATTACKS = ['Punch_Cross', 'Punch_Jab', 'Melee_Hook'];
 // Clips a chain takedown plays straight onto a held goon's mixer (chainControl.js: the daze while
 // waiting for a turn, the head grab, the yank, and enemy.tie's knockback into the tied pose).
-// Primed here, at spawn, so the first chain of a fight doesn't build an action mid-chain; spawn
-// is already spread one goon per frame, so this is cheap.
+// Primed here, at spawn, so the first chain of a fight doesn't build an action mid-chain.
+// createEnemy (and so this prime) runs once per spawn, for the whole wave in the same frame; only
+// scene.add is spread one goon per frame (game.js's reveal step).
 export const CHAIN_HOLD_CLIPS = ['Idle_Shield_Break', 'Hit_Head', 'Hit_Chest', 'Hit_Knockback'];
+// States wake() lets finish on their own instead of jumping straight to 'alert' (see e.wake below).
+const WAKE_HOLD_STATES = ['tied', 'down', 'getup', 'chained', 'grabbed'];
 
 export function createEnemy({ id, type, assets, scene, collision, rng }) {
   const ch = createGoon(assets, { type, rng });
@@ -51,6 +54,9 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
   e.wake = () => {
     if (e.aware || !e.alive) return;
     e.aware = true;
+    // Held, tied or on the floor: aware from now on, but let that state finish on its own.
+    // getup and tie expiry (below) and chainRelease already send an aware goon on to 'engage'.
+    if (WAKE_HOLD_STATES.includes(e.state)) return;
     setState('alert');
     play(rng.chance(0.5) ? 'Idle_No_Loop' : 'Yes', { once: true, timeScale: 1.3, fade: 0.15 });
   };
