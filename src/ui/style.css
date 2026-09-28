@@ -304,3 +304,34 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0 6px; margin: 0 2px; bo
 .pg-bar i { display: block; height: 100%; background: var(--balloon); }
 .pg-detail { font: 16px 'Patrick Hand SC', cursive; }
 .pg-stats { font: 18px 'Patrick Hand SC', cursive; margin: 14px 0 8px; }
+
+/* ---- predator stealth HUD ---- */
+.stealth-hud { position: absolute; inset: 0; pointer-events: none; }
+.st-aware.hidden, .st-line.hidden, .st-armed.hidden, .st-prompt.hidden, .st-crouch.hidden { display: none; }
+.st-aware { position: absolute; left: -16px; top: -48px; width: 32px; height: 32px; will-change: transform; }
+.st-aware svg { width: 100%; height: 100%; overflow: visible; }
+.st-aware .bg { fill: var(--paper); stroke: var(--ink); stroke-width: 3; }
+.st-aware .fill { fill: none; stroke: #f4f4f4; stroke-width: 6; stroke-linecap: butt; }
+.st-aware[data-c="yellow"] .fill { stroke: var(--signal); }
+.st-aware[data-c="red"] .fill { stroke: #e0282e; }
+/* The pop plays on the inner svg, not this div: the div's own transform is the per-frame screen
+   position (JS sets it via style.transform), and a CSS animation on the same property would steal
+   it for the animation's 0.18s, snapping the ring to the corner until the animation finishes. */
+.st-aware[data-c="red"] svg { animation: pop 0.18s ease-out; }
+.st-aware b { position: absolute; inset: 0; display: grid; place-items: center; font: 18px 'Bangers', cursive; color: var(--ink); }
+.st-line { position: absolute; left: 0; top: 0; max-width: 230px; padding: 6px 12px; background: var(--paper); border: 3px solid var(--ink);
+  border-radius: 20px; box-shadow: 3px 3px 0 var(--ink); font: 19px 'Patrick Hand SC', cursive; color: var(--ink); white-space: nowrap; will-change: transform; }
+.st-line::after { content: ''; position: absolute; left: 16px; bottom: -15px; border: 8px solid transparent; border-top: 12px solid var(--ink); }
+.st-armed { position: absolute; right: 36px; top: 150px; display: flex; align-items: center; gap: 8px; padding: 4px 12px; background: var(--paper);
+  border: 3px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); transform: skewX(-10deg); }
+.st-armed svg { width: 40px; height: 34px; }
+.st-armed path { fill: var(--ink); }
+.st-armed b { font: 30px 'Bangers', cursive; color: #e0282e; }
+.st-armed span { font: 16px 'Bangers', cursive; letter-spacing: 1px; color: var(--ink); }
+.st-prompt { position: absolute; left: 50%; bottom: 170px; transform: translateX(-50%) skewX(-8deg); padding: 6px 14px; background: var(--signal);
+  border: 3px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); font: 22px 'Bangers', cursive; letter-spacing: 1px; color: var(--ink); }
+/* Above the health ring (which spans left 28-148, bottom 24-144) and clear of the gadget HUD
+   panel beside it (left 162-244, bottom 34-156), so the crouch badge sits in its own space. */
+.st-crouch { position: absolute; left: 28px; bottom: 150px; width: 44px; height: 44px; background: var(--paper); border: 3px solid var(--ink); border-radius: 50%; box-shadow: 2px 2px 0 var(--ink); }
+.st-crouch svg { width: 100%; height: 100%; }
+.st-crouch circle, .st-crouch path { fill: none; stroke: var(--ink); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }

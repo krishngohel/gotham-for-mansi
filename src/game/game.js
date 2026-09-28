@@ -35,6 +35,8 @@ import { pickGrapplePoint } from '../world/grapple.js';
 import { createPickups, createNeonParty } from '../world/storyProps.js';
 import { createCombat } from '../combat/combatSystem.js';
 import { createHud } from '../ui/hud.js';
+import { createStealthHud } from '../ui/stealthHud.js';
+import { glyphCode } from '../stealth/brain.js';
 import { createComicFx } from '../ui/comicFx.js';
 import { createComic } from '../ui/comic.js';
 import { createMenus } from '../ui/menus.js';
@@ -267,6 +269,19 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     // Predator visuals (src/stealth/stealthFx.js): vision cones, laser sights, tracers and flashes.
     events.on('rifleShot', ({ from, to, hit }) => stealthFx.shot(from, to, hit));
     events.on('stealthEnd', () => stealthFx.clear());
+    const stealthHud = createStealthHud(hudRoot.querySelector('.hud') ?? hudRoot);
+    events.on('stealthLine', ({ target, text }) => stealthHud.say(target, text));
+    events.on('stealthEnd', () => stealthHud.clear());
+    // A goon's head on screen, written into one shared object (no allocation per goon per frame).
+    const headAt = new THREE.Vector3(), headScr = { x: 0, y: 0, behind: false };
+    const headOnScreen = (e) => {
+      e.ch.headWorld(headAt, 0.75).project(camera);
+      headScr.x = (headAt.x * 0.5 + 0.5) * innerWidth;
+      headScr.y = (-headAt.y * 0.5 + 0.5) * innerHeight;
+      headScr.behind = headAt.z > 1;
+      return headScr;
+    };
+    let promptKind = null;
     const key = (a) => `<kbd>${bindingLabel(settings.bindings, a)}</kbd>`;
     const screen = new THREE.Vector3();
     const toScreen = (v) => { screen.copy(v).project(camera); return { x: (screen.x * 0.5 + 0.5) * innerWidth, y: (-screen.y * 0.5 + 0.5) * innerHeight, behind: screen.z > 1 }; };
@@ -569,6 +584,24 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
           else hud.glyph(e.id, 0, 0, false);
         }
         hud.pruneGlyphs(glyphIds);
+        // Predator HUD: awareness rings, lines, the armed counter, the takedown prompt, crouch.
+        const room = stealth.active ? stealth.goons : null;
+        if (room) {
+          for (let i = 0; i < room.length; i++) {
+            const g = room[i], code = g.e.alive ? glyphCode(g.mind) : 0;
+            if (!code) { stealthHud.glyph(i, 0, 0, false, 0); continue; }
+            const p = headOnScreen(g.e);
+            stealthHud.glyph(i, p.x, p.y, !p.behind, code);
+          }
+        }
+        stealthHud.hideFrom(room ? room.length : 0);
+        stealthHud.updateLines(real, headOnScreen);
+        stealthHud.armed(stealth.armed(), !!room && !!state.detectiveOn);
+        stealthHud.crouch(!!hero.crouched);
+        if (stealth.prompt !== promptKind) {
+          promptKind = stealth.prompt;
+          stealthHud.prompt(promptKind === 'silent' ? `${key('punch')} Silent takedown` : promptKind === 'perch' ? `${key('kick')} Perch drop` : null);
+        }
       } else {
         // Play stopped (paused, a cutscene, the finale) mid-effect: without this, speed lines or
         // the action panel border can freeze on screen instead of easing out.
@@ -589,7 +622,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
 
     const api = {
       hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, side, stage, gfx, breakables, chainFx, photo,
-      gadgets, wheelUi, stealth, stealthFx,
+      gadgets, wheelUi, stealth, stealthFx, stealthHud,
       winFight: () => { for (const e of combat.enemies) if (e.alive && e.type !== 'joker') { e.health = 0; e.applyHit({ outcome: 'ko' }, hero.pos); } },
     };
     if (params.get('god') === '1') events.on('heroHurt', () => { hero.health = hero.maxHealth; hud.setHealth(1); });
