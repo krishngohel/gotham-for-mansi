@@ -130,7 +130,8 @@ if (!only || only === 'fight') {
   for (const key of ['Digit1', 'Digit2', 'Digit3']) {
     await p.evaluate(() => {
       const g = window.__game, h = g.hero.pos;
-      for (const e of window.__chainGoons) e.remove();
+      // despawn(), not a bare remove(): it also drops the goon from the reveal queue (see clearGoons).
+      for (const e of window.__chainGoons) g.despawn(e);
       const list = ['grunt', 'grunt', 'knife'].map((t, i) => g.spawn(t, { x: h.x - 2 + i * 2, y: h.y, z: h.z + 4 }));
       window.__chainGoons = list;
       g.combat.setEnemies(list);
