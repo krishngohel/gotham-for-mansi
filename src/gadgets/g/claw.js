@@ -39,7 +39,13 @@ export function createClawHandler() {
           }
           const dx = e.pos.x - hero.pos.x, dz = e.pos.z - hero.pos.z, d = Math.hypot(dx, dz) || 1;
           to.set(hero.pos.x + (dx / d) * 1.3, hero.pos.y, hero.pos.z + (dz / d) * 1.3);
-          if (e.yank(to)) { api.director.release(e.id); yankedAny = true; }
+          // e.yank() always performs the yank; its return value only says whether the goon was
+          // mid-attack (so its director slot needs releasing), not whether the yank landed. Using
+          // it to gate yankedAny meant clawYank (the sound, the "YOINK!" word) never fired unless
+          // the goon happened to be windup/attack at the moment, silent for the common case.
+          const wasAttacking = e.yank(to);
+          if (wasAttacking) api.director.release(e.id);
+          yankedAny = true;
         }
         hero.bat.face(Math.atan2(goons[0].pos.x - hero.pos.x, goons[0].pos.z - hero.pos.z));
         lineTarget = goons[0].pos;
