@@ -129,6 +129,32 @@ describe('chain control', () => {
     expect(hero.bat.animator.played).toContain('NinjaJump_Land');
   });
 
+  it('Domino Drop lands the stomp heel on the crown of each head as the goon stands', () => {
+    // Held goons keep whatever pose they had (mid-stride, mid-swing), so a head can be well below
+    // standing height and off the goon's feet, and bob as they go on (a jog loop keeps playing):
+    // the heel goes to the head as it is on the contact frame, not to a fixed height.
+    const log = [];
+    let frame = 0;
+    const hero = fakeHero();
+    const targets = squad();
+    const lean = [[0.2, 1.3], [-0.15, 1.45], [0, 1.7]];
+    targets.forEach((g, i) => { g.ch.headWorld = (out, lift = 0) => out.set(g.pos.x + lean[i][0], g.pos.y + lean[i][1] - 0.004 * frame + lift, g.pos.z + 0.003 * frame); });
+    const api = fakeApi(log, targets);
+    const finish = api.finish;
+    api.finish = (e) => { log.push(['at', e.ch.headWorld(new THREE.Vector3()), hero.pos.clone(), hero.bat.yaw]); return finish(e); };
+    const ctl = createChainControl(hero, api, { chain: CHAINS[2], targets, stealth: false, timeline: buildChainTimeline('domino', 3) });
+    for (; frame < 600 && !ctl.update(1 / 60); frame++);
+    const h = CHAIN_BEATS.Chain_Stomp.heel;
+    const hits = of(log, 'at');
+    expect(hits).toHaveLength(3);
+    hits.forEach(([, head, p, yaw], i) => {
+      const heel = { x: p.x + h.z * Math.sin(yaw) + h.x * Math.cos(yaw), y: p.y + h.y, z: p.z + h.z * Math.cos(yaw) - h.x * Math.sin(yaw) };
+      expect(Math.hypot(heel.x - head.x, heel.z - head.z), `stomp ${i}`).toBeLessThan(0.05);
+      expect(heel.y - head.y, `stomp ${i}`).toBeGreaterThan(0.15);
+      expect(heel.y - head.y, `stomp ${i}`).toBeLessThan(0.4);
+    });
+  });
+
   it('keeps Batman near the fight', () => {
     for (const id of ['rope', 'head', 'domino']) expect(run(id, squad()).maxDist).toBeLessThan(9);
   });
