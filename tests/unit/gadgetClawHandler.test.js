@@ -56,3 +56,45 @@ describe('claw gadget handler: clawYank', () => {
     expect(sys.api.director.release).toHaveBeenCalledWith('e1');
   });
 });
+
+// Final review I3: combat hands the fire key to the gadget whenever Batman is "free", which
+// includes a strike in its chain window. The claw is built for exactly that moment.
+describe('claw gadget handler: mid-combo and railings', () => {
+  it('fires during a strike chain window instead of refusing with "plant your feet"', () => {
+    const goon = makeGoon();
+    const sys = makeSys([goon]);
+    sys.hint = vi.fn();
+    sys.hero.control = { name: 'strike', combat: true, canChain: () => true, update: () => false };
+    expect(createClawHandler().fire(sys)).toBe(true);
+    expect(goon.state).toBe('down');
+    expect(sys.hint).not.toHaveBeenCalled();
+  });
+  it('still refuses under a move that cannot be cut (outside the chain window, a chain takedown)', () => {
+    for (const control of [
+      { name: 'strike', combat: true, canChain: () => false },
+      { name: 'chain', combat: true, canChain: () => false },
+      { name: 'ladder' },
+    ]) {
+      const goon = makeGoon();
+      const sys = makeSys([goon]);
+      sys.hint = vi.fn();
+      sys.hero.control = control;
+      expect(createClawHandler().fire(sys)).toBe(false);
+      expect(goon.state).toBe('engage');
+      expect(sys.hint).toHaveBeenCalledWith('claw-ground');
+    }
+  });
+  it('tearing down a railing launches goons standing at it, never frozen, tied, chained or held ones', () => {
+    const launched = [];
+    const at = (id, state) => ({ ...makeGoon({ id, state }), pos: new THREE.Vector3(0, 0, 10), launch() { launched.push(this.id); } });
+    const goons = [at('free', 'engage'), at('ice', 'frozen'), at('rope', 'tied'), at('held', 'chained'), at('grab', 'grabbed')];
+    const sys = makeSys(goons);
+    sys.api.canSee = () => false; // no goon to yank: the claw goes for the railing
+    const rail = { kind: 'railing', bounds: { minX: -1, maxX: 1, minY: 0, maxY: 1, minZ: 9, maxZ: 10 }, normal: { nx: 0, nz: 1 }, center: new THREE.Vector3(0, 0.5, 9.5) };
+    sys.breakables = { aimed: () => rail, smash: vi.fn() };
+    expect(createClawHandler().fire(sys)).toBe(true);
+    expect(launched).toEqual(['free']);
+    expect(sys.api.director.release).toHaveBeenCalledTimes(1);
+    expect(sys.breakables.smash).toHaveBeenCalledWith(rail, sys.hero.pos);
+  });
+});

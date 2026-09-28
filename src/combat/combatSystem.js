@@ -176,11 +176,12 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
   }
 
   // Knocks down every goon in reach of `center` with `move` (explosive gel). Brutes shrug it off
-  // unless stunned (resolveHit), the Joker is never touched, ice shatters. Returns how many went down.
+  // unless stunned (resolveHit), the Joker is never touched, ice shatters, and a goon held in a
+  // chain takedown stays in the chain's hands. Returns how many went down.
   function areaBlast(center, radius, move, { power = 1.6, launch = 6, dy = 2.5 } = {}) {
     let n = 0;
     for (const e of enemies) {
-      if (!e.alive || e.def.boss) continue;
+      if (!e.alive || e.def.boss || e.state === 'chained') continue;
       if (Math.hypot(e.pos.x - center.x, e.pos.z - center.z) > radius || Math.abs(e.pos.y - center.y) > dy) continue;
       if (e.state === 'frozen') { shatter(e); n += 1; continue; }
       if (e.down) continue;

@@ -2,7 +2,7 @@
 // stick or 1 to 8, let go to equip), the equipped gadget and its HUD panel, firing through
 // combat's input buffer (the useGadget hook), each gadget's live effects (handlers in ./g/),
 // unlock announcements and the help list.
-import { GADGETS, GADGET_IDS, gadgetById, unlockedIds } from './gadgetDefs.js';
+import { GADGETS, GADGET_IDS, gadgetById, unlockedIds, gadgetsLocked, freeForGadget } from './gadgetDefs.js';
 import { createGadgetState } from './gadgetState.js';
 import { createWheelLogic, createWheelCursor, slotFromDir, WHEEL_DIGITS } from './wheelMath.js';
 import { HANDLER_FACTORIES } from './g/index.js';
@@ -10,9 +10,8 @@ import { STEPS } from '../game/story.js';
 import { bindingLabel } from '../core/bindings.js';
 import { promptText } from '../ui/prompts.js';
 
-// Hero controls the wheel never opens over (and closes under): a chain takedown's timeline (the
-// Bat Swarm's too) and a challenge's 3-2-1 countdown.
-const NO_WHEEL = new Set(['chain', 'swarm', 'countdown']);
+// The wheel never opens over (and closes under) the controls in gadgetDefs' NO_GADGET_CONTROLS:
+// a chain takedown's timeline, the Bat Swarm's and a challenge's 3-2-1 countdown.
 // Mouse pixels (pointer lock) for a full push toward a slot. Small, so a short trackpad swipe
 // (a MacBook in Safari) is enough: past the 0.35 dead zone after about 25 px.
 const WHEEL_PX = 70;
@@ -45,10 +44,12 @@ export function createGadgetSystem(deps) {
     devAll,
     hint(id, arg) { events.emit('hint', { id, arg }); },
     // A short gadget pose (throw, spray, fire). On the ground it holds locomotion off for `dur`, so
-    // the clip isn't cut by the idle; otherwise it just plays.
+    // the clip isn't cut by the idle, and replaces a combat move in its chain window, as the next
+    // punch would; otherwise it just plays. A move that can't be cut keeps its own clip.
     pose(clip, dur = 0.3, timeScale = 2) {
+      if (!freeForGadget(hero)) return;
       hero.bat.animator.play(clip, { once: true, timeScale, fade: 0.05 });
-      if (hero.control || hero.state !== 'ground') return;
+      if (hero.state !== 'ground') return;
       let t = 0;
       hero.control = { name: 'gadgetPose', combat: true, canChain: () => t > dur * 0.7, update(dt) { t += dt; return t > dur; } };
     },
@@ -89,7 +90,7 @@ export function createGadgetSystem(deps) {
   // Only in live play: never dead, in a cutscene or comic, paused, in photo mode, mid chain
   // takedown, in a challenge countdown or while steering the remote batarang.
   function canUseWheel() {
-    return isPlaying() && !hero.dead && !NO_WHEEL.has(hero.control?.name) && !byId.get('remote')?.active;
+    return isPlaying() && !hero.dead && !gadgetsLocked(hero) && !byId.get('remote')?.active;
   }
   function openWheel() {
     if (wheel.open || !canUseWheel()) return;

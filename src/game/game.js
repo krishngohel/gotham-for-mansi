@@ -419,6 +419,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       'gadget-empty': (name) => `${name} is out of charges. They come back on their own.`,
       'gadget-boss': () => 'The Joker is too slippery for that. Use the batarang while he winds up a throw.',
       'remote-ground': () => 'Stand still on solid ground to steer the remote batarang.',
+      'remote-busy': () => 'Finish your move first. The remote batarang needs Batman standing still.',
       'gel-aim': () => 'Aim at a floor or a wall within 14 m to spray gel.',
       'gel-none': () => `No gel down yet. Tap ${key('batarang')} to spray some first.`,
       'gel-full': () => `Three blobs is the limit. Hold ${key('batarang')} to set them off.`,

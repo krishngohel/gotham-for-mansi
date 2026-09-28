@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { pickAimedMany } from '../aim.js';
 import { boxDistance } from '../../world/breakableSpots.js';
+import { freeForGadget } from '../gadgetDefs.js';
 
 const RANGE = 20, LINE_TIME = 0.35;
 const HELD = ['grabbed', 'chained', 'tied', 'frozen'];
@@ -17,7 +18,8 @@ export function createClawHandler() {
     id: 'claw',
     fire(sys) {
       const { hero, api, effects } = sys;
-      if (hero.state !== 'ground' || hero.control) { sys.hint('claw-ground'); return false; }
+      // Mid-combo counts as free: a strike in its chain window is replaced by the claw's pose.
+      if (hero.state !== 'ground' || !freeForGadget(hero)) { sys.hint('claw-ground'); return false; }
       eye.set(hero.pos.x, hero.pos.y + 1.4, hero.pos.z);
       sys.follow.lookDir(dir);
       const goons = pickAimedMany(sys.combat.enemies, eye, dir, effects.clawTargets, {
@@ -62,7 +64,8 @@ export function createClawHandler() {
         sys.pose('Spell_Simple_Shoot', 0.3, 2.2);
         if (b.kind === 'railing') {
           for (const e of sys.combat.enemies) {
-            if (!e.alive || e.def.boss || boxDistance(b.bounds, e.pos) > 2.5) continue;
+            // Frozen, tied, chained or held goons stay put: they aren't standing at the rail.
+            if (!e.alive || e.def.boss || HELD.includes(e.state) || boxDistance(b.bounds, e.pos) > 2.5) continue;
             e.launch(b.normal.nx * 5, 3, b.normal.nz * 5);
             api.director.release(e.id);
           }

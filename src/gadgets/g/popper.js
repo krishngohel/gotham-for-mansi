@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import MANSI from '../../mansi.config.js';
 import { letterPoints, birthdayLine } from '../skyLetters.js';
+import { freeForGadget } from '../gadgetDefs.js';
 
 const R = 6, DELAY = 0.35;
 // Big, bold sky lettering: a wide glyph cell so the banner fills the middle of the screen, placed
@@ -23,7 +24,8 @@ export function createPopperHandler() {
     sys.gfx.confetti.letters(at, anchor, right, letters, LETTER_CELL);
     let n = 0;
     for (const e of sys.combat.enemies) {
-      if (!e.alive || e.def.boss || e.down || Math.hypot(e.pos.x - at.x, e.pos.z - at.z) > R || Math.abs(e.pos.y - at.y) > 3) continue;
+      // A chain begun after the throw (the pose is chainable before the pop) keeps its goons.
+      if (!e.alive || e.def.boss || e.down || e.state === 'chained' || Math.hypot(e.pos.x - at.x, e.pos.z - at.z) > R || Math.abs(e.pos.y - at.y) > 3) continue;
       api.landHit('popper', e);
       if (e.dance(3)) api.director.release(e.id);
       n += 1;
@@ -40,7 +42,8 @@ export function createPopperHandler() {
     id: 'popper',
     fire(sys) {
       const { hero } = sys;
-      if (hero.state !== 'ground' || hero.control) { sys.hint('popper-ground'); return false; }
+      // Mid-combo counts as free: a strike in its chain window is replaced by the throw.
+      if (hero.state !== 'ground' || !freeForGadget(hero)) { sys.hint('popper-ground'); return false; }
       sys.follow.forward(fwd);
       sys.follow.right(right);
       at.copy(hero.pos).addScaledVector(fwd, 5);

@@ -150,6 +150,15 @@ describe('gadget hooks', () => {
     expect(brute.outcomes).toEqual(['immune']);
     expect(far.outcomes).toEqual([]);
   });
+  it('areaBlast leaves a goon held in a chain takedown alone', () => {
+    const { combat } = setup();
+    const held = makeGoon('c', 'grunt', 0, 2, { state: 'chained' }), free = makeGoon('g', 'grunt', 1, 1);
+    combat.setEnemies([held, free]);
+    expect(combat.gadgetApi.areaBlast({ x: 0, y: 0, z: 0 }, 4, 'gel')).toBe(1);
+    expect(held.outcomes).toEqual([]);
+    expect(held.state).toBe('chained');
+    expect(free.outcomes).toEqual(['knockdown']);
+  });
   it('any hit on a frozen goon shatters the ice and knocks it out', () => {
     const { combat, events } = setup();
     const g = makeGoon('g', 'grunt', 0, 2, { state: 'frozen' });

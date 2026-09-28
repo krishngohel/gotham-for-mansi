@@ -29,7 +29,9 @@ export function createRemoteHandler() {
     fire(sys) {
       const { hero } = sys;
       if (active) return false;
-      if (hero.state !== 'ground' || !hero.grounded || hero.control) { sys.hint('remote-ground'); return false; }
+      // Unlike the claw and the popper, steering needs Batman free and standing: not even mid-combo.
+      if (hero.control) { sys.hint('remote-busy'); return false; }
+      if (hero.state !== 'ground' || !hero.grounded) { sys.hint('remote-ground'); return false; }
       S = sys;
       active = true;
       t = 0;

@@ -100,3 +100,21 @@ describe('remote batarang handler', () => {
     expect(events.filter((e) => e.name === 'remoteEnd')).toHaveLength(1);
   });
 });
+
+// Final review I3: the claw and the popper may replace a strike mid-combo; the remote may not
+// (Batman must stand still to steer), and its hint says so.
+describe('remote batarang handler: needs Batman free', () => {
+  it('refuses mid-combo with the "finish your move" hint, and on the move with the ground hint', () => {
+    const { sys } = makeSys();
+    const hints = [];
+    sys.hint = (id) => hints.push(id);
+    const h = createRemoteHandler();
+    sys.hero.control = { name: 'strike', combat: true, canChain: () => true };
+    expect(h.fire(sys)).toBe(false);
+    sys.hero.control = null;
+    sys.hero.state = 'air';
+    expect(h.fire(sys)).toBe(false);
+    expect(hints).toEqual(['remote-busy', 'remote-ground']);
+    expect(h.active).toBe(false);
+  });
+});
