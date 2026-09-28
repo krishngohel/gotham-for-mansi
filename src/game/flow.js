@@ -1,5 +1,5 @@
 // Drives the story: objectives, fights, pickups, cutscenes, balloons, checkpoints, death.
-import { STEPS } from './story.js';
+import { STEPS, tutorialFor } from './story.js';
 import { FIGHTS } from './fights.js';
 import { SCENES } from './scenes.js';
 import { createObjectives, checkpointFor } from './objectives.js';
@@ -65,7 +65,8 @@ export function createFlow(d) {
     fightStarted = false;
     waypoint.update(null);
     beacon.set(target);
-    if (s.tutorial) prompts.show(s.tutorial);
+    const tips = tutorialFor(s, progress.moves);
+    if (tips) prompts.show(tips);
     events.emit('step', { step: s, index: objectives.index });
     if (s.type === 'fight') encounters.begin(s.fight);
     if (s.type === 'cutscene' && s.scene === 'finale') {

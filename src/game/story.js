@@ -1,5 +1,10 @@
 // The whole game, in order. Steps without a type are "reach" steps: get to the site.
 // tutorial: prompt ids introduced when the step begins (see ui/prompts.js).
+//
+// NEVER remove or rename a step id. Saves store the id (progress.stepId) and storyMigrate.js finds
+// the step by it; an id that disappears makes that save fall back to its index read against the
+// pre-Part D list, which lands it on the wrong step. Add new steps with new ids; retire one by
+// keeping its id on a step that stands in its place.
 export const STEPS = [
   { id: 'intro', type: 'cutscene', scene: 'intro' },
   { id: 'signal', text: 'Something is stuck to the Batsignal. Go and look.', site: 'signal', radius: 4.5, tutorial: ['move', 'look'], checkpoint: 'start' },
@@ -35,3 +40,20 @@ export const STEPS = [
   { id: 'finale', type: 'cutscene', scene: 'finale' },
   { id: 'credits', type: 'credits' },
 ];
+
+// Lessons a later step repeats for a save that skipped the step teaching them. A save from before
+// Part D jumps straight past Monarch Balcony, so its first predator room is the catwalks: there the
+// basics come first, unless the move that proves them is already in progress.moves.
+export const CATCH_UP = {
+  aceCatwalks: [
+    { move: 'silentTakedown', tips: ['crouch', 'silent'] },
+    { move: 'perchDrop', tips: ['perch', 'perchDrop'] },
+  ],
+};
+
+// The tip cards to show when `step` begins: its own, after any basics this save hasn't learned.
+export function tutorialFor(step, moves = [], catchUp = CATCH_UP) {
+  if (!step?.tutorial) return null;
+  const extra = (catchUp[step.id] ?? []).filter((c) => !moves.includes(c.move)).flatMap((c) => c.tips);
+  return extra.length ? [...extra, ...step.tutorial] : step.tutorial;
+}

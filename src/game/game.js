@@ -55,7 +55,7 @@ import { createEncounters } from './encounters.js';
 import { createBalloons } from './balloons.js';
 import { createFlow } from './flow.js';
 import { STEPS } from './story.js';
-import { migrateProgress } from './storyMigrate.js';
+import { migrateProgress, betweenRooms } from './storyMigrate.js';
 import { wireAudio } from './sound.js';
 import { createBoss } from './boss.js';
 import { tracker } from './progressTracker.js';
@@ -527,6 +527,14 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     // (including the divebomb altitude check, which calls hero.heightAboveGround(), a raycast,
     // so it must not run every frame), and each one stops checking once it has shown.
     let hintCheckT = 0;
+    // Once, on the first frame of play, for a save from before Part D that skipped Monarch Balcony
+    // (storyMigrate.js marks it 'due'): the goons have new tricks and a predator room is ahead.
+    function predatorNotice() {
+      progress.predatorNotice = 'shown';
+      saveProgress(storage, progress);
+      if (!betweenRooms(flow.objectives.index)) return;
+      hud.card('MEANWHILE IN GOTHAM', "Gotham's goons have learned new tricks. A rifle crew lies in wait on the catwalks at Ace Chemicals. Stay in the shadows.", 9000);
+    }
     let glideHighT = 0;
     const hintShown = { ladder: false, zip: false, divebomb: false };
 
@@ -537,6 +545,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       if (playing && !state.paused) {
         if (input.pressed('photo') && flow.mode === 'play' && !hero.dead) { photo.open(); return; }
         if (input.pressed('detective')) state.detectiveOn = !state.detectiveOn;
+        if (progress.predatorNotice === 'due' && flow.mode === 'play' && !hud.cardShowing) predatorNotice();
         pickGrapple(real);
         // Grapple is only locked while a fight is actually around you.
         const busy = combat.enemies.some((e) => e.alive && e.aware && !e.room && e.pos.distanceTo(hero.pos) < 12 && Math.abs(e.pos.y - hero.pos.y) < 4);

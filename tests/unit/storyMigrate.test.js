@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import '../../src/gadgets/gadgetSave.js'; // registers progress.gadgets, as game.js does before loading
-import { STEPS } from '../../src/game/story.js';
+import { STEPS, tutorialFor, CATCH_UP } from '../../src/game/story.js';
+import { PROMPT_IDS } from '../../src/ui/prompts.js';
 import { LEGACY_STEP_IDS, resolveStep, migrateProgress } from '../../src/game/storyMigrate.js';
 import { sanitizeProgress, loadProgress, saveProgress, newGameProgress, registerProgressField } from '../../src/core/save.js';
 import { GADGETS, isUnlocked } from '../../src/gadgets/gadgetDefs.js';
@@ -167,5 +168,40 @@ describe('every pre-Part D save keeps its place', () => {
       const twice = migrateProgress(loadProgress(storage));
       expect(twice, `old index ${old}`).toEqual(once);
     }
+  });
+});
+
+describe('returning players and the predator rooms', () => {
+  const old = (id) => LEGACY_STEP_IDS.indexOf(id);
+  it('an old save between the two rooms gets the one-time notice; others do not', () => {
+    for (const id of ['party', 'rewardParty', 'toAce', 'a1', 'toFactory', 'a2', 'toVat', 'a3']) {
+      expect(loadRaw({ step: old(id) }).predatorNotice, id).toBe('due');
+    }
+    for (const id of ['intro', 'toMonarch', 'n3', 'cake', 'boss', 'credits']) {
+      expect(loadRaw({ step: old(id) }).predatorNotice, id).toBe(null);
+    }
+    expect(loadRaw({ step: old('credits'), finished: true }).predatorNotice).toBe(null);
+    // A save written since Part D (it has an id) already met the balcony, or will.
+    expect(loadRaw({ step: idx('party'), stepId: 'party' }).predatorNotice).toBe(null);
+  });
+  it('the notice never comes back once shown, and a new game drops it', () => {
+    expect(loadRaw({ step: old('party'), predatorNotice: 'shown' }).predatorNotice).toBe('shown');
+    const storage = memStorage();
+    saveProgress(storage, { ...loadRaw({ step: old('party') }), predatorNotice: 'shown' });
+    expect(migrateProgress(loadProgress(storage)).predatorNotice).toBe('shown');
+    expect(loadRaw({ step: old('party'), predatorNotice: 'bogus' }).predatorNotice).toBe('due');
+    expect(newGameProgress(loadRaw({ step: old('party') })).predatorNotice).toBe(null);
+  });
+  it('the catwalks teach the basics first to a save that skipped the balcony', () => {
+    const cat = STEPS[idx('aceCatwalks')];
+    expect(tutorialFor(cat, [])).toEqual(['crouch', 'silent', 'perch', 'perchDrop', 'distract', 'vent', 'ledgeStealth']);
+    expect(tutorialFor(cat, ['perchDrop'])).toEqual(['crouch', 'silent', 'distract', 'vent', 'ledgeStealth']);
+    expect(tutorialFor(cat, ['silentTakedown'])).toEqual(['perch', 'perchDrop', 'distract', 'vent', 'ledgeStealth']);
+    // A fresh player learned both on the balcony: only the catwalks' own lessons.
+    expect(tutorialFor(cat, ['silentTakedown', 'perchDrop', 'ladder'])).toEqual(['distract', 'vent', 'ledgeStealth']);
+    // Every other step shows just its own list.
+    expect(tutorialFor(STEPS[idx('monarchBalcony')], [])).toEqual(['crouch', 'silent', 'perch', 'perchDrop']);
+    expect(tutorialFor(STEPS[idx('boss')], [])).toBe(null);
+    for (const tips of Object.values(CATCH_UP)) for (const c of tips) for (const id of c.tips) expect(PROMPT_IDS).toContain(id);
   });
 });

@@ -124,6 +124,7 @@ export function createHud(root) {
       clearTimeout(cardTimer);
       cardTimer = setTimeout(() => cardEl.classList.remove('show'), ms);
     },
+    get cardShowing() { return cardEl.classList.contains('show'); },
     setBalloons(n, total) { balloons.textContent = `${n}/${total}`; },
     glyph(id, x, y, visible, color = 'blue') {
       let g = glyphs.get(id);
