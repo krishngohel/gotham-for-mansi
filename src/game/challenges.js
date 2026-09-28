@@ -40,28 +40,45 @@ const RAW = [
   {
     id: 'signalToSea', name: 'Signal to Sea', kind: 'rings',
     blurb: 'Leap off the GCPD roof and glide south to the container yard.',
-    start: { x: 14, y: 42, z: 17, yaw: 0 }, limit: 45, medals: { gold: 13, silver: 16, bronze: 20 },
-    rings: [ring(28, 37, 45), ring(30, 31, 80), ring(30, 25, 115), ring(26, 19, 145), ring(12, 12, 172, 5)],
+    start: { x: 14, y: 42, z: 19, yaw: 0 }, limit: 20, medals: { gold: 7.5, silver: 8.5, bronze: 10.5 },
+    // Ring 0 clears the low roof-edge rail (the launch pose is right at the parapet); the rest
+    // of the drop makes up the altitude on the next leg.
+    rings: [ring(28, 43, 45), ring(30, 31, 80), ring(30, 25, 115), ring(26, 19, 145), ring(12, 12, 172, 5)],
   },
   {
     id: 'neonSlalom', name: 'Neon Slalom', kind: 'rings',
     blurb: 'Weave between the signs of Neon Row, low and fast.',
-    start: { x: 163, y: 30, z: 100, yaw: Math.PI }, limit: 40, medals: { gold: 11, silver: 14, bronze: 18 },
-    rings: [ring(150, 26.5, 85, 3.5), ring(145, 22.5, 60, 3.5), ring(155, 18.5, 35, 3.5), ring(145, 14.5, 10, 3.5), ring(155, 10.5, -15, 3.5), ring(145, 7, -40, 3.5), ring(150, 4.5, -65, 4)],
+    start: { x: 163, y: 30, z: 100, yaw: Math.PI }, limit: 35, medals: { gold: 13, silver: 15.5, bronze: 19 },
+    // Ring 0 clears the roof-edge rail at the Neon Row launch point.
+    rings: [ring(150, 32, 85, 3.5), ring(145, 22.5, 60, 3.5), ring(155, 18.5, 35, 3.5), ring(145, 14.5, 10, 3.5), ring(155, 10.5, -15, 3.5), ring(145, 7, -40, 3.5), ring(150, 4.9, -65, 4)],
   },
   {
     id: 'bellTowerDive', name: 'Bell Tower Dive', kind: 'rings',
     blurb: 'Dive between the cathedral towers, run the ridge and loop back to the plaza.',
-    start: { x: -78, y: 58, z: -146, yaw: -Math.PI / 2 }, limit: 60, medals: { gold: 16, silver: 20, bronze: 26 },
-    rings: [ring(-100, 52, -108), ring(-120, 46, -122, 3.5, [0, 0, -1]), ring(-120, 44, -145, 3.5), ring(-120, 41, -170, 3.5), ring(-120, 32, -195), ring(-95, 24, -192), ring(-92, 14, -160, 5)],
+    // Start sits close to the tower's south roof edge, but well clear of the west edge too (a
+    // launch pose right at a corner leaves no room to walk before the jump); ring 0 sits almost
+    // level with the launch so the dive clears the roof's own guard rail.
+    start: { x: -79, y: 58, z: -141, yaw: -Math.PI / 2 }, limit: 50, medals: { gold: 16.5, silver: 20, bronze: 24.5 },
+    // Rings 4 to 6 sit higher than first drawn: the loop back from the ridge turns sharply twice
+    // in a row, and the extra altitude gives a glide enough room to correct through both turns
+    // instead of sinking into the street before it lines up.
+    rings: [ring(-100, 56, -108), ring(-120, 46, -122, 3.5, [0, 0, -1]), ring(-120, 44, -145, 3.5), ring(-120, 41.6, -170, 3.5), ring(-120, 42, -195), ring(-95, 34, -192), ring(-92, 24, -160, 5)],
   },
   {
     id: 'gothamParkour', name: 'Gotham Parkour', kind: 'parkour',
     blurb: 'Neon Row to the clock plaza. You will need a ladder, a ledge, a zipline and a wall run.',
-    start: { x: 147, y: 0, z: 50, yaw: -Math.PI / 2 }, limit: 240, medals: { gold: 55, silver: 70, bronze: 95 },
+    // The start sits east of a real street-level fire-escape ladder (most Neon Row storefronts
+    // have awnings and skip the drop ladder, so the course uses one of the few buildings that has
+    // one), on the side the ladder actually faces, and checkpoint 1 sits on that ladder's landing.
+    // Checkpoint 2 grapples up the same building instead of across to the Gazette: the ladder's
+    // own grapple always lands well above the Gazette's ledge (every real grapple point between
+    // here and there is lower still), so a "grapple up, then across" attempt from that height
+    // fails the climb's rise check and sends a real player walking off the roof toward open air
+    // over the street below. See task-16-report.md for the full course-check/zipline tradeoff.
+    start: { x: 92, y: 0.15, z: -8, yaw: -Math.PI / 2 }, limit: 240, medals: { gold: 55, silver: 70, bronze: 95 },
     checkpoints: [
-      cp(128, 22, 48, 9, 'Up the fire escape', 'ladder'),
-      cp(125, 30, -5, 10, 'Hang off the Gazette', 'ledge'),
+      cp(80, 20.4, -8, 9, 'Up the fire escape', 'ladder'),
+      cp(76.5, 53.9, 1.5, 10, 'Hang off the Gazette', 'ledge'),
       cp(122, 26, -48, 8, 'Ride the wire', 'zipline'),
       cp(150, 0, -90, 10, 'Run the wall', 'wallrun', 6),
       cp(-75, 0.15, -112, 9, 'The clock plaza', null, 5),
@@ -70,7 +87,7 @@ const RAW = [
   {
     id: 'birthdayBash', name: "Joker's Birthday Bash", kind: 'arena',
     blurb: 'Three waves on the Monarch roof. Mix your moves, keep the combo, do not get hit.',
-    start: { x: 190, y: SITES.monarchRoof.y, z: -48, yaw: Math.atan2(-10, -12) }, medals: { gold: 6000, silver: 4000, bronze: 2000 },
+    start: { x: 190, y: SITES.monarchRoof.y, z: -48, yaw: Math.atan2(-10, -12) }, medals: { gold: 2950, silver: 2000, bronze: 1150 },
     // The Monarch roof has a duct unit close on the standard heading; a shorter side offset
     // clears it. See pillarPos below.
     pillarSide: 1.5,

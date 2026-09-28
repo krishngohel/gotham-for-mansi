@@ -14,7 +14,7 @@ export const CRIME_SPOTS = [
   { id: 'neonDiner', district: 'neon', x: 150, y: 0, z: 70, yaw: 0 },
   { id: 'aceGate', district: 'ace', x: 95, y: 0, z: -140, yaw: 0 },
   { id: 'aceLab', district: 'ace', x: 72, y: 0, z: -100, yaw: Math.PI / 2 },
-  { id: 'plazaFountain', district: 'clock', x: -92, y: 0.15, z: -108, yaw: 0 },
+  { id: 'plazaFountain', district: 'clock', x: -102, y: 0.15, z: -108, yaw: 0 },
   { id: 'plazaHall', district: 'clock', x: -50, y: 0.15, z: -122, yaw: 0 },
 ];
 
