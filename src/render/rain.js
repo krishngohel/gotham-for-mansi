@@ -56,6 +56,9 @@ varying float vFade;
 void main() { gl_FragColor = vec4(uColor, uOpacity * vFade); }
 `;
 
+// Rain and splash colour: a cool grey between the fog and the paper white.
+const RAIN_TINT = new THREE.Color(PALETTE.slate).lerp(new THREE.Color(PALETTE.paper), 0.35);
+
 // Splashes: comic "crown" marks (three short strokes fanning up) that flash briefly on
 // the ground around the player.
 const splashVertex = /* glsl */ `
@@ -80,7 +83,7 @@ void main() {
   // Marks live for uLife seconds, then stay hidden for the rest of the spawn cycle.
   float lifeFrac = clamp(uLife * uRate, 0.001, 1.0);
   vec2 p = uCenter.xz + (vec2(hash(id), hash(id + 7.3)) - 0.5) * uArea;
-  float size = 0.3;
+  float size = 0.18;
   vec3 w = vec3(p.x + position.x * size, uGround + 0.04, p.y + position.y * size * 0.9);
   vUv = position.xy;
   vAge = clamp(cycAge / lifeFrac, 0.0, 1.0);
@@ -116,7 +119,7 @@ function createSplashes(count) {
   geo.instanceCount = count;
   const uniforms = {
     uTime: { value: 0 }, uArea: { value: 22 }, uGround: { value: 0 }, uRate: { value: 1.6 }, uLife: { value: 0.18 },
-    uCenter: { value: new THREE.Vector3() }, uColor: { value: new THREE.Color(PALETTE.paper) }, uOpacity: { value: 0.6 },
+    uCenter: { value: new THREE.Vector3() }, uColor: { value: new THREE.Color(RAIN_TINT) }, uOpacity: { value: 0.35 },
   };
   const mesh = new THREE.Mesh(geo, new THREE.ShaderMaterial({
     uniforms, vertexShader: splashVertex, fragmentShader: splashFragment, transparent: true, depthWrite: false,
@@ -171,10 +174,11 @@ export function createRain(count, { area = 36, height = 24 } = {}) {
   geo.setIndex(new THREE.BufferAttribute(index, 1));
   const uniforms = {
     uTime: { value: 0 }, uHeight: { value: height }, uSpeed: { value: 22 },
-    // 40% shorter and 1.6x thicker than the original hairline streaks.
-    uLen: { value: 0.36 }, uWidth: { value: 0.032 },
+    // Background atmosphere, not a foreground effect: short, thin, see-through dashes in a cool
+    // grey close to the night sky, so they neither pop nor pick up ink edges in the post pass.
+    uLen: { value: 0.18 }, uWidth: { value: 0.016 },
     uCenter: { value: new THREE.Vector3() }, uSlant: { value: new THREE.Vector2(0.18, 0.06) },
-    uColor: { value: new THREE.Color(PALETTE.paper) }, uOpacity: { value: 0.55 },
+    uColor: { value: new THREE.Color(RAIN_TINT) }, uOpacity: { value: 0.28 },
   };
   // DoubleSide: the dash quad's width offset is built in view space and can wind either
   // way depending on the camera angle, so both faces are drawn rather than tracking that.
@@ -183,7 +187,7 @@ export function createRain(count, { area = 36, height = 24 } = {}) {
   mesh.layers.set(LAYER_FX);
   mesh.renderOrder = 10;
   // Splashes ride along as a child so callers keep adding a single mesh.
-  const splash = createSplashes(Math.round(count / 20));
+  const splash = createSplashes(Math.round(count / 40));
   mesh.add(splash.mesh);
   return {
     mesh,

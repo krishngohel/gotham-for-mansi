@@ -90,7 +90,9 @@ if (!only || only === 'main') {
   await p.keyboard.down('Space');
   await p.waitForTimeout(1200);
   await label(p, 'glide');
-  await p.waitForTimeout(14000);
+  await p.waitForTimeout(7000);
+  if (shots) { await label(p, 'shot'); await p.screenshot({ path: `${shots}/gliding.png` }); await label(p, 'glide'); }
+  await p.waitForTimeout(7000);
   await p.keyboard.up('Space');
   meta.glideEnd = await p.evaluate(() => { const h = window.__game.hero; return [h.pos.x, h.pos.y, h.pos.z].map(Math.round).concat(h.state); });
   // Goons spawned mid-play (the first time each enemy type appears).
