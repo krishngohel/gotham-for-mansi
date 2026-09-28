@@ -216,7 +216,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     hud.setHealth(1);
     const comicFx = createComicFx(document.body);
     const fx = createFx(scene);
-    const chainFx = createChainFx(scene);
+    const chainFx = createChainFx(scene, camera);
     const rng = createRng(99);
     const combat = createCombat({ hero, follow, time, events, rng, reach, getDifficulty: () => settings.difficulty, getChainDiscount: () => 0 });
     hero.combat = combat;

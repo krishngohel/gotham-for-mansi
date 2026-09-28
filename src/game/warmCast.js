@@ -6,8 +6,8 @@
 import * as THREE from 'three';
 import { createBat, createGoon, createJoker } from '../actors/characters.js';
 import { createCape } from '../actors/cape.js';
-import { PALETTE } from '../config/palette.js';
 import { LAYER_FX } from '../render/layers.js';
+import { createRopeMaterial } from './chainFx.js';
 import { createPillar, createRingMesh, createVan, createLootBags } from '../world/sideProps.js';
 
 export function createWarmCast(assets) {
@@ -32,12 +32,13 @@ export function createWarmCast(assets) {
   // sighting (a new hoop, the crime van) from uploading anything mid-play.
   [createPillar(), createRingMesh(), createVan(), createLootBags()].forEach((m, i) => { m.position.set(40 + i * 5, -50, 0); group.add(m); });
   add(createJoker(assets), (x += 2));
-  // The chain takedown's ink tether (src/game/chainFx.js): an FX-layer LineSegments in ink,
+  // The chain takedown's rope (src/game/chainFx.js): an FX-layer ribbon with vertex colours,
   // compiled here with everything else so the first Rope-a-Dope doesn't build a program.
-  const tether = new THREE.LineSegments(
-    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(1, 0.5, 0)]),
-    new THREE.LineBasicMaterial({ color: PALETTE.ink }),
-  );
+  const ropeGeo = new THREE.BufferGeometry();
+  ropeGeo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 1, 0.5, 0, 0, 0.05, 0], 3));
+  ropeGeo.setAttribute('color', new THREE.Float32BufferAttribute([0, 0, 0, 1, 1, 1, 1, 1, 1], 3));
+  ropeGeo.setIndex([0, 1, 2]);
+  const tether = new THREE.Mesh(ropeGeo, createRopeMaterial());
   tether.position.set((x += 2), -50, 0);
   tether.layers.set(LAYER_FX);
   group.add(tether);
