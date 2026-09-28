@@ -41,7 +41,7 @@ import { glyphCode } from '../stealth/brain.js';
 import { createComicFx } from '../ui/comicFx.js';
 import { createComic } from '../ui/comic.js';
 import { createMenus } from '../ui/menus.js';
-import { createPromptQueue, chainLockedText, chainCostText } from '../ui/prompts.js';
+import { createPromptQueue, chainLockedText, chainCostText, QUIET_CONTROLS } from '../ui/prompts.js';
 import { createWaypoint, createBeacon } from '../ui/waypoint.js';
 import { createAudio } from '../audio/audio.js';
 import { createVoice } from '../audio/voice.js';
@@ -314,8 +314,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const pickups = createPickups(scene, world.halos, SITES);
     const neonParty = createNeonParty(scene, world.halos);
     const comic = createComic(document.body, { onSound: (n) => audio.play(n), onVoice: (id) => voice.say(id) });
-    // Tip cards wait out a takedown or an action shot instead of covering it.
-    const QUIET_CONTROLS = new Set(['silent', 'perchDrop']);
+    // Tip cards wait out a takedown, a chain, the Bat Swarm or an action shot instead of covering
+    // it (QUIET_CONTROLS, src/ui/prompts.js).
     const prompts = createPromptQueue(hud, () => settings.bindings, () => settings.hints, () => follow.actionActive || QUIET_CONTROLS.has(hero.control?.name), () => gadgets?.state.equipped ?? null);
     const waypoint = createWaypoint(hudRoot.querySelector('.hud') ?? hudRoot);
     const beacon = createBeacon(scene);

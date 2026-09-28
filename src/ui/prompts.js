@@ -94,9 +94,14 @@ export function chainCostText(costs = BASE_CHAIN_COSTS) {
   return `Not enough combo. ${CHAINS[0].name} costs ${costs[0]}, ${CHAINS[1].name} ${costs[1]}, ${CHAINS[2].name} ${costs[2]}.`;
 }
 
-// Queues prompts so they don't talk over each other. While isBusy() (a takedown or an action
-// camera shot is on screen) nothing new appears, and a card already up is taken down and shown
-// again, in full, once the moment is over.
+// Hero controls a tip card never covers: the silent takedown and the perch drop, and the chain
+// takedowns and the Bat Swarm (their camera is the 'chain' mode, not the action camera, so
+// follow.actionActive alone misses most of them). game.js's isBusy reads this.
+export const QUIET_CONTROLS = new Set(['silent', 'perchDrop', 'chain', 'swarm']);
+
+// Queues prompts so they don't talk over each other. While isBusy() (a takedown, a chain, the
+// Bat Swarm or an action camera shot is on screen) nothing new appears, and a card already up is
+// taken down and shown again, in full, once the moment is over.
 export function createPromptQueue(hud, getBindings, isEnabled, isBusy = () => false, getEquipped = () => null) {
   const queue = [];
   const seen = new Set();

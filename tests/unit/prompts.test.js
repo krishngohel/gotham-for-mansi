@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { promptText, createPromptQueue, PROMPT_IDS, chainLockedText, chainCostText, CHAIN_STEALTH_CLAUSE } from '../../src/ui/prompts.js';
+import { promptText, createPromptQueue, PROMPT_IDS, chainLockedText, chainCostText, QUIET_CONTROLS, CHAIN_STEALTH_CLAUSE } from '../../src/ui/prompts.js';
 import { DEFAULT_BINDINGS, keyLabel } from '../../src/core/bindings.js';
 
 const NEW_IDS = {
@@ -228,6 +228,12 @@ describe('promptText: Bat Swarm', () => {
     expect(text).not.toMatch(/[–—]/);
     // No cost in it: every owner has Efficient Chains (the tier before), so a number would mislead.
     expect(text.replace(/<kbd>[^<]*<\/kbd>/g, '')).not.toMatch(/\d/);
+  });
+});
+
+describe('createPromptQueue: quiet during chains and the Bat Swarm', () => {
+  it('QUIET_CONTROLS covers the stealth takedowns, the chain takedowns and the swarm', () => {
+    for (const name of ['silent', 'perchDrop', 'chain', 'swarm']) expect(QUIET_CONTROLS.has(name), name).toBe(true);
   });
 });
 
