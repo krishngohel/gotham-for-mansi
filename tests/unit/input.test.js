@@ -3,6 +3,7 @@ import { padActions } from '../../src/core/input.js';
 
 const pad = (...down) => (i) => down.includes(i);
 const acts = (...down) => [...padActions(pad(...down))].sort();
+const actsWith = (latch, ...down) => [...padActions(pad(...down), new Set(), latch)].sort();
 
 describe('padActions', () => {
   it('maps plain buttons as before', () => {
@@ -23,5 +24,23 @@ describe('padActions', () => {
     const out = new Set(['stale']);
     expect(padActions(pad(0), out)).toBe(out);
     expect([...out]).toEqual(['jump']);
+  });
+
+  it('keeps a chorded D-pad button suppressed after block releases, until the button itself releases', () => {
+    const latch = new Set();
+    // Frame 1: block + D-pad right held together, chain3 fires, not throw.
+    expect(actsWith(latch, 3, 15)).toEqual(['block', 'chain3']);
+    // Frame 2: block let go first, D-pad right still held: throw must stay suppressed.
+    expect(actsWith(latch, 15)).toEqual([]);
+    // Frame 3: D-pad right also released: nothing fires, and the latch clears.
+    expect(actsWith(latch, 3)).toEqual(['block']);
+  });
+
+  it('fires the plain action again once the chorded button has been fully released and re-pressed', () => {
+    const latch = new Set();
+    expect(actsWith(latch, 3, 15)).toEqual(['block', 'chain3']);
+    expect(actsWith(latch, 15)).toEqual([]);
+    expect(actsWith(latch)).toEqual([]); // fully released: latch clears
+    expect(actsWith(latch, 15)).toEqual(['throw']); // pressed again without block: fires normally
   });
 });

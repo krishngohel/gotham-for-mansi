@@ -10,16 +10,44 @@ export const PAD_BUTTONS = {
 // right belongs to chain 3, not grab and throw.
 export const PAD_CHORD_HOLD = 3;
 export const PAD_CHORDS = { chain1: 14, chain2: 12, chain3: 15 };
-const CHORD_BUTTONS = new Set(Object.values(PAD_CHORDS));
 
-// Actions held on the pad this frame, from a button-state lookup. Pure.
-export function padActions(isDown, out = new Set()) {
+// Hoisted once at module load: padActions runs every frame and must not allocate.
+const PAD_BUTTON_ENTRIES = Object.entries(PAD_BUTTONS);
+const PAD_CHORD_ENTRIES = Object.entries(PAD_CHORDS);
+const CHORD_BUTTONS = PAD_CHORD_ENTRIES.map(([, i]) => i);
+
+// Buttons a chord has consumed this "hold": once block + a D-pad button fire a chain together,
+// that D-pad button stays suppressed for its plain action (e.g. throw) until it is physically
+// released, even if block lets go first (players release the two buttons in either order).
+// Module-scoped so it survives across pollPad's per-frame calls; pass a private Set (or call
+// resetPadChordLatch) to isolate tests.
+const defaultChordLatch = new Set();
+export function resetPadChordLatch(latch = defaultChordLatch) { latch.clear(); }
+
+// Actions held on the pad this frame, from a button-state lookup. Allocates nothing beyond the
+// returned Set (reuse `out` to avoid even that).
+export function padActions(isDown, out = new Set(), latch = defaultChordLatch) {
   out.clear();
   const chord = isDown(PAD_CHORD_HOLD);
-  for (const [action, idx] of Object.entries(PAD_BUTTONS)) {
-    if (idx.some((i) => isDown(i) && !(chord && CHORD_BUTTONS.has(i)))) out.add(action);
+  for (let n = 0; n < CHORD_BUTTONS.length; n++) {
+    const i = CHORD_BUTTONS[n];
+    if (!isDown(i)) latch.delete(i);
+    else if (chord) latch.add(i);
   }
-  if (chord) for (const [action, i] of Object.entries(PAD_CHORDS)) if (isDown(i)) out.add(action);
+  for (let n = 0; n < PAD_BUTTON_ENTRIES.length; n++) {
+    const action = PAD_BUTTON_ENTRIES[n][0];
+    const idx = PAD_BUTTON_ENTRIES[n][1];
+    let down = false;
+    for (let j = 0; j < idx.length; j++) {
+      if (isDown(idx[j]) && !latch.has(idx[j])) { down = true; break; }
+    }
+    if (down) out.add(action);
+  }
+  for (let n = 0; n < PAD_CHORD_ENTRIES.length; n++) {
+    const action = PAD_CHORD_ENTRIES[n][0];
+    const i = PAD_CHORD_ENTRIES[n][1];
+    if (chord && isDown(i)) out.add(action);
+  }
   return out;
 }
 
