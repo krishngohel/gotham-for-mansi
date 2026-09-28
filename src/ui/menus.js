@@ -6,10 +6,11 @@ import { drawProgressMap } from './progressMap.js';
 import MANSI from '../mansi.config.js';
 
 const MOVING_AROUND = ['ladder', 'ledge', 'zip', 'wallrun', 'divebomb', 'takedown'];
+const PREDATOR = ['crouch', 'silent', 'perch', 'perchDrop', 'distract', 'vent', 'ledgeStealth', 'spotted', 'rifle'];
 
 const PAD_LAYOUT = [
   ['Move / camera', 'Left stick / right stick'], ['Jump, glide', 'A'], ['Punch', 'X'], ['Kick', 'B'], ['Block, counter', 'Y'],
-  ['Grab and throw', 'D-pad right'], ['Grapple', 'LB'], ['Cape stun', 'RB'], ['Dodge', 'LT'], ['Batarang', 'RT'], ['Sprint', 'L3'], ['Special takedown', 'R3'],
+  ['Grab and throw', 'D-pad right'], ['Grapple', 'LB'], ['Cape stun', 'RB'], ['Dodge', 'LT'], ['Batarang', 'RT'], ['Sprint', 'Hold L3'], ['Crouch', 'Tap L3'], ['Special takedown', 'R3'],
   ['Detective vision', 'View'], ['Photo mode', 'D-pad up'], ['Pause', 'Menu'],
 ];
 
@@ -181,6 +182,9 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
     node.appendChild(cols);
     node.appendChild(el('h3', '', 'Moving around'));
     for (const id of MOVING_AROUND) node.appendChild(el('p', 'tip', promptText(id, settings.bindings)));
+    node.appendChild(el('h3', '', 'Predator'));
+    for (const id of PREDATOR) node.appendChild(el('p', 'tip', promptText(id, settings.bindings)));
+    node.appendChild(el('p', 'tip', 'The ring over a goon fills white while he notices you, turns yellow while he searches and red once he has found you. Detective vision shows every goon in his state colour through walls, his vision cone on the floor, and how many rifles are left.'));
     node.appendChild(el('h3', '', 'Extras'));
     for (const id of ['challenges', 'photo']) node.appendChild(el('p', 'tip', promptText(id, settings.bindings)));
     node.appendChild(el('p', 'tip', 'Tips: counter every blue bolt, dodge the red ones. Kick or cape-stun knife goons. Batarang the Joker mid-throw.'));

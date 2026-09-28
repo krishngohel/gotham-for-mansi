@@ -1,5 +1,5 @@
 // Maps game events to the synthesized audio: effects, stingers and which music plays when.
-export function wireAudio({ audio, events, hero, combat, flow, voice = null, settings }) {
+export function wireAudio({ audio, events, hero, combat, flow, voice = null, settings, stealth = null }) {
   // The recorded orchestral Happy Birthday (CC0, VOLE.wtf) plays over the finale; the synth
   // birthday waltz carries on afterwards.
   const track = new Audio('./assets/music/birthday-orchestral.mp3');
@@ -77,6 +77,12 @@ export function wireAudio({ audio, events, hero, combat, flow, voice = null, set
   on('gas', () => audio.play('gas'));
   on('buzzer', () => audio.play('buzzer'));
   on('firework', () => audio.play('firework', { pitch: vary(0.3) }));
+  on('rifleShot', () => audio.play('rifleShot', { pitch: vary(0.1) }));
+  on('rifleAim', () => audio.play('laser'));
+  on('silentStart', () => audio.play('choke'));
+  on('stealthAlarm', () => audio.play('alarm'));
+  on('batarangWall', () => audio.play('tink'));
+  on('perchDropStart', () => audio.play('whoosh', { gain: 0.7, pitch: 0.75 }));
 
   audio.setRain(0.8);
 
@@ -87,7 +93,7 @@ export function wireAudio({ audio, events, hero, combat, flow, voice = null, set
         : step?.type === 'boss' ? 'boss'
         : step?.scene === 'finale' || step?.type === 'credits' ? 'finale'
         : flow.mode === 'cutscene' ? 'title'
-        : fighting || combat.active ? 'combat' : 'explore';
+        : (fighting || combat.active) && !(stealth?.active && !stealth.alarm) ? 'combat' : 'explore';
       if (want !== mode) { mode = want; audio.music(want); }
       audio.setGlide(hero.state === 'glide' ? Math.min(1, 0.35 + hero.speed / 40) : 0);
       const heat = combat.active ? Math.min(1, combat.enemies.filter((e) => e.alive && e.aware).length / 6 + combat.combo.value / 16) : 0;

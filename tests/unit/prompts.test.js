@@ -96,3 +96,22 @@ describe('promptText: gadgets', () => {
     for (const g of GADGETS) expect(PROMPT_IDS).toContain(g.promptId);
   });
 });
+
+describe('promptText: predator stealth', () => {
+  // Built from char codes (0x2013 en dash, 0x2014 em dash) rather than written as literal
+  // escapes: the editing tools that wrote this file turn that kind of escape sequence into an
+  // actual dash character, which would defeat the point of the check.
+  const DASH_RE = new RegExp('[' + String.fromCharCode(0x2013, 0x2014) + ']');
+  const IDS = {
+    crouch: ['crouch'], silent: ['punch'], perch: ['grapple'], perchDrop: ['kick'], distract: ['batarang'],
+    vent: ['crouch'], ledgeStealth: ['punch'], spotted: ['grapple'], rifle: ['dodge'],
+  };
+  for (const [id, actions] of Object.entries(IDS)) {
+    it(`${id} shows its keys and has no dashes`, () => {
+      const text = promptText(id, DEFAULT_BINDINGS);
+      expect(text.length).toBeGreaterThan(0);
+      expect(text).not.toMatch(DASH_RE);
+      for (const a of actions) expect(text).toContain(keyLabel(DEFAULT_BINDINGS[a][0]));
+    });
+  }
+});

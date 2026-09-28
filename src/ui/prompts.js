@@ -43,6 +43,15 @@ const ENTRIES = [
   ['gadgetClaw', (k) => `Batclaw: ${k('batarang')} yanks the goon you aim at right to you for a free punch. It rips brute armor off and tears down vent covers and weak railings.`],
   ['gadgetFreeze', (k) => `Freeze blast: ${k('batarang')} traps a goon in ice. One hit shatters it and knocks them out.`],
   ['gadgetPopper', (k) => `Party popper: ${k('batarang')} throws a confetti bomb. Goons nearby forget the fight and dance.`],
+  ['crouch', (k) => `Press ${k('crouch')} to crouch. You move slower, your footsteps go quiet, and goons have to be much closer to spot you. Stay out of the lamplight.`],
+  ['silent', (k) => `Sneak up behind a goon who hasn't seen you and press ${k('punch')} for a silent takedown. It takes two seconds, and anyone within six meters hears it.`],
+  ['perch', (k) => `Grapple ${k('grapple')} to a gargoyle to watch from above. Goons never look up unless they are hunting you.`],
+  ['perchDrop', (k) => `On a gargoyle, press ${k('kick')} over a goon to drop on him and knock him out.`],
+  ['distract', (k) => `Throw a batarang ${k('batarang')} at a wall to make a noise. Goons within twelve meters walk over to look.`],
+  ['vent', (k) => `Crouch ${k('crouch')} in the steam over the floor vent and nobody can see you. Let a goon walk past, then take him from behind.`],
+  ['ledgeStealth', (k) => `Hang under a catwalk edge and press ${k('punch')} when a goon walks over you to pull him down.`],
+  ['spotted', (k) => `Spotted! Rifles hurt. Grapple ${k('grapple')} to a gargoyle to break their line of sight. They give up the hunt after eight seconds.`],
+  ['rifle', (k) => `Rifle goons parry punches and aim with a red laser. ${k('dodge')} dodge when it locks on, and kick or stun them first.`],
 ];
 
 export const PROMPT_IDS = ENTRIES.map(([id]) => id);

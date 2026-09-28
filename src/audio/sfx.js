@@ -448,6 +448,42 @@ export const SFX = {
     return h + dur + 0.05;
   } },
 
+  // A rifle crack: a sharp transient, a low body and a short echo off the walls.
+  rifleShot: { wet: 0.35, max: 3, fn(ctx, out, t, p) {
+    noise(ctx, out, t, { type: 'highpass', freq: 1800 * p, d: 0.05, gain: 0.9 });
+    thump(ctx, out, t, p, { from: 220, to: 60, d: 0.18, gain: 0.8 });
+    noise(ctx, out, t + 0.01, { type: 'bandpass', freq: 900 * p, Q: 0.8, d: 0.35, gain: 0.25 });
+    return t + 0.4;
+  } },
+
+  // A laser sight locking on: a thin rising beep.
+  laser: { wet: 0.05, max: 2, fn(ctx, out, t, p) {
+    tone(ctx, out, t, { type: 'sine', freq: 1800 * p, to: 2600 * p, d: 0.12, gain: 0.18 });
+    return t + 0.14;
+  } },
+
+  // A choke hold: cloth squeezing and a muffled struggle that fades.
+  choke: { wet: 0.1, max: 1, fn(ctx, out, t, p) {
+    flutter(ctx, out, t, p, { dur: 0.5, rate: 18, freq: 700, gain: 0.35 });
+    thump(ctx, out, t + 0.4, p, { from: 120, to: 70, d: 0.3, gain: 0.35 });
+    flutter(ctx, out, t + 0.9, p, { dur: 0.6, rate: 12, freq: 500, gain: 0.25 });
+    return t + 1.6;
+  } },
+
+  // The alarm when a goon spots Batman: two quick rising stabs.
+  alarm: { wet: 0.2, max: 1, fn(ctx, out, t, p) {
+    tone(ctx, out, t, { type: 'sawtooth', freq: 440 * p, to: 660 * p, d: 0.14, gain: 0.3 });
+    tone(ctx, out, t + 0.16, { type: 'sawtooth', freq: 523 * p, to: 784 * p, d: 0.2, gain: 0.3 });
+    return t + 0.4;
+  } },
+
+  // A batarang ringing off a wall.
+  tink: { wet: 0.25, max: 2, fn(ctx, out, t, p) {
+    metal(ctx, out, t, { base: 2600 * p, ratios: [1, 1.5, 2.2], d: 0.4, gain: 0.25 });
+    noise(ctx, out, t, { type: 'highpass', freq: 6000, d: 0.01, gain: 0.5 });
+    return t + 0.42;
+  } },
+
   pickup: { wet: 0.25, max: 2, fn(ctx, out, t, p) {
     const semi = 12 * Math.log2(p);
     [72, 76, 79].forEach((m, i) => {

@@ -447,8 +447,10 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       'popper-ground': () => 'Plant your feet to throw the party popper.',
       gas: () => 'Laughing gas! Get out of the green cloud.',
       finish: () => `He is reeling! ${key('special')} Finish him!`,
+      'perch-none': () => `Get right above a goon first. ${key('kick')} drops on him from the gargoyle.`,
+      rifle: () => `Rifle goons parry punches. ${key('kick')} kick them, ${key('cape')} cape-stun them, or take them from behind.`,
     };
-    events.on('blocked', ({ outcome, target }) => hud.hint((target?.type === 'joker' ? HINTS.joker : HINTS[outcome])(), 3500));
+    events.on('blocked', ({ outcome, target }) => hud.hint((target?.type === 'joker' ? HINTS.joker : target?.type === 'rifle' ? HINTS.rifle : HINTS[outcome])(), 3500));
     events.on('hint', ({ id, arg }) => HINTS[id] && hud.hint(HINTS[id](arg), 3000));
     events.on('bossStaggered', () => hud.hint(HINTS.finish(), 3500));
     const PROMPT_DONE = {
@@ -456,8 +458,12 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       batarangThrow: 'batarang', dodge: 'dodge', special: 'special', jumpKick: 'kick',
       ladderOn: 'ladder', ledgeGrab: 'ledge', zipOn: 'zip', wallRun: 'wallrun', diveStart: 'divebomb', takedown: 'takedown',
       wheelSeen: 'gadgetWheel',
+      crouchOn: 'crouch', silentTakedown: 'silent', perched: 'perch', perchDrop: 'perchDrop', batarangWall: 'distract', ventHide: 'vent', stealthLost: 'spotted',
     };
     for (const [ev, id] of Object.entries(PROMPT_DONE)) events.on(ev, () => prompts.done(id));
+    events.on('stealthAlarm', () => prompts.show(['spotted']));
+    events.on('rifleAim', () => prompts.show(['rifle']));
+    events.on('takedown', ({ kind }) => { if (kind === 'ledge') prompts.done('ledgeStealth'); });
     events.on('gadgetUnlocked', ({ id }) => {
       const g = gadgetById(id);
       hud.card(`NEW GADGET: ${g.name.toUpperCase()}`, g.cardText, 7000);
@@ -472,10 +478,10 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     });
 
     // Progress tracking (Plan 3C): one moveLearned event the first time each traversal move happens.
-    const MOVE_IDS = { ladderOn: 'ladder', ledgeGrab: 'ledge', zipOn: 'zipline', wallRun: 'wallrun', diveImpact: 'divebomb', throwRelease: 'throw', slam: 'slam', counter: 'counter' };
+    const MOVE_IDS = { ladderOn: 'ladder', ledgeGrab: 'ledge', zipOn: 'zipline', wallRun: 'wallrun', diveImpact: 'divebomb', throwRelease: 'throw', slam: 'slam', counter: 'counter', silentTakedown: 'silentTakedown', perchDrop: 'perchDrop' };
     onceEachId(events, MOVE_IDS, 'moveLearned');
 
-    const sound = wireAudio({ audio, events, hero, combat, flow, settings, voice });
+    const sound = wireAudio({ audio, events, hero, combat, flow, settings, voice, stealth });
     sound.start();
 
     // ---- grapple targeting ----

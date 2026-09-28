@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createObjectives, checkpointFor } from '../../src/game/objectives.js';
 import { STEPS } from '../../src/game/story.js';
+import { PROMPT_IDS } from '../../src/ui/prompts.js';
 import { FIGHTS } from '../../src/game/fights.js';
 import { SITES } from '../../src/world/mapData.js';
 import { BALLOONS } from '../../src/game/balloons.js';
@@ -64,6 +65,11 @@ describe('story data', () => {
       expect(SITES[f.site], id).toBeDefined();
     }
     expect(Object.values(FIGHTS).filter((f) => f.stealth)).toHaveLength(2);
+  });
+  it('every tutorial prompt in the story exists', () => {
+    for (const s of STEPS) for (const id of s.tutorial ?? []) expect(PROMPT_IDS, `${s.id} ${id}`).toContain(id);
+    expect(STEPS.find((s) => s.id === 'monarchBalcony').tutorial).toEqual(['crouch', 'silent', 'perch', 'perchDrop']);
+    expect(STEPS.find((s) => s.id === 'aceCatwalks').tutorial).toEqual(['distract', 'vent', 'ledgeStealth']);
   });
   it('fights have waves of known enemy types', () => {
     for (const [id, f] of Object.entries(FIGHTS)) {
