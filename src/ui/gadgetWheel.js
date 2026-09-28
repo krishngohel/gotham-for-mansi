@@ -8,7 +8,7 @@ export function createGadgetWheel(root) {
   const el = document.createElement('div');
   el.className = 'gwheel';
   el.innerHTML = `<div class="gw-ring">${GADGETS.map((g, i) => {
-    const c = slotCenter(i, 190);
+    const c = slotCenter(i, 245);
     return `<div class="gw-panel" style="--x:${c.x.toFixed(1)}px;--y:${c.y.toFixed(1)}px;--r:${i % 2 ? 2 : -2}deg">`
       + `<svg class="g-ico gw-icon" viewBox="0 0 48 48">${GADGET_ICONS[g.id]}</svg>`
       + `<svg class="g-ico gw-lock" viewBox="0 0 48 48">${LOCK_ICON}</svg><b>${i + 1}</b></div>`;
