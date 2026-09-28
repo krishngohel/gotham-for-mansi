@@ -589,11 +589,14 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
     return n;
   }
 
-  // An instant KO from a ledge or drop takedown: no fight, just an action shot.
+  // An instant KO from a ledge or drop takedown: no fight, just an action shot. Same
+  // wasAttacking/director.release bookkeeping as landHit, so a takedown on a goon that was
+  // mid-windup or mid-attack still frees its director slot for the others.
   function takedown(e, kind) {
     if (!e?.alive) return false;
     e.health = 0;
-    e.applyHit({ outcome: 'ko' }, hero.pos);
+    const wasAttacking = e.applyHit({ outcome: 'ko' }, hero.pos);
+    if (wasAttacking) director.release(e.id);
     critical(e, { slow: 0.7 });
     events.emit('takedown', { kind, pos: e.pos.clone() });
     return true;
@@ -620,8 +623,16 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty })
       if (chainT <= 0) { punchChain = 0; kickChain = 0; }
       const d = getDifficulty();
       if (d !== difficulty) { difficulty = d; director.configure(DIFFICULTY[d]); }
-      // Buffer the latest press so freeflow chains feel responsive.
-      for (const a of ACTIONS) if (ctx.input.pressed(a)) { buffer = a; bufferT = 0.3; }
+      // Buffer the latest press so freeflow chains feel responsive. A press that lands while
+      // a traversal control (ledge, ladder, zipline, wallrun, grapple, dive...) owns
+      // hero.control is presumed consumed by that control instead (e.g. the ledge takedown's
+      // own punch check, or the glide dive-bomb's kick check) and must not linger in the
+      // buffer to fire a real strike/airSlam once the player is back in freeflow.
+      for (const a of ACTIONS) {
+        if (!ctx.input.pressed(a)) continue;
+        if (hero.control && !hero.control.combat) continue;
+        buffer = a; bufferT = 0.3;
+      }
       bufferT -= dt;
       if (bufferT <= 0) buffer = null;
       const ctl = hero.control;

@@ -211,6 +211,14 @@ describe('canLedgeTakedown', () => {
     expect(canLedgeTakedown(goon({ pos: { x: 2, y: 5, z: 0 } }), ledge)).toBe(false);
     expect(canLedgeTakedown(goon({ pos: { x: 0, y: 6, z: 0.5 } }), ledge)).toBe(false);
   });
+  it('the vertical threshold is a strict < 0.4 m', () => {
+    expect(canLedgeTakedown(goon({ pos: { x: 0, y: 5.39, z: 0 } }), ledge)).toBe(true);
+    expect(canLedgeTakedown(goon({ pos: { x: 0, y: 5.4, z: 0 } }), ledge)).toBe(false);
+  });
+  it('the horizontal threshold is a strict < 1.5 m', () => {
+    expect(canLedgeTakedown(goon({ pos: { x: 1.49, y: 5, z: 0 } }), ledge)).toBe(true);
+    expect(canLedgeTakedown(goon({ pos: { x: 1.5, y: 5, z: 0 } }), ledge)).toBe(false);
+  });
   it('rejects an aware goon', () => {
     expect(canLedgeTakedown(goon({ aware: true }), ledge)).toBe(false);
   });
@@ -235,6 +243,14 @@ describe('canDropTakedown', () => {
   it('rejects a goon out of range (too far, or wrong height)', () => {
     expect(canDropTakedown(goon({ pos: { x: 2, y: 0, z: 0 } }), heroPos)).toBe(false);
     expect(canDropTakedown(goon({ pos: { x: 0.5, y: 1.5, z: 0 } }), heroPos)).toBe(false);
+  });
+  it('the horizontal threshold is a strict < 1.2 m', () => {
+    expect(canDropTakedown(goon({ pos: { x: 1.19, y: 0, z: 0 } }), heroPos)).toBe(true);
+    expect(canDropTakedown(goon({ pos: { x: 1.2, y: 0, z: 0 } }), heroPos)).toBe(false);
+  });
+  it('the vertical threshold is a strict < 1 m', () => {
+    expect(canDropTakedown(goon({ pos: { x: 0.5, y: 0.99, z: 0 } }), heroPos)).toBe(true);
+    expect(canDropTakedown(goon({ pos: { x: 0.5, y: 1.0, z: 0 } }), heroPos)).toBe(false);
   });
   it('rejects a dead or already-down goon', () => {
     expect(canDropTakedown(goon({ alive: false }), heroPos)).toBe(false);
