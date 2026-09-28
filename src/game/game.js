@@ -2,6 +2,7 @@
 import '../gadgets/gadgetSave.js';
 import '../progress/wayneSave.js';
 import { upgradeEffects } from '../progress/upgrades.js';
+import { createWayneTech } from '../progress/wayneTech.js';
 import { gadgetById } from '../gadgets/gadgetDefs.js';
 import { createGadgetSystem } from '../gadgets/gadgetSystem.js';
 import { createGadgetWheel } from '../ui/gadgetWheel.js';
@@ -157,7 +158,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     game?.follow.configure(settings);
     if (game) {
       game.combat.setDifficulty(settings.difficulty);
-      const max = settings.difficulty === 'story' ? 150 : 100;
+      const max = (settings.difficulty === 'story' ? 150 : 100) + (game.wayne?.effects.maxHealthBonus ?? 0);
       if (game.hero.maxHealth !== max) {
         game.hero.health = Math.round((game.hero.health / game.hero.maxHealth) * max);
         game.hero.maxHealth = max;
@@ -340,6 +341,18 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       devAll: params.get('gadgets') === 'all',
     });
     menus.setGadgetHelp(() => gadgets.helpList(settings.bindings));
+    const wayne = createWayneTech({
+      events, progress, hero, combat, hud, effects, save: () => saveProgress(storage, progress),
+      baseHealth: () => (settings.difficulty === 'story' ? 150 : 100),
+    });
+    wayne.apply();
+    hero.health = hero.maxHealth;
+    hud.setHealth(1);
+    events.on('levelUp', ({ level, points }) => {
+      hud.card(`LEVEL ${level}!`, `WayneTech sent an upgrade. ${points === 1 ? 'One point' : `${points} points`} to spend in the pause menu.`, 6500);
+      events.emit('word', { text: 'LEVEL UP!', pos: hero.pos.clone().setY(hero.pos.y + 2.4), big: true });
+      prompts.show(['wayneTech']);
+    });
     const NO_LOOK = { dx: 0, dy: 0 };
     const side = createSideContent({
       scene, assets, hero, follow, combat, encounters, events, flow, prompts, progress, storage, rng,
@@ -422,6 +435,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       batarangThrow: 'batarang', dodge: 'dodge', special: 'special', jumpKick: 'kick',
       ladderOn: 'ladder', ledgeGrab: 'ledge', zipOn: 'zip', wallRun: 'wallrun', diveStart: 'divebomb', takedown: 'takedown',
       wheelSeen: 'gadgetWheel',
+      upgradeBought: 'wayneTech',
     };
     for (const [ev, id] of Object.entries(PROMPT_DONE)) events.on(ev, () => prompts.done(id));
     events.on('gadgetUnlocked', ({ id }) => {
@@ -522,6 +536,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         side.update(dt, real, { toScreen });
         fx.update(dt);
         gfx.update(dt);
+        wayne.update(dt);
         chainFx.update(dt);
         breakables.update(state.t, hero.pos);
         if (hero.pos.y < -0.8) { hero.teleport(hero.lastSafe); events.emit('splash'); }
@@ -568,7 +583,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
 
     const api = {
       hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, side, stage, gfx, breakables, chainFx, photo,
-      gadgets, wheelUi,
+      gadgets, wheelUi, wayne,
       winFight: () => { for (const e of combat.enemies) if (e.alive && e.type !== 'joker') { e.health = 0; e.applyHit({ outcome: 'ko' }, hero.pos); } },
     };
     if (params.get('god') === '1') events.on('heroHurt', () => { hero.health = hero.maxHealth; hud.setHealth(1); });

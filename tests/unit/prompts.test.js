@@ -96,3 +96,11 @@ describe('promptText: gadgets', () => {
     for (const g of GADGETS) expect(PROMPT_IDS).toContain(g.promptId);
   });
 });
+
+describe('promptText: WayneTech', () => {
+  it('wayneTech points at the pause key and has no dashes', () => {
+    const text = promptText('wayneTech', DEFAULT_BINDINGS);
+    expect(text).toContain(keyLabel(DEFAULT_BINDINGS.pause[0]));
+    expect(text).not.toMatch(/[–—]/);
+  });
+});
