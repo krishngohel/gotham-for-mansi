@@ -212,3 +212,16 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0 6px; margin: 0 2px; bo
 .ch-marker[data-medal="bronze"] path { fill: #c07a3c; }
 .ch-marker[data-medal="silver"] path { fill: #c9ccd6; }
 .ch-marker[data-medal="gold"] path { fill: var(--signal); }
+
+.photo-overlay { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 21; }
+.photo-flash { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 23; }
+.photo-flash.on { animation: phflash 0.45s ease-out; }
+@keyframes phflash { 0% { opacity: 0.85; } 100% { opacity: 0; } }
+.menu.photo-panel { position: fixed; right: 20px; top: 20px; width: 340px; max-height: calc(100vh - 40px); padding: 16px 18px; z-index: 22; transform: rotate(0.6deg); }
+.menu.photo-panel.hidden { display: none; }
+.photo-panel h2 { margin: 0 0 8px; }
+.ph-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 6px 0; font: 20px 'Patrick Hand SC', cursive; }
+.ph-row input { width: 180px; font: 18px 'Patrick Hand SC', cursive; padding: 4px 6px; border: 3px solid var(--ink); background: #fffdf5; text-transform: uppercase; }
+.ph-actions { display: flex; gap: 10px; margin-top: 10px; }
+.ph-keys { font-size: 14px; line-height: 1.25; }
+.photo-on .hud, .photo-on .speed-lines, .photo-on .action-panel, .photo-on .fps { display: none !important; }
