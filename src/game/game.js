@@ -14,6 +14,7 @@ import { createInkPipeline } from '../render/inkPipeline.js';
 import { loadAssets } from '../actors/assets.js';
 import { createHero } from '../actors/hero.js';
 import { buildKickClips } from '../actors/kicks.js';
+import { buildClimbClips } from '../actors/climbAnims.js';
 import { createEnemy } from '../actors/enemy.js';
 import { SITES } from '../world/mapData.js';
 import { pickGrapplePoint } from '../world/grapple.js';
@@ -69,6 +70,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   mark('world');
   const assets = await assetsPromise;
   for (const c of buildKickClips(SkeletonUtils.clone(assets.bodies.m), assets.clips)) assets.clips.set(c.name, c);
+  for (const c of buildClimbClips(SkeletonUtils.clone(assets.bodies.m), assets.clips)) assets.clips.set(c.name, c);
   mark('clips');
   onProgress(0.9);
   // Compile the city's shaders behind the loading bar instead of freezing the first frame.

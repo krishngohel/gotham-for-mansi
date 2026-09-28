@@ -48,6 +48,8 @@ export function createHero({ assets, suit, scene, collision, events }) {
     stride: 0,
     speed: 0,
     frozen: false,
+    airRuns: 0,      // wall runs used since last touching the ground
+    lastClimbT: 99,  // seconds since leaving a ladder, ledge or zipline
   };
 
   function setState(s) { h.state = s; h.stateT = 0; }
@@ -81,6 +83,7 @@ export function createHero({ assets, suit, scene, collision, events }) {
   }
 
   function land(impact) {
+    h.airRuns = 0;
     h.grounded = true;
     h.airT = 0;
     cape.setWings(false);
@@ -317,6 +320,7 @@ export function createHero({ assets, suit, scene, collision, events }) {
 
   h.update = (dt, ctx) => {
     h.stateT += dt;
+    h.lastClimbT += dt;
     h.invulnerable = Math.max(0, h.invulnerable - dt);
     if (h.frozen) { bat.animator.update(dt); return; }
     if (h.control) {
@@ -356,6 +360,9 @@ export function createHero({ assets, suit, scene, collision, events }) {
     if (h.speed > 8.5 && h.state === 'ground') return 'sprint';
     return 'ground';
   };
+
+  // Used by the traversal controls in src/actors/traverse/.
+  Object.assign(h, { setState, faceTowards, integrate, startGlide, land, RADIUS, HEIGHT, GRAVITY });
 
   return h;
 }

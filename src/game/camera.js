@@ -8,6 +8,10 @@ const MODES = {
   zip: { dist: 5.2, height: 1.4, side: 0.3, fov: 9 },
   combat: { dist: 5.2, height: 1.65, side: 0.25, fov: 3 },
   takedown: { dist: 2.6, height: 1.3, side: 0.9, fov: -8 },
+  climb: { dist: 4.6, height: 1.2, side: 0.4, fov: 2 },
+  hang: { dist: 4.2, height: 0.6, side: 0.35, fov: 4 },
+  wallrun: { dist: 4.4, height: 1.4, side: 0.2, fov: 10 },
+  dive: { dist: 5.5, height: 2.2, side: 0, fov: 14 },
 };
 
 export function createFollowCamera(camera, collision) {
