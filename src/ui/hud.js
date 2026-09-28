@@ -15,27 +15,39 @@ const CHAIN_ICON = [
 
 // Where a sound word's centre goes so the whole word stays on screen: w x h is its laid-out
 // size, rotDeg its tilt, and the pop animation scales it to 1.15. m keeps it clear of the
-// comic frame. Each box in `avoid` (DOMRect-like: the objective card, a showing hint) the word
-// would cover is stepped out of by the shortest move that stays on screen. A word wider than
+// comic frame. If it would cover a box in `avoid` (DOMRect-like: the objective card, a showing
+// hint, the HUD, a word still on screen), it takes the nearest spot just above, below, left or
+// right of one of those boxes that stays on screen and covers none of them. A word wider than
 // the screen is centred.
 const POP = 1.15;
-export function placeWord(x, y, w, h, rotDeg, view, avoid = [], m = 24) {
+// Half the on-screen width and height of a word at its biggest (tilted, popped).
+export function wordHalf(w, h, rotDeg) {
   const r = (Math.abs(rotDeg) * Math.PI) / 180, c = Math.cos(r), s = Math.sin(r);
-  const hw = (POP * (w * c + h * s)) / 2, hh = (POP * (w * s + h * c)) / 2;
+  return { hw: (POP * (w * c + h * s)) / 2, hh: (POP * (w * s + h * c)) / 2 };
+}
+export function placeWord(x, y, w, h, rotDeg, view, avoid = [], m = 24) {
+  const { hw, hh } = wordHalf(w, h, rotDeg);
   const x0 = hw + m, x1 = view.w - hw - m, y0 = hh + m, y1 = view.h - hh - m;
   const fit = (v, lo, hi) => (lo > hi ? (lo + hi) / 2 : Math.min(hi, Math.max(lo, v)));
-  let px = fit(x, x0, x1), py = fit(y, y0, y1);
-  for (const b of avoid) {
-    if (!b || !(b.width > 0) || px + hw <= b.left || px - hw >= b.right || py + hh <= b.top || py - hh >= b.bottom) continue;
-    const up = b.top - hh - m, down = b.bottom + hh + m, left = b.left - hw - m, right = b.right + hw + m;
-    let best = Infinity, bx = px, by = py;
-    if (up >= y0 && py - up < best) { best = py - up; bx = px; by = up; }
-    if (down <= y1 && down - py < best) { best = down - py; bx = px; by = down; }
-    if (left >= x0 && px - left < best) { best = px - left; bx = left; by = py; }
-    if (right <= x1 && right - px < best) { best = right - px; bx = right; by = py; }
-    px = bx; py = by;
+  const px = fit(x, x0, x1), py = fit(y, y0, y1);
+  const boxes = avoid.filter((b) => b && b.width > 0);
+  const covers = (cx, cy) => boxes.some((b) => cx + hw > b.left && cx - hw < b.right && cy + hh > b.top && cy - hh < b.bottom);
+  if (!covers(px, py)) return { x: px, y: py };
+  let best = null, bd = Infinity;
+  const tryAt = (cx, cy) => {
+    if (cx < x0 - 1e-9 || cx > x1 + 1e-9 || cy < y0 - 1e-9 || cy > y1 + 1e-9 || covers(cx, cy)) return;
+    const d = Math.hypot(cx - px, cy - py);
+    if (d < bd) { bd = d; best = { x: cx, y: cy }; }
+  };
+  for (const b of boxes) {
+    tryAt(px, b.top - hh - m);
+    tryAt(px, b.bottom + hh + m);
+    tryAt(b.left - hw - m, py);
+    tryAt(b.right + hw + m, py);
   }
-  return { x: px, y: py };
+  // Nowhere free (a crowded screen): on screen where it was, flagged so the caller can retry with
+  // fewer boxes.
+  return best ?? { x: px, y: py, crowded: true };
 }
 
 export function arcDash(fraction, circumference = C, span = 0.75) {
@@ -75,6 +87,9 @@ export function createHud(root) {
   const layer = el.querySelector('.hud-layer');
   const glyphs = new Map();
   const hintEl = el.querySelector('.hud-hint');
+  const healthEl = el.querySelector('.hud-health');
+  // Where the sound words still on screen sit, so a new one doesn't land on top of one.
+  const liveWords = [];
   const flashEl = el.querySelector('.hud-flash');
   const speedEl = el.querySelector('.hud-speed');
   let hintTimer = null;
@@ -184,11 +199,20 @@ export function createHud(root) {
       s.textContent = word;
       const rot = Math.random() * 24 - 12;
       s.style.setProperty('--r', `${rot.toFixed(1)}deg`);
-      s.addEventListener('animationend', () => s.remove());
       layer.appendChild(s);
-      // Measured once per word, now it's laid out: keep it on screen, off the objective card and off a showing hint.
-      const avoid = [captionEl.getBoundingClientRect(), hintEl.classList.contains('show') ? hintEl.getBoundingClientRect() : null];
-      const p = placeWord(x, y, s.offsetWidth, s.offsetHeight, rot, { w: innerWidth, h: innerHeight }, avoid);
+      // Measured once per word, now it's laid out: keep it on screen, off the objective card, a
+      // showing hint, the combo and chain icons, the health ring and any word still on screen.
+      const w = s.offsetWidth, h = s.offsetHeight;
+      const view = { w: innerWidth, h: innerHeight };
+      const ui = [captionEl.getBoundingClientRect(), hintEl.classList.contains('show') ? hintEl.getBoundingClientRect() : null,
+        combo.getBoundingClientRect(), chainsEl.getBoundingClientRect(), healthEl.getBoundingClientRect()];
+      let p = placeWord(x, y, w, h, rot, view, [...ui, ...liveWords]);
+      // Too crowded to miss every word: overlapping a word beats covering the card or the HUD.
+      if (p.crowded) p = placeWord(x, y, w, h, rot, view, ui);
+      const { hw, hh } = wordHalf(w, h, rot);
+      const box = { left: p.x - hw, right: p.x + hw, top: p.y - hh, bottom: p.y + hh, width: 2 * hw };
+      liveWords.push(box);
+      s.addEventListener('animationend', () => { s.remove(); const i = liveWords.indexOf(box); if (i >= 0) liveWords.splice(i, 1); });
       s.style.left = `${p.x}px`;
       s.style.top = `${p.y}px`;
     },

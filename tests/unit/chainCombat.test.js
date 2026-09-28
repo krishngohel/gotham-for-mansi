@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { createCombat } from '../../src/combat/combatSystem.js';
 import { ENEMY } from '../../src/combat/rules.js';
 import { createRng } from '../../src/core/rng.js';
-import { placeWord } from '../../src/ui/hud.js';
+import { placeWord, wordHalf } from '../../src/ui/hud.js';
 
 function harness({ discount = 0, blocked = false } = {}) {
   const bat = {
@@ -329,6 +329,44 @@ describe('sound word placement (hud.placeWord)', () => {
   });
   it('ignores boxes that are hidden (zero width)', () => {
     expect(placeWord(640, 360, 200, 100, 0, view, [{ left: 0, right: 0, top: 0, bottom: 0, width: 0 }])).toEqual({ x: 640, y: 360 });
+  });
+  const box = (p, hw, hh) => ({ left: p.x - hw, right: p.x + hw, top: p.y - hh, bottom: p.y + hh, width: 2 * hw });
+  const overlap = (a, b) => a.right > b.left && a.left < b.right && a.bottom > b.top && a.top < b.bottom;
+  it('keeps a new word off a word still on screen (BONK! then KLONK! on the same spot)', () => {
+    const first = placeWord(600, 520, 150, 70, 5, view);
+    const a = wordHalf(150, 70, 5);
+    const live = box(first, a.hw, a.hh);
+    const p = placeWord(610, 525, 160, 70, -8, view, [live]);
+    const b = wordHalf(160, 70, -8);
+    const next = box(p, b.hw, b.hh);
+    expect(overlap(next, live)).toBe(false);
+    expect(next.left).toBeGreaterThanOrEqual(24 - 1e-9);
+    expect(next.right).toBeLessThanOrEqual(1280 - 24 + 1e-9);
+    expect(next.top).toBeGreaterThanOrEqual(24 - 1e-9);
+    expect(next.bottom).toBeLessThanOrEqual(720 - 24 + 1e-9);
+  });
+  it('steps out again when stepping off one box lands on another (a word, then the card)', () => {
+    const card = { left: 880, right: 1256, top: 24, bottom: 132, width: 376 };
+    const { hw, hh } = wordHalf(200, 80, 0);
+    const live = [box({ x: 900, y: 230 }, 110, 50), box({ x: 900, y: 340 }, 110, 50)];
+    const p = placeWord(900, 235, 200, 80, 0, view, [card, ...live]);
+    const b = box(p, hw, hh);
+    for (const o of [card, ...live]) expect(overlap(b, o)).toBe(false);
+    expect(b.right).toBeLessThanOrEqual(1280 - 24 + 1e-9);
+  });
+  it('keeps three quick words in a row apart', () => {
+    const boxes = [];
+    for (const [w, rot] of [[150, 6], [170, -9], [150, 3]]) {
+      const p = placeWord(640, 560, w, 70, rot, view, boxes);
+      const { hw, hh } = wordHalf(w, 70, rot);
+      const b = box(p, hw, hh);
+      for (const o of boxes) expect(overlap(b, o)).toBe(false);
+      boxes.push(b);
+    }
+  });
+  it('flags a screen too crowded to miss every box, and stays on screen', () => {
+    const wall = { left: 0, right: 1280, top: 0, bottom: 720, width: 1280 };
+    expect(placeWord(640, 360, 200, 80, 0, view, [wall])).toEqual({ x: 640, y: 360, crowded: true });
   });
   it('centres a word wider than the screen', () => {
     expect(placeWord(10, 360, 2000, 100, 0, view).x).toBe(640);
