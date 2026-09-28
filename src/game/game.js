@@ -627,13 +627,22 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       onResume: resume,
       onRestart: () => { resume(); game.flow.respawn(); },
       onTitle: () => { location.search = ''; },
-      info: side.pauseInfo(),
+      info: { ...side.pauseInfo(), wayneFree: game.wayne.free },
       onQuitChallenge: () => { side.challenges.quit(); resume(); },
       onChallenges: () => menus.challengesPage(side.challengesPage(), { onBack: () => menus.pause(opts), onRead: () => readPage('goldStandard', () => menus.pause(opts)) }),
       onProgress: () => menus.progressPage(side.progressPage(), { onBack: () => menus.pause(opts), onRead: () => readPage('fromKrishn', () => menus.pause(opts)) }),
+      onWayneTech: openWayneTech,
       onPhoto: () => { menus.hide(); game.photo.open(); },
     };
     return opts;
+  }
+  // The WayneTech page stays open while buying; Back returns to a pause menu with fresh numbers.
+  function openWayneTech() {
+    const cbs = {
+      onBuy: (id) => { game.wayne.buy(id); menus.wayneTechPage(game.wayne.page(), { ...cbs, focus: id }); },
+      onBack: () => menus.pause(pauseOptions()),
+    };
+    menus.wayneTechPage(game.wayne.page(), cbs);
   }
   // Reward comics open from the pause menu. stage.shot moves the camera for its panels, so the
   // paused view is put back before the comic shows.

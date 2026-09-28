@@ -96,7 +96,7 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
   // opts: { onResume, onRestart, onTitle, info?: { challenge, crimesStopped, percent },
   //         onQuitChallenge?, onChallenges?, onProgress?, onPhoto? }
   function pause(opts) {
-    const { onResume, onRestart, onTitle, info = {}, onQuitChallenge, onChallenges, onProgress, onPhoto } = opts;
+    const { onResume, onRestart, onTitle, info = {}, onQuitChallenge, onChallenges, onProgress, onPhoto, onWayneTech } = opts;
     const again = () => pause(opts);
     const node = el('div', 'menu pause-menu');
     node.appendChild(el('h2', '', 'Paused'));
@@ -105,6 +105,7 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
     if (info.challenge && onQuitChallenge) list.appendChild(button('Quit challenge', onQuitChallenge));
     if (onChallenges) list.appendChild(button('Challenges', onChallenges));
     if (onProgress) list.appendChild(button(info.percent != null ? `Progress, ${info.percent}%` : 'Progress', onProgress));
+    if (onWayneTech) list.appendChild(button(info.wayneFree ? `WayneTech, ${info.wayneFree} to spend` : 'WayneTech', onWayneTech, info.wayneFree ? 'glow' : ''));
     if (onPhoto) list.appendChild(button('Photo mode', onPhoto));
     list.appendChild(button('Controls', () => help(again)));
     list.appendChild(button('Settings', () => openSettings(again)));
@@ -171,6 +172,46 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
     map.width = backing;
     map.height = backing;
     drawProgressMap(map, data.map);
+  }
+
+  // ---------- WayneTech ----------
+  // data: wayne.page(). Every card is a button so a gamepad can browse them; only buyable ones buy.
+  // Text goes in with textContent.
+  const WT_STATE = { owned: 'Built', buyable: 'Build it: 1 point', poor: 'Needs 1 point', locked: 'Needs the one above' };
+  function wayneTechPage(data, { onBuy, onBack, focus = null }) {
+    const node = el('div', 'menu wt-menu');
+    node.appendChild(el('div', 'wt-head', '<span class="wt-logo">WAYNETECH</span><span class="wt-sub">Applied Sciences Division</span>'));
+    const bar = el('div', 'wt-xp', '<div class="wt-level"></div><div class="wt-bar"><i></i></div><div class="wt-points"></div><div class="wt-next"></div>');
+    bar.querySelector('.wt-level').textContent = `Level ${data.level}`;
+    bar.querySelector('.wt-bar i').style.width = `${Math.round(data.fraction * 100)}%`;
+    bar.querySelector('.wt-points').textContent = data.allOwned ? 'Every upgrade built' : data.free === 1 ? '1 point to spend' : `${data.free} points to spend`;
+    bar.querySelector('.wt-next').textContent = `${data.xp.toLocaleString('en-US')} XP. ${data.need.toLocaleString('en-US')} more to level ${data.level + 1}.`;
+    node.appendChild(bar);
+    const trees = el('div', 'wt-trees');
+    for (const t of data.trees) {
+      const col = el('div', `wt-tree wt-${t.id}`);
+      col.appendChild(el('h3', '', t.name));
+      for (const u of t.upgrades) {
+        const card = el('button', `mbtn wt-card ${u.state}`, '<span class="wt-tier"></span><span class="wt-name"></span><span class="wt-text"></span><span class="wt-state"></span>');
+        card.dataset.id = u.id;
+        card.querySelector('.wt-tier').textContent = String(u.tier);
+        card.querySelector('.wt-name').textContent = u.name;
+        card.querySelector('.wt-text').textContent = u.text;
+        card.querySelector('.wt-state').textContent = WT_STATE[u.state];
+        card.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (u.state === 'buyable') onBuy(u.id);
+          else sound('uiBack');
+        });
+        card.addEventListener('mouseenter', () => sound('uiMove'));
+        col.appendChild(card);
+      }
+      trees.appendChild(col);
+    }
+    node.appendChild(trees);
+    node.appendChild(button('Back', onBack, 'small'));
+    show(node);
+    if (focus) node.querySelector(`[data-id="${focus}"]`)?.focus({ preventScroll: true });
   }
 
   // ---------- controls help ----------
@@ -327,7 +368,7 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
   }
 
   return {
-    title, suitSelect, pause, challengesPage, progressPage, help, openSettings, credits, hide,
+    title, suitSelect, pause, challengesPage, progressPage, wayneTechPage, help, openSettings, credits, hide,
     setGadgetHelp(fn) { gadgetHelp = fn; },
     get open() { return !!current; },
   };
