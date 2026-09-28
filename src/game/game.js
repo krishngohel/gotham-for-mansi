@@ -153,7 +153,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   }
 
   function buildRun(suit) {
-    const hero = createHero({ assets, suit, scene, collision: world.collision, events, climbables: world.climbables });
+    const hero = createHero({ assets, suit, scene, collision: world.collision, events, climbables: world.climbables, settings });
     hero.teleport(SITES.start, Math.PI * 1.2);
     if (settings.difficulty === 'story') { hero.maxHealth = 150; hero.health = 150; }
     const follow = createFollowCamera(camera, world.collision);
@@ -264,6 +264,11 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     sound.start();
 
     // ---- grapple targeting ----
+    // Ledge-variant grapple points: every non-perch grapple point, dropped 0.1m so the vault
+    // lands slightly short and finds a ledge to hang from instead of standing on top. Only
+    // offered while the player holds `back` when the target is picked, so they don't crowd
+    // out the normal landing points.
+    const ledgeGrapplePoints = world.grapplePoints.filter((p) => !p.perch).map((p) => ({ ...p, y: p.y - 0.1, ledge: true }));
     const grapple = { target: null, timer: 0 };
     const eye = new THREE.Vector3(), camDir = new THREE.Vector3(), toPt = new THREE.Vector3();
     function pickGrapple(dt) {
@@ -273,7 +278,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       if (hero.control) { grapple.target = null; return; }
       follow.lookDir(camDir);
       eye.copy(hero.pos); eye.y += 1.6;
-      grapple.target = pickGrapplePoint(world.grapplePoints, camera.position, camDir, hero.pos, {
+      const points = input.down('back') ? ledgeGrapplePoints : world.grapplePoints;
+      grapple.target = pickGrapplePoint(points, camera.position, camDir, hero.pos, {
         visible: (p) => {
           toPt.set(p.x + (p.nx ?? 0) * 0.4 - eye.x, p.y + 0.3 - eye.y, p.z + (p.nz ?? 0) * 0.4 - eye.z);
           const d = toPt.length();

@@ -182,6 +182,7 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
       body.appendChild(slider('Field of view', settings.fov, 50, 90, 1, (v) => { settings.fov = v; }, (v) => `${v}°`));
       body.appendChild(toggle('Camera shake', settings.cameraShake, (v) => { settings.cameraShake = v; }));
       body.appendChild(toggle('Action camera on critical hits', settings.actionCam, (v) => { settings.actionCam = v; }));
+      body.appendChild(toggle('Auto ledge grab', settings.autoLedge, (v) => { settings.autoLedge = v; }));
     } else if (tab === 'video') {
       body.appendChild(choice('Quality', settings.quality, [['high', 'High'], ['low', 'Low']], (v) => { settings.quality = v; }));
       body.appendChild(el('p', 'note', 'Quality changes apply the next time the game loads.'));

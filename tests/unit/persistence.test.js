@@ -31,6 +31,11 @@ describe('settings', () => {
     expect(loadSettings(brokenStorage)).toEqual(DEFAULT_SETTINGS);
     expect(() => saveSettings(brokenStorage, DEFAULT_SETTINGS)).not.toThrow();
   });
+  it('keeps autoLedge as a boolean and defaults it on', () => {
+    expect(sanitizeSettings({}).autoLedge).toBe(true);
+    expect(sanitizeSettings({ autoLedge: false }).autoLedge).toBe(false);
+    expect(sanitizeSettings({ autoLedge: 'yes' }).autoLedge).toBe(true);
+  });
 });
 
 describe('progress', () => {

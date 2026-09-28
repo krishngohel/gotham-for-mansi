@@ -7,6 +7,8 @@ import { createBat } from './characters.js';
 import { createCape } from './cape.js';
 import { ladderGrab, ladderTopGrab } from '../world/climbables.js';
 import { createLadderControl } from './traverse/ladder.js';
+import { findLedge } from './traverse/probes.js';
+import { createLedgeControl } from './traverse/ledge.js';
 
 const GRAVITY = 26;
 const JUMP_V = 9.4;
@@ -18,7 +20,7 @@ const GLIDE_G = 20;       // how hard gravity pulls along a dive
 const GLIDE_MAX = 48;     // m/s
 const GLIDE_CRUISE = 17;  // m/s
 
-export function createHero({ assets, suit, scene, collision, events, climbables = { ladders: [], ziplines: [] } }) {
+export function createHero({ assets, suit, scene, collision, events, climbables = { ladders: [], ziplines: [] }, settings = { autoLedge: true } }) {
   const bat = createBat(assets, ['m', 'f', 'gold'].includes(suit) ? suit : 'm');
   scene.add(bat.root);
   const cape = createCape(bat, bat.colors.cape);
@@ -229,6 +231,13 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
       }
       if (g) { h.control = createLadderControl(h, { collision, events }, { ...g, fromTop }); return; }
     }
+    // Ledges: falling (or gliding slowly) with an edge in reach.
+    if (!h.control && settings.autoLedge && h.lastClimbT > 0.35 && vel.y < 0 &&
+        (h.state === 'air' || (h.state === 'glide' && h.glide.speed < 16))) {
+      const fx = Math.sin(bat.yaw), fz = Math.cos(bat.yaw);
+      const ledge = findLedge(collision, pos, fx, fz);
+      if (ledge) { h.control = createLedgeControl(h, { collision, events }, { ledge }); return; }
+    }
     const wasGrounded = h.grounded;
     if (r.grounded && vy <= 0.01) {
       if (h.state === 'air' || h.state === 'glide') land(vy);
@@ -307,6 +316,10 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
               cable.visible = false;
               return true;
             }
+            if (point.ledge) {
+              const l = findLedge(collision, hang, -n.x, -n.z, { minRise: 0.6, maxRise: 2.6, reach: 0.9 });
+              if (l) { cable.visible = false; h.control = createLedgeControl(h, { collision, events }, { ledge: l }); return false; }
+            }
             phase = 'vault'; t = 0;
             bat.face(Math.atan2(-n.x || point.x - pos.x, -n.z || point.z - pos.z));
             bat.animator.play('ClimbUp_1m', { once: true, timeScale: 1.5, fade: 0.08 });
@@ -337,7 +350,8 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
     h.invulnerable = Math.max(0, h.invulnerable - dt);
     if (h.frozen) { bat.animator.update(dt); return; }
     if (h.control) {
-      if (h.control.update(dt, ctx)) { h.control = null; cable.visible = false; }
+      const ctl = h.control;
+      if (ctl.update(dt, ctx) && h.control === ctl) { h.control = null; cable.visible = false; }
     } else {
       if (ctx.input.pressed('grapple') && ctx.grappleTarget && h.state !== 'roll') {
         h.control = grappleControl(ctx.grappleTarget, events);
