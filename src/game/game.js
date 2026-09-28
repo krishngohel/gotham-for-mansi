@@ -505,7 +505,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         if (input.pressed('detective')) state.detectiveOn = !state.detectiveOn;
         pickGrapple(real);
         // Grapple is only locked while a fight is actually around you.
-        const busy = combat.enemies.some((e) => e.alive && e.aware && e.pos.distanceTo(hero.pos) < 12 && Math.abs(e.pos.y - hero.pos.y) < 4);
+        const busy = combat.enemies.some((e) => e.alive && e.aware && !e.room && e.pos.distanceTo(hero.pos) < 12 && Math.abs(e.pos.y - hero.pos.y) < 4);
         ctx.grappleTarget = busy ? null : grapple.target;
         hintCheckT -= real;
         if (hintCheckT <= 0) {

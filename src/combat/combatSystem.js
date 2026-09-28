@@ -31,7 +31,7 @@ const CHAIN = 4;
 // Clip beats the chain timelines don't carry themselves: the mocap kicks (Kick_Front, Kick_Flying).
 const BEATS = MOCAP_BEATS;
 
-export function createCombat({ hero, follow, time, events, rng, getDifficulty, reach = {}, effects = BASE_EFFECTS, getChainDiscount = () => effects.chainDiscount, useGadget = null }) {
+export function createCombat({ hero, follow, time, events, rng, getDifficulty, reach = {}, effects = BASE_EFFECTS, getChainDiscount = () => effects.chainDiscount, useGadget = null, stealthStart = null }) {
   const combo = createCombo({ timeout: 1.5, ready: effects.specialAt, shield: effects.comboShield });
   let difficulty = getDifficulty();
   const director = createDirector({ ...DIFFICULTY[difficulty], rng });
@@ -692,11 +692,26 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
   }
   function onAttackEnd(e) { director.release(e.id); }
 
+  // A rifle goon fires (enemy.js): muzzle and aim point for the tracer and the crack. The vectors
+  // are reused on every shot, so listeners copy them.
+  const shotFrom = new THREE.Vector3(), shotTo = new THREE.Vector3();
+  const shot = { from: shotFrom, to: shotTo, target: null, hit: false };
+  function onRifleFire(e) {
+    if (e.ch.muzzle) e.ch.muzzle.getWorldPosition(shotFrom);
+    else e.ch.headWorld(shotFrom, -0.2);
+    shotTo.set(hero.pos.x, hero.pos.y + (hero.crouched ? 0.7 : 1.1), hero.pos.z);
+    shot.target = e;
+    shot.hit = e.seesHero !== false && hero.invulnerable <= 0;
+    events.emit('rifleShot', shot);
+  }
+
   function tryStart(action, ctx) {
     const chain = chainForAction(action);
     if (chain) return startChain(chain, ctx);
     // The fire key uses whatever gadget is equipped (src/gadgets/gadgetSystem.js).
     if (action === 'batarang' && useGadget) return useGadget(ctx, { inAir: hero.state === 'air' || hero.state === 'glide' });
+    // Predator stealth (src/stealth/stealthSystem.js): a silent takedown from behind, or a perch drop.
+    if (stealthStart && (action === 'punch' || action === 'kick') && stealthStart(action, ctx)) return true;
     const inAir = hero.state === 'air' || hero.state === 'glide';
     const all = alive().filter((e) => e.state !== 'grabbed');
     const list = action === 'block' ? all : all.filter(canSee);
@@ -772,16 +787,16 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     return n;
   }
 
-  // An instant KO from a ledge or drop takedown: no fight, just an action shot. Same
-  // wasAttacking/director.release bookkeeping as landHit, so a takedown on a goon that was
-  // mid-windup or mid-attack still frees its director slot for the others.
-  function takedown(e, kind) {
+  // An instant KO from a ledge, drop, perch or silent takedown: no fight, just (unless it is a
+  // quiet one) an action shot. Same wasAttacking/director.release bookkeeping as landHit, so a
+  // takedown on a goon that was mid-windup or mid-attack still frees its director slot.
+  function takedown(e, kind, { crit = true } = {}) {
     if (!e?.alive) return false;
     e.health = 0;
     const wasAttacking = e.applyHit({ outcome: 'ko' }, hero.pos);
     if (wasAttacking) director.release(e.id);
-    critical(e, { slow: 0.7 });
-    events.emit('takedown', { kind, pos: e.pos.clone() });
+    if (crit) critical(e, { slow: 0.7 });
+    events.emit('takedown', { kind, pos: e.pos.clone(), target: e });
     return true;
   }
 
@@ -927,7 +942,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
       hero.blocking = !ctx.lockInput && (!hero.control || hero.control.name === 'blockStagger') && hero.grounded && ctx.input.down('block') && engaged().length > 0;
 
       // Enemy AI and the attack director.
-      const ectx = { hero, others: enemies, onAttackLand, onAttackEnd, onThrownFly, onLanded };
+      const ectx = { hero, others: enemies, onAttackLand, onAttackEnd, onThrownFly, onLanded, onRifleFire };
       const ready = [];
       for (const e of enemies) {
         e.update(dt, ectx);
@@ -935,7 +950,10 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
       }
       for (const id of director.tick(dt, ready)) {
         const e = enemies.find((x) => x.id === id);
-        if (e) e.startWindup(DIFFICULTY[difficulty].windup + (e.def.counterable ? effects.counterWindow : 0), hero);
+        if (e) {
+          e.startWindup(DIFFICULTY[difficulty].windup + (e.def.counterable ? effects.counterWindow : 0), hero);
+          if (e.def.ranged) events.emit('rifleAim', { target: e });
+        }
       }
       for (const e of enemies) if (!e.alive || (e.state !== 'windup' && e.state !== 'attack')) { if (director.active.has(e.id) && e.state !== 'attack') director.release(e.id); }
     },

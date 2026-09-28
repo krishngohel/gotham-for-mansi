@@ -29,6 +29,8 @@ export function createFlow(d) {
   function respawnPoint() {
     const s = objectives.step;
     if (s?.type === 'fight') {
+      // Predator rooms respawn at their entry, above the room and out of sight.
+      if (FIGHTS[s.fight].entry) return { ...SITES[FIGHTS[s.fight].entry] };
       const site = SITES[FIGHTS[s.fight].site];
       const r = FIGHTS[s.fight].radius + 3;
       const x = site.x, z = site.z + r;

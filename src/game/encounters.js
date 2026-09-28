@@ -5,7 +5,7 @@ import { SITES } from '../world/mapData.js';
 
 const siteOf = (f) => (typeof f.site === 'string' ? SITES[f.site] : f.site);
 
-export function createEncounters({ spawn, despawn, combat, events, collision }) {
+export function createEncounters({ spawn, despawn, combat, events, collision, stealth = null }) {
   let fight = null;
   let def = null;
   let id = null;
@@ -17,10 +17,11 @@ export function createEncounters({ spawn, despawn, combat, events, collision }) 
 
   function placeWave(index, awake) {
     const site = siteOf(fight);
-    const made = fight.waves[index].map(({ type, dx, dz }) => {
+    const made = fight.waves[index].map(({ type, dx, dz, y: wy }) => {
       const x = site.x + dx, z = site.z + dz;
-      const y = collision.groundBelow(x, site.y + 3, z, 0.3);
-      return spawn(type, { x, y: y > -Infinity ? y : site.y, z }, site);
+      // Stealth squads start on catwalks and balconies: look for the floor from their own height.
+      const y = collision.groundBelow(x, (wy ?? site.y) + 3, z, 0.3);
+      return spawn(type, { x, y: y > -Infinity ? y : wy ?? site.y, z }, site);
     });
     live.push(...made);
     combat.setEnemies([...live]);
@@ -29,6 +30,7 @@ export function createEncounters({ spawn, despawn, combat, events, collision }) 
   }
 
   function clear() {
+    stealth?.end();
     for (const e of [...live, ...dead]) despawn(e);
     live = []; dead = [];
     combat.setEnemies([]);
@@ -47,7 +49,9 @@ export function createEncounters({ spawn, despawn, combat, events, collision }) 
       fight = fightDef;
       wave = 0;
       triggered = false;
-      placeWave(0, false);
+      const made = placeWave(0, false);
+      // A predator room: the stealth runtime drives this squad (src/stealth/stealthSystem.js).
+      if (fight.stealth) stealth?.begin(fight, made);
     },
     restart() {
       if (!id) return;
@@ -57,7 +61,7 @@ export function createEncounters({ spawn, despawn, combat, events, collision }) 
     trigger() {
       if (!fight || triggered) return;
       triggered = true;
-      for (const e of live) e.wake();
+      if (!fight.stealth) for (const e of live) e.wake();
       events.emit('fightStart', { id });
     },
     update(dt, hero) {
@@ -88,6 +92,7 @@ export function createEncounters({ spawn, despawn, combat, events, collision }) 
         } else {
           // Clear the id before announcing the win: listeners may begin the next fight.
           const done = id;
+          if (fight.stealth) stealth?.end();
           fight = null;
           id = null;
           triggered = false;
