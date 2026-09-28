@@ -10,6 +10,7 @@ import {
 import { drawPhotoFrame } from './photoFrame.js';
 
 const PAD = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, VIEW: 8, L3: 10, R3: 11, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 };
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
 export function createPhotoMode({ root, camera, renderer, ink, scene, hero, input, sound = () => {}, getTime, getIssue, onOpen = () => {}, onClose = () => {}, onSaved = () => {} }) {
   const overlay = document.createElement('canvas');
@@ -36,6 +37,9 @@ export function createPhotoMode({ root, camera, renderer, ink, scene, hero, inpu
   let cam = null;
   let anchor = { x: 0, y: 0, z: 0 };
   let filter = 'ink', frame = 'none', caption = DEFAULT_CAPTION, hideBat = false, panelHidden = false;
+  // Whatever the grapple cable's real visibility was when photo mode opened (time is frozen
+  // while it's active, so this can't change on its own); hiding Batman hides it too.
+  let cableShown = false;
   let drag = null, lookX = 0, lookY = 0, wheel = 0;
   capInput.value = caption;
 
@@ -56,6 +60,7 @@ export function createPhotoMode({ root, camera, renderer, ink, scene, hero, inpu
     ink.setFilter(filter);
     hero.bat.root.visible = !hideBat;
     hero.cape.mesh.visible = !hideBat;
+    hero.cable.visible = hideBat ? false : cableShown;
     drawOverlay();
   }
   const act = {
@@ -103,7 +108,10 @@ export function createPhotoMode({ root, camera, renderer, ink, scene, hero, inpu
     drag.y = e.clientY;
   };
   const onUp = () => { drag = null; };
-  const onWheel = (e) => { if (!e.target.closest?.('.photo-panel')) { wheel += Math.sign(e.deltaY) * 3; e.preventDefault(); } };
+  // A trackpad sends many small deltaY events per gesture; a fixed step per event feels twitchy,
+  // so scale by the actual delta and clamp each event's contribution (mouse wheel ticks land
+  // near the clamp anyway, trackpad scrolling stays smooth).
+  const onWheel = (e) => { if (!e.target.closest?.('.photo-panel')) { wheel += clamp(e.deltaY * 0.03, -3, 3); e.preventDefault(); } };
   const listeners = [['keydown', onKey], ['keyup', onKey], ['mousedown', onDown], ['mousemove', onMove], ['mouseup', onUp]];
 
   function apply() {
@@ -118,6 +126,7 @@ export function createPhotoMode({ root, camera, renderer, ink, scene, hero, inpu
   function open() {
     if (active) return;
     active = true;
+    cableShown = hero.cable.visible;
     anchor = { x: hero.pos.x, y: hero.pos.y, z: hero.pos.z };
     const dir = camera.getWorldDirection(new THREE.Vector3());
     cam = createPhotoCam({ position: camera.position, target: camera.position.clone().add(dir), fov: camera.fov });
@@ -138,6 +147,7 @@ export function createPhotoMode({ root, camera, renderer, ink, scene, hero, inpu
     ink.setFilter('ink');
     hero.bat.root.visible = true;
     hero.cape.mesh.visible = true;
+    hero.cable.visible = cableShown;
     overlay.remove();
     flash.remove();
     panel.remove();

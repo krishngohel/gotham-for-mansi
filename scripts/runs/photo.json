@@ -1,0 +1,20 @@
+[
+  { "wait": 1200 },
+  { "click": 0 }, { "wait": 400 },
+  { "press": "KeyO" }, { "wait": 600 }, { "shot": "photo-ink" },
+  { "eval": "window.__game.state.paused" },
+  { "press": "Digit1" }, { "wait": 300 }, { "shot": "photo-noir" },
+  { "press": "Digit1" }, { "wait": 300 }, { "shot": "photo-pop" },
+  { "press": "Digit1" }, { "wait": 300 }, { "shot": "photo-sepia" },
+  { "press": "Digit1" }, { "press": "Digit2" }, { "wait": 300 }, { "shot": "photo-panel" },
+  { "press": "Digit2" }, { "wait": 300 }, { "shot": "photo-cover" },
+  { "press": "KeyT" }, { "type": "gotham loves mansi" }, { "press": "Enter" }, { "wait": 200 },
+  { "hold": ["KeyW"], "ms": 4000 },
+  { "eval": "(() => { const g = window.__game; const c = g.camera.position, h = g.hero.pos; return +Math.hypot(c.x - h.x, c.y - h.y - 1.2, c.z - h.z).toFixed(2); })()" },
+  { "hold": ["KeyE"], "ms": 600 }, { "hold": ["KeyZ"], "ms": 800 },
+  { "press": "Digit3" }, { "wait": 300 }, { "shot": "photo-no-batman" },
+  { "press": "Enter" }, { "wait": 1500 },
+  { "eval": "window.__game.progress.stats.photos" },
+  { "press": "Escape" }, { "wait": 500 },
+  { "eval": "[window.__game.ink.uniforms.uFilter.value, window.__game.state.paused, window.__game.hero.bat.root.visible]" }
+]

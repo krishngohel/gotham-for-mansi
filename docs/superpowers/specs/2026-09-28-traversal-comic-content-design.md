@@ -249,7 +249,7 @@ flat shapes on the floor, and a counter of armed goons.
 - **Ranks:** bronze, silver and gold for each challenge. Thresholds are in
   `src/game/challenges.js` and tuned by scripted runs so gold is hard but reachable.
 - **Saving:** bests are kept in `progress.challenges`. A new "Challenges" page in the pause menu
-  lists all six with their best result and medal.
+  lists all five with their best result and medal.
 - **Reward:** getting a gold in every challenge unlocks a comic page, "Mansi's Gold Standard",
   shown from the Challenges page.
 
@@ -290,7 +290,7 @@ flat shapes on the floor, and a counter of armed goons.
   |---|---|---|
   | Story | chapter steps done, with the chapter names | 40% |
   | Balloons | found out of 12, with a "where" hint for the next one | 20% |
-  | Challenges | medals out of 18 (6 challenges times 3 medals) | 20% |
+  | Challenges | medals out of 15 (5 challenges times 3 medals) | 20% |
   | Street crimes | stopped out of 10; any past 10 still count on the stats line | 10% |
   | Moves learned | ladder, ledge, zipline, wall run, dive bomb, throw, slam, counter, silent takedown, perch drop | 5% |
   | Districts visited | 5 | 5% |

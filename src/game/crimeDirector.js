@@ -94,15 +94,29 @@ export function createCrimeDirector({ scene, assets, rng, events, encounters, ui
         clearProps();
         ui.radio(RADIO, 'Too late. The goons got away.', 4500);
         events.emit('crimeEnd', { id: r.crime.id, outcome: 'expired' });
+      } else if (r?.type === 'abandon') {
+        // Walked far enough from an engaged crime for long enough: drop it cleanly rather than
+        // holding the story hostage forever (holdStory() reads scheduler.active, already cleared).
+        if (encounters.id === r.crime.fightId) encounters.end();
+        clearProps();
+        ui.radio(RADIO, 'The goons scattered.', 4500);
+        events.emit('crimeEnd', { id: r.crime.id, outcome: 'abandoned' });
       }
       if (civilian.root.visible) {
         civilian.animator.update(dt);
         if (civilianT > 0 && (civilianT -= dt) <= 0) civilian.root.visible = false;
       }
     },
-    marker() { const c = scheduler.active; return c && !c.engaged ? c.spot : null; },
+    // The story waypoint stays the main marker during a story travel step (avoid() mirrors
+    // flow.target); a waiting crime only takes over the HUD marker in free roam, or once the
+    // story has no target of its own. The radio call still announces the crime either way.
+    marker() { const c = scheduler.active; return c && !c.engaged && !avoid() ? c.spot : null; },
     holdStory() { return !!scheduler.active?.engaged; },
-    onRespawn() { if (scheduler.active?.engaged) drop('failed', 'The goons got away while you were down.'); },
+    // A manual "Restart from checkpoint" never knocked the hero down, so it gets a neutral line.
+    onRespawn({ manual = false } = {}) {
+      if (!scheduler.active?.engaged) return;
+      drop('failed', manual ? 'The goons got away.' : 'The goons got away while you were down.');
+    },
     force(opts) { scheduler.force(opts); },
   };
 }

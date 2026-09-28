@@ -671,8 +671,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const side = game.side;
     const opts = {
       onResume: resume,
-      onRestart: () => { resume(); game.flow.respawn(); },
-      onTitle: () => { location.search = ''; },
+      onRestart: () => { resume(); game.flow.respawn({ manual: true }); },
+      onTitle: () => { side.save(); location.search = ''; },
       info: side.pauseInfo(),
       onQuitChallenge: () => { side.challenges.quit(); resume(); },
       onChallenges: () => menus.challengesPage(side.challengesPage(), { onBack: () => menus.pause(opts), onRead: () => readPage('goldStandard', () => menus.pause(opts)) }),
@@ -691,12 +691,22 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     camera.quaternion.copy(q);
     game.comic.play(pages).then(back);
   }
+  // Safari only grants pointer lock inside a real user gesture, and rejects the request
+  // (Promise) otherwise, e.g. from Esc or the pad's B button. Swallowing that rejection keeps
+  // it from surfacing as an uncaught error; the lock then waits for the player's next click.
+  const lockPointer = () => {
+    try {
+      canvas.requestPointerLock?.()?.catch?.(() => {
+        if (state.phase === 'play' && !state.paused) game?.hud.hint('Click to look around.', 2200);
+      });
+    } catch { /* some engines throw synchronously instead of rejecting */ }
+  };
   function resume({ lock = true } = {}) {
     menus.hide();
     state.paused = false;
     state.pauseMenu = false;
     input.setEnabled(true);
-    if (lock) canvas.requestPointerLock?.();
+    if (lock) lockPointer();
   }
 
   // Gamepad: pause and help, comic pages, and menu navigation (D-pad to move, A to press, B to go back).
@@ -753,9 +763,21 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       menus.help(resume);
     }
   });
-  canvas.addEventListener('click', () => { audio.unlock(); if (state.phase === 'play' && !state.paused) canvas.requestPointerLock?.(); });
+  canvas.addEventListener('click', (e) => {
+    audio.unlock();
+    if (state.phase !== 'play' || state.paused) return;
+    if (!document.pointerLockElement) {
+      // This click's only job is re-acquiring the lock (Esc, or Safari losing it on its own);
+      // the mousedown that already buffered a punch press for it must not fire one too.
+      lockPointer();
+      input.swallowCode('Mouse' + e.button);
+    }
+  });
   window.addEventListener('mousedown', () => audio.unlock(), { once: true });
   window.addEventListener('keydown', () => audio.unlock(), { once: true });
+  // Cheap (localStorage write): catches a tab close or app switch that skips the pause menu,
+  // so at most one save interval's worth of stats is ever at risk instead of up to 20 s.
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') game?.side.save(); });
 
   window.__game = { state, renderer, ink, dynRes, camera, scene, world, input, events, audio, voice, settings, sites: SITES, time, get progress() { return progress; }, begin, lightningNow: () => { weather.next = 0; }, checkStealthRooms: () => checkRooms(world.collision, world.grapplePoints, ROOMS, SITES) };
 

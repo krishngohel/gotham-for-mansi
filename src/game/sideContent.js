@@ -99,6 +99,7 @@ export function createSideContent(deps) {
   return {
     ui,
     stats,
+    save,
     score: () => tracker.score(progress),
     // dt is game time (slow motion and hit-stop included), real is wall time.
     update(dt, real, view) {
@@ -120,7 +121,7 @@ export function createSideContent(deps) {
     flowHooks: {
       holdStory: () => challenges.active || crimes.holdStory(),
       marker: () => (challenges.active ? challenges.nextMarker() : crimes.marker()),
-      onRespawn: () => { crimes.onRespawn(); return challenges.takeRespawn(); },
+      onRespawn: (opts) => { crimes.onRespawn(opts); return challenges.takeRespawn(); },
     },
     pauseInfo: () => ({ challenge: challenges.current?.name ?? null, crimesStopped: progress.crimes.stopped, percent: tracker.score(progress).percent }),
     photoTaken() { stats.photo(); save(); },

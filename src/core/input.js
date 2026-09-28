@@ -217,6 +217,9 @@ export function createInput({ target = window, bindings }) {
     setBindings,
     captureNext(cb) { capture = cb; },
     cancelCapture() { capture = null; },
+    // Drops a code's buffered press without touching `held`, so a click that only re-acquired
+    // pointer lock (Safari needs a real user gesture) doesn't also fire the action bound to it.
+    swallowCode(code) { pressedCodes.delete(code); },
     get capturing() { return capture !== null; },
     // While a menu is open, the game ignores keys so buttons get Space and Enter.
     setEnabled(v) { enabled = v; if (!v) onBlur(); },
