@@ -339,6 +339,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       isPlaying: () => flow.mode === 'play' && !state.paused && !comic.playing && !photo.active,
       devAll: params.get('gadgets') === 'all',
     });
+    menus.setGadgetHelp(() => gadgets.helpList(settings.bindings));
     const NO_LOOK = { dx: 0, dy: 0 };
     const side = createSideContent({
       scene, assets, hero, follow, combat, encounters, events, flow, prompts, progress, storage, rng,

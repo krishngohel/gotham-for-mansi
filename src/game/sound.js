@@ -78,6 +78,31 @@ export function wireAudio({ audio, events, hero, combat, flow, voice = null, set
   on('buzzer', () => audio.play('buzzer'));
   on('firework', () => audio.play('firework', { pitch: vary(0.3) }));
 
+  on('wheelOpen', () => audio.play('wheelOpen'));
+  on('wheelPick', () => audio.play('uiMove'));
+  on('gadgetEquip', () => audio.play('uiSelect', { gain: 0.7 }));
+  on('remoteStart', () => audio.play('batarangThrow'));
+  on('remoteWhirr', () => audio.play('remote'));
+  on('remoteHit', () => audio.play('batarangHit'));
+  on('gelSpray', () => audio.play('gelSpray', { pitch: vary() }));
+  on('gelBlast', () => audio.play('gelBoom', { pitch: vary(0.1) }));
+  on('smoke', () => audio.play('smoke'));
+  on('launcherFire', () => audio.play('launcher'));
+  on('launcherOn', () => audio.play('grapple'));
+  on('clawYank', () => audio.play('claw'));
+  on('clawRip', () => audio.play('block', { pitch: 0.6 }));
+  on('freeze', () => audio.play('freeze'));
+  on('iceShatter', () => audio.play('shatter'));
+  on('popper', () => audio.play('popper'));
+  on('glassBroken', () => audio.play('glass'));
+  on('wallBroken', () => audio.play('wallBreak'));
+  on('ventOpen', () => audio.play('block', { pitch: 1.3 }));
+  on('railingDown', () => audio.play('block', { pitch: 0.8 }));
+  on('cacheFound', () => audio.play('pickup'));
+  on('levelUp', () => audio.play('levelUp'));
+  on('upgradeBought', () => audio.play('upgrade'));
+  on('swarmStart', () => audio.play('swarm'));
+
   audio.setRain(0.8);
 
   return {

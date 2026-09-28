@@ -460,6 +460,120 @@ export const SFX = {
     bell(ctx, out, f, 96 + semi, { gain: 0.15, d: 0.6, ratio: 3.01, index: 1.5 });
     return f + 0.6;
   } },
+
+  // Remote batarang: a fast whirring spin, re-triggered every 1.1 s while it flies.
+  remote: { wet: 0.1, max: 2, fn(ctx, out, t, p) {
+    flutter(ctx, out, t, p, { dur: 1.1, rate: 46, freq: 2600, to: 2200, gain: 0.2, Q: 2.2, a: 0.04 });
+    return t + 1.15;
+  } },
+
+  // Gel spray: a wet hiss and a squelch.
+  gelSpray: { wet: 0.06, max: 2, fn(ctx, out, t, p) {
+    noise(ctx, out, t, { type: 'bandpass', freq: 1800 * p, Q: 1.2, d: 0.2, gain: 0.35 });
+    tone(ctx, out, t + 0.05, { type: 'sine', freq: 320 * p, to: 110 * p, d: 0.14, gain: 0.3 });
+    return t + 0.24;
+  } },
+
+  // Gel blast: a deep boom with a crackle of debris.
+  gelBoom: { wet: 0.3, max: 2, fn(ctx, out, t, p) {
+    thump(ctx, out, t, p, { from: 120, to: 32, d: 0.55, gain: 1 });
+    noise(ctx, out, t, { type: 'lowpass', freq: 700 * p, d: 0.6, gain: 0.9 });
+    crackle(ctx, out, t + 0.05, { dur: 0.5, count: 26, freq: 2500, gain: 0.3 });
+    return t + 0.7;
+  } },
+
+  // Smoke pellet: a pop, then a long hiss swelling out.
+  smoke: { wet: 0.2, max: 1, fn(ctx, out, t, p) {
+    thump(ctx, out, t, p, { from: 260, to: 90, d: 0.08, gain: 0.5 });
+    swish(ctx, out, t + 0.03, p, { from: 300, peak: 1400, to: 500, dur: 0.9, gain: 0.5, Q: 0.8 });
+    noise(ctx, out, t + 0.05, { type: 'highpass', freq: 3000, d: 1.1, gain: 0.12 });
+    return t + 1.2;
+  } },
+
+  // Line launcher: a gas-powered thunk and the line whipping out.
+  launcher: { wet: 0.15, max: 2, fn(ctx, out, t, p) {
+    thump(ctx, out, t, p, { from: 210, to: 90, d: 0.1, gain: 0.6 });
+    metal(ctx, out, t, { base: 1200 * p, ratios: [1, 2.3], d: 0.14, gain: 0.14 });
+    swish(ctx, out, t + 0.04, p, { from: 800, peak: 3600, to: 1500, dur: 0.3, gain: 0.35, Q: 3 });
+    return t + 0.36;
+  } },
+
+  // Batclaw: the claw flies out and clamps shut.
+  claw: { wet: 0.12, max: 2, fn(ctx, out, t, p) {
+    swish(ctx, out, t, p, { from: 600, peak: 2800, to: 900, dur: 0.18, gain: 0.35, Q: 2.5 });
+    metal(ctx, out, t + 0.16, { base: 900 * p, ratios: [1, 1.6, 2.7], d: 0.2, gain: 0.2 });
+    thump(ctx, out, t + 0.18, p, { from: 180, to: 70, d: 0.12, gain: 0.5 });
+    return t + 0.4;
+  } },
+
+  // Freeze blast: a crackling freeze under a falling whistle.
+  freeze: { wet: 0.3, max: 2, fn(ctx, out, t, p) {
+    crackle(ctx, out, t, { dur: 0.5, count: 36, freq: 6000, gain: 0.3 });
+    tone(ctx, out, t, { type: 'sine', freq: 2400 * p, to: 900 * p, d: 0.4, gain: 0.18 });
+    return t + 0.55;
+  } },
+
+  // Ice shatter: a bright crackle over a glassy ring.
+  shatter: { wet: 0.35, max: 2, fn(ctx, out, t, p) {
+    crackle(ctx, out, t, { dur: 0.35, count: 44, freq: 5000, gain: 0.5 });
+    bell(ctx, out, t, 100 + 12 * Math.log2(p), { gain: 0.12, d: 0.5, ratio: 2.7, index: 1.4 });
+    return t + 0.6;
+  } },
+
+  // A glass sign coming down.
+  glass: { wet: 0.3, max: 2, fn(ctx, out, t, p) {
+    crackle(ctx, out, t, { dur: 0.45, count: 50, freq: 7000, gain: 0.45 });
+    tone(ctx, out, t, { type: 'triangle', freq: 3200 * p, to: 2000 * p, d: 0.1, gain: 0.2 });
+    return t + 0.5;
+  } },
+
+  // A cracked wall giving way: a heavy crunch and tumbling bricks.
+  wallBreak: { wet: 0.3, max: 1, fn(ctx, out, t, p) {
+    thump(ctx, out, t, p, { from: 90, to: 30, d: 0.45, gain: 0.9 });
+    noise(ctx, out, t, { type: 'lowpass', freq: 500 * p, d: 0.5, gain: 0.7 });
+    crackle(ctx, out, t + 0.1, { dur: 0.7, count: 22, freq: 900, gain: 0.35, type: 'lowpass' });
+    return t + 0.85;
+  } },
+
+  // Party popper: three pops, a crackle of confetti and a little fanfare.
+  popper: { wet: 0.3, max: 1, fn(ctx, out, t, p) {
+    const semi = 12 * Math.log2(p);
+    for (const at of [0, 0.09, 0.2]) {
+      noise(ctx, out, t + at, { type: 'highpass', freq: 1500, d: 0.05, gain: 0.6 });
+      thump(ctx, out, t + at, p, { from: 320, to: 120, d: 0.06, gain: 0.4 });
+    }
+    crackle(ctx, out, t + 0.2, { dur: 0.8, count: 30, freq: 6500, gain: 0.2 });
+    [72, 76, 79, 84].forEach((m, i) => bell(ctx, out, t + 0.28 + i * 0.07, m + semi, { gain: 0.14, d: 0.5, ratio: 2, index: 1 }));
+    return t + 1.1;
+  } },
+
+  // Level up: a rising bell arpeggio over brass.
+  levelUp: { wet: 0.35, max: 1, fn(ctx, out, t, p) {
+    const semi = 12 * Math.log2(p);
+    [67, 72, 76, 79, 84].forEach((m, i) => bell(ctx, out, t + i * 0.08, m + semi, { gain: 0.16, d: 0.8, ratio: 2.01, index: 1.2 }));
+    brass(ctx, out, t + 0.32, 72 + semi, 0.5, { gain: 0.14, a: 0.03, r: 0.4, bright: 1 });
+    brass(ctx, out, t + 0.32, 79 + semi, 0.5, { gain: 0.1, a: 0.03, r: 0.4, bright: 1 });
+    return t + 1.3;
+  } },
+
+  // Buying an upgrade: a mechanical clunk and a chime.
+  upgrade: { wet: 0.2, max: 1, fn(ctx, out, t, p) {
+    metal(ctx, out, t, { base: 700 * p, ratios: [1, 1.5, 2.2], d: 0.18, gain: 0.18 });
+    bell(ctx, out, t + 0.1, 88 + 12 * Math.log2(p), { gain: 0.16, d: 0.7, ratio: 3.01, index: 1.5 });
+    return t + 0.8;
+  } },
+
+  // The gadget wheel opening: a soft paper swish.
+  wheelOpen: { wet: 0.05, max: 1, fn(ctx, out, t, p) {
+    return swish(ctx, out, t, p, { from: 800, peak: 2400, to: 1200, dur: 0.16, gain: 0.2, Q: 1.2 });
+  } },
+
+  // Bat Swarm: two layers of wing flutter, swelling and fading.
+  swarm: { wet: 0.35, max: 1, fn(ctx, out, t, p) {
+    flutter(ctx, out, t, p, { dur: 1.8, rate: 30, freq: 3200, to: 1800, gain: 0.35, Q: 0.9, a: 0.3 });
+    flutter(ctx, out, t + 0.15, p, { dur: 1.6, rate: 22, freq: 1500, to: 900, gain: 0.25, Q: 0.9, a: 0.3 });
+    return t + 2;
+  } },
 };
 
 export const SFX_NAMES = Object.keys(SFX);

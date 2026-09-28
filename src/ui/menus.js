@@ -9,7 +9,8 @@ const MOVING_AROUND = ['ladder', 'ledge', 'zip', 'wallrun', 'divebomb', 'takedow
 
 const PAD_LAYOUT = [
   ['Move / camera', 'Left stick / right stick'], ['Jump, glide', 'A'], ['Punch', 'X'], ['Kick', 'B'], ['Block, counter', 'Y'],
-  ['Grab and throw', 'D-pad right'], ['Grapple', 'LB'], ['Cape stun', 'RB'], ['Dodge', 'LT'], ['Batarang', 'RT'], ['Sprint', 'L3'], ['Special takedown', 'R3'],
+  ['Grab and throw', 'D-pad right'], ['Grapple', 'LB'], ['Cape stun', 'RB (tap)'], ['Dodge', 'LT'], ['Use gadget', 'RT'], ['Sprint', 'L3'], ['Special takedown', 'R3'],
+  ['Gadget wheel', 'Hold RB, pick with the right stick'], ['Chain takedown 4 (Bat Swarm)', 'Hold Y, then LB'],
   ['Detective vision', 'View'], ['Photo mode', 'D-pad up'], ['Pause', 'Menu'],
 ];
 
@@ -24,6 +25,7 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
   const layer = el('div', 'menu-layer');
   root.appendChild(layer);
   let current = null;
+  let gadgetHelp = () => [];
 
   function show(node) {
     layer.innerHTML = '';
@@ -181,6 +183,16 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
     node.appendChild(cols);
     node.appendChild(el('h3', '', 'Moving around'));
     for (const id of MOVING_AROUND) node.appendChild(el('p', 'tip', promptText(id, settings.bindings)));
+    const gadgets = gadgetHelp();
+    if (gadgets.length) {
+      node.appendChild(el('h3', '', 'Gadgets'));
+      node.appendChild(el('p', 'tip', promptText('gadgetWheel', settings.bindings)));
+      for (const g of gadgets) {
+        const p = el('p', 'tip', g.html);
+        p.prepend(el('b', '', `${g.name}: `));
+        node.appendChild(p);
+      }
+    }
     node.appendChild(el('h3', '', 'Extras'));
     for (const id of ['challenges', 'photo']) node.appendChild(el('p', 'tip', promptText(id, settings.bindings)));
     node.appendChild(el('p', 'tip', 'Tips: counter every blue bolt, dodge the red ones. Kick or cape-stun knife goons. Batarang the Joker mid-throw.'));
@@ -304,5 +316,9 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
     show(node);
   }
 
-  return { title, suitSelect, pause, challengesPage, progressPage, help, openSettings, credits, hide, get open() { return !!current; } };
+  return {
+    title, suitSelect, pause, challengesPage, progressPage, help, openSettings, credits, hide,
+    setGadgetHelp(fn) { gadgetHelp = fn; },
+    get open() { return !!current; },
+  };
 }
