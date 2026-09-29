@@ -24,6 +24,8 @@ const MODES = {
 // column the gargoyle sits on, and he would fall out of the bottom of the frame. Without a
 // dropShot() it rises DROP_UP over the perch, DROP_BACK behind it.
 const DROP_SIDE = 5, DROP_UP = 1, DROP_BACK = 1.2;
+// The action camera's lowest point above the floor under it: where a shot is set up, and during it.
+const ACTION_CLEAR = 1.0, ACTION_FLOOR = 0.6;
 
 export function createFollowCamera(camera, collision) {
   const s = {
@@ -74,6 +76,13 @@ export function createFollowCamera(camera, collision) {
       action.focus.copy(focus).lerp(attacker, 0.35);
       action.focus.y = focus.y - 0.2 + rise;
       action.pos.set(action.focus.x + px * side * dist - (dx / len) * back, focus.y + lift, action.focus.z + pz * side * dist - (dz / len) * back);
+      // A low blow (a goon lying down, a tied bundle) must not put the camera, or the point it
+      // looks at, below the floor it happens on: the street or a rooftop.
+      const top = Math.max(focus.y, attacker.y) + 1.5;
+      const under = collision.groundBelow(action.pos.x, top, action.pos.z);
+      if (action.pos.y < under + ACTION_CLEAR) action.pos.y = under + ACTION_CLEAR;
+      const underFocus = collision.groundBelow(action.focus.x, top, action.focus.z);
+      if (action.focus.y < underFocus + 0.25) action.focus.y = underFocus + 0.25;
       action.roll = side * 0.16;
       action.active = true;
     },
@@ -173,10 +182,13 @@ export function createFollowCamera(camera, collision) {
           toAction.subVectors(action.pos, action.focus);
           const dist = toAction.length();
           toAction.divideScalar(dist || 1);
-          const wall = collision.raycast(action.focus, toAction, dist);
-          const d = wall ? Math.max(0.8, wall.t - 0.3) : dist;
+          const wall = collision.raycast(action.focus, toAction, dist + 0.6);
+          // Stop short of whatever the ray hit: never push through it to keep a minimum distance.
+          const d = wall ? Math.max(0.2, Math.min(dist + k * 0.6, wall.t - 0.3)) : dist + k * 0.6;
           blendPos.copy(action.focus).addScaledVector(toAction, d);
-          blendPos.addScaledVector(toAction, k * 0.6);
+          // And never below the floor under where the camera ends up.
+          const under = collision.groundBelow(blendPos.x, action.focus.y + 1.5, blendPos.z);
+          if (blendPos.y < under + ACTION_FLOOR) blendPos.y = under + ACTION_FLOOR;
           camera.position.lerp(blendPos, e);
           blendLook.copy(lookAt).lerp(action.focus, e);
           camera.lookAt(blendLook);

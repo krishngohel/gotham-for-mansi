@@ -7,7 +7,7 @@ import { CHAIN_SHOTS } from '../../src/combat/chainControl.js';
 // Runs a shot of `dur` seconds to the middle of its hold and returns the camera.
 function shoot(focus, attacker, shot, dur = 1.25, yaw = 0.7) {
   const camera = new THREE.PerspectiveCamera(60, 16 / 9, 0.1, 500);
-  const follow = createFollowCamera(camera, { raycast: () => null });
+  const follow = createFollowCamera(camera, { raycast: () => null, groundBelow: () => 0 });
   follow.state.yaw = yaw;
   const look = { dx: 0, dy: 0 };
   for (let f = 0; f < 60; f++) follow.update(1 / 60, attacker, look, 'chain');
