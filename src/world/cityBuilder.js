@@ -73,6 +73,41 @@ export function edgeGrapples(ctx, x, z, w, d, y, step = 8) {
   for (let t = -d / 2 + step / 2; t < d / 2; t += step) { add(x - w / 2, z + t, -1, 0); add(x + w / 2, z + t, 1, 0); }
 }
 
+// A sawtooth roof people can stand on: a flat deck (its top is the walkable roof, h + DECK) with
+// rows of north-light teeth in two bands along the side walls, so the middle half is clear flat
+// footing for fights. Each tooth ramps up TOOTH m over its 6 m depth to a glazed vertical face,
+// and collides as three steps under that ramp, so nobody sinks into it or floats over it by more
+// than TOOTH / 6. (A flat box at the teeth's average height used to sink people up to 1.1 m.)
+export const SAWTOOTH = { DECK: 1.1, TOOTH: 1.2, DEPTH: 6, BAND: 0.25 };
+export function sawtoothRoof(ctx, b) {
+  const { x, z, w, d, h } = b;
+  const { DECK, TOOTH, DEPTH, BAND } = SAWTOOTH;
+  const top = h + DECK;
+  ctx.buckets.add('roof', box(w - 0.2, DECK, d - 0.2, x, h + DECK / 2, z));
+  ctx.collision.addBox(x - w / 2, h, z - d / 2, x + w / 2, top, z + d / 2, 'roof');
+  const band = Math.max(4, w * BAND);
+  for (let t = -d / 2 + DEPTH / 2; t < d / 2 - 2; t += DEPTH) {
+    const zt = z + t;
+    // One draw per row, as the old full-width teeth made: every building after this one keeps its
+    // random layout (props, signs) exactly.
+    const lit = b.district === 'ace' && ctx.rng.chance(0.4);
+    for (const s of [-1, 1]) {
+      const bx = x + s * (w / 2 - 0.5 - band / 2);
+      ctx.buckets.add('roof', prism(band, TOOTH, DEPTH, bx, top, zt, { sawtooth: true }));
+      // North-light glazing on the steep face (at zt - DEPTH / 2); the chemical plant works nights.
+      const pane = box(band - 1.2, TOOTH * 0.7, 0.06, bx, top + TOOTH * 0.45, zt - DEPTH / 2 - 0.04);
+      if (lit) ctx.buckets.add('glow', pane, 0x283020);
+      else ctx.buckets.add('painted', pane, 0x1c2331);
+      for (let m = -band / 2 + 1; m < band / 2 - 0.5; m += 2.4) ctx.buckets.add('steel', box(0.08, TOOTH * 0.75, 0.1, bx + m, top + TOOTH * 0.45, zt - DEPTH / 2 - 0.06));
+      // The ramp is 0 high at zt + DEPTH / 2 and TOOTH high at the glazed face: three steps under it.
+      for (let k = 0; k < 3; k++) {
+        const z1 = zt + DEPTH / 2 - (k + 1) * (DEPTH / 3), z0 = z1 + DEPTH / 3;
+        ctx.collision.addBox(bx - band / 2, top, z1, bx + band / 2, top + TOOTH * ((2 * k + 1) / 6), z0, 'roof');
+      }
+    }
+  }
+}
+
 function parapet(ctx, x, z, w, d, y, hgt = 0.9, t = 0.35) {
   solid(ctx, 'trim', box(w, hgt, t, x, y + hgt / 2, z - d / 2 + t / 2));
   solid(ctx, 'trim', box(w, hgt, t, x, y + hgt / 2, z + d / 2 - t / 2));
@@ -380,7 +415,9 @@ function chimney(ctx, x, y, z) {
 // Keeps rooftop clutter off the story sites, the corners (deco crowns) and upper tiers.
 const clearOfSites = (px, py, pz, r) => Object.values(SITES).every((s) => Math.abs(s.y - py) > 4 || Math.hypot(s.x - px, s.z - pz) > 7 + r);
 
-function roofProps(ctx, b, x, z, w, d, y) {
+// `squeeze` (0..1) pulls every prop toward the middle along x after placing it: a sawtooth roof's
+// props keep off the teeth without changing a single random draw (the city's layout stays put).
+function roofProps(ctx, b, x, z, w, d, y, squeeze = 1) {
   const rng = ctx.rng;
   const placed = [];
   const tier = b.tiers[0];
@@ -392,7 +429,7 @@ function roofProps(ctx, b, x, z, w, d, y) {
   const put = (r, fn) => {
     for (let t = 0; t < 12; t++) {
       const px = x + rng.range(-w / 2, w / 2), pz = z + rng.range(-d / 2, d / 2);
-      if (free(px, pz, r)) { placed.push({ x: px, z: pz, r }); fn(px, pz); return true; }
+      if (free(px, pz, r)) { placed.push({ x: px, z: pz, r }); fn(x + (px - x) * squeeze, pz); return true; }
     }
     return false;
   };
@@ -443,17 +480,7 @@ function building(ctx, b) {
     if (h > 24) ring(ctx, 'trim', x, z, w, d, Math.round(h * 0.36), 0.35, 0.15);
   }
   if (b.parapet) parapet(ctx, x, z, w, d, h);
-  if (b.roof === 'sawtooth') {
-    for (let t = -d / 2 + 3; t < d / 2 - 2; t += 6) {
-      ctx.buckets.add('roof', prism(w - 1, 2.2, 6, x, h, z + t, { sawtooth: true }));
-      // North-light glazing on the steep face of each tooth; the chemical plant works nights.
-      const pane = box(w - 2.2, 1.5, 0.06, x, h + 1.05, z + t - 3 - 0.04);
-      if (b.district === 'ace' && ctx.rng.chance(0.4)) ctx.buckets.add('glow', pane, 0x283020);
-      else ctx.buckets.add('painted', pane, 0x1c2331);
-      for (let m = -w / 2 + 2; m < w / 2 - 1; m += 2.4) ctx.buckets.add('steel', box(0.08, 1.6, 0.1, x + m, h + 1.05, z + t - 3 - 0.06));
-    }
-    ctx.collision.addBox(x - w / 2, h, z - d / 2, x + w / 2, h + 1.1, z + d / 2, 'roof');
-  }
+  if (b.roof === 'sawtooth') sawtoothRoof(ctx, b);
   if (b.roof === 'pitched') {
     // Ridge runs along the long (z) axis.
     ctx.buckets.add('roof', prism(d, 10, w, 0, 0, 0).rotateY(Math.PI / 2).translate(x, h, z));
@@ -461,7 +488,7 @@ function building(ctx, b) {
     ctx.collision.addBox(x - w * 0.3, h + 3, z - d / 2, x + w * 0.3, h + 6, z + d / 2, 'roof');
     ctx.collision.addBox(x - w * 0.12, h + 6, z - d / 2, x + w * 0.12, h + 9, z + d / 2, 'roof');
   }
-  const roofY = b.roof === 'sawtooth' ? h + 1.1 : h;
+  const roofY = b.roof === 'sawtooth' ? h + SAWTOOTH.DECK : h;
   edgeGrapples(ctx, x, z, w, d, roofY);
 
   let top = h;
@@ -494,8 +521,10 @@ function building(ctx, b) {
   }
   if (b.billboard) billboard(ctx, b, b.billboard);
   if (b.props === 'auto' || b.props === 'industrial') {
-    const tw = b.tiers.length ? w : w, td = d;
-    roofProps(ctx, b, x, z, tw, td, h);
+    // On a sawtooth roof, props stand on the deck and keep to the clear middle, off the teeth.
+    const saw = b.roof === 'sawtooth';
+    const clear = w - 2 * Math.max(4, w * SAWTOOTH.BAND) - 1;
+    roofProps(ctx, b, x, z, w, d, saw ? h + SAWTOOTH.DECK : h, saw ? clear / w : 1);
   }
 }
 
