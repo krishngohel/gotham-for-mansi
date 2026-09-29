@@ -221,7 +221,7 @@ export function createChainControl(hero, api, { chain, targets, stealth, timelin
     if (s.thenClip) hero.bat.animator.play(s.thenClip, { once: true, timeScale: 0.9, fade: 0.04 });
     if (s.word && hit) api.word(s.word, at, s.finisher);
     const focus = e ?? pileFocus();
-    if (s.finisher) api.critical(focus, { slow: 0.9, scale: 0.25, shot: CHAIN_SHOTS[chain.id], variant: chain.id });
+    if (s.finisher) api.critical(focus, { slow: 0.9, scale: 0.25, shot: CHAIN_SHOTS[chain.id], variant: chain.id, impact: 2 });
     else if (s.effect === 'heel') api.critical(focus, { slow: 0.35, scale: 0.4, variant: chain.id });
     events.emit('chainContact', { chain: chain.id, effect: s.effect, index: i });
   }

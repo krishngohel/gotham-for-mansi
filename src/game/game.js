@@ -68,6 +68,8 @@ import { createPhotoMode } from '../ui/photoMode.js';
 import { createWarmCast } from './warmCast.js';
 import { drawEverything, uploadTextures, readyObjects } from '../render/prewarm.js';
 import { createDynamicRes, sanitizeResScale } from '../render/dynamicRes.js';
+import { createImpactTimeline } from '../render/impactTimeline.js';
+import { createImpactPanel } from '../ui/impactPanel.js';
 import { gpuRenderer, gpuShortName, maybeShowGpuHint } from '../ui/gpuInfo.js';
 
 async function loadFonts() {
@@ -435,12 +437,32 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     // hard THUD is the hero's own landing only; the boss emits 'land' too (boss.js) but has no `who`.
     events.on('land', ({ hard, who }) => { if (hard && who === 'hero') events.emit('word', { text: 'THUD', pos: hero.pos.clone(), big: false }); });
     events.on('critical', ({ variant } = {}) => hud.critical(variant));
-    events.on('critical', ({ target } = {}) => {
-      if (!settings.impactFrames) return;
+    // Impact frames (Part I). Tier 1: every critical. Tier 2: chain and swarm finishers, the
+    // tied-bundle KAPOW (critical `impact: 2`), the special takedown and a story fight's last blow
+    // (they upgrade the critical that follows within 150 ms), and the Joker's phase change.
+    const impactTl = createImpactTimeline();
+    const impactOut = { impact: 0, soft: false, freeze: false, panel: 0, panelT: 0 };
+    const impactPanel = createImpactPanel(hudRoot);
+    let bigUntil = -Infinity, impactPin = null, impactPinBase = 0;
+    const impactNow = () => (impactPin === null ? performance.now() : impactPinBase);
+    function fireImpact(tier, target) {
+      const mode = settings.impactFrames;
       const p = target ? toScreen(target.pos.clone().setY(target.pos.y + 1)) : null;
       const at = p && !p.behind ? p : { x: innerWidth / 2, y: innerHeight / 2 };
-      ink.impact(at.x / innerWidth, 1 - at.y / innerHeight);
+      const got = impactTl.trigger(tier, impactNow(), mode);
+      if (!got) return 0;
+      ink.setImpact(0, mode === 'soft', at.x / innerWidth, 1 - at.y / innerHeight);
+      if (got === 2) impactPanel.show(at.x, at.y);
+      return got;
+    }
+    events.on('special', () => { bigUntil = performance.now() + 150; });
+    events.on('lastHit', () => { if (flow.objectives.step?.type === 'fight') bigUntil = performance.now() + 150; });
+    events.on('critical', ({ target, impact } = {}) => {
+      const big = impact === 2 || performance.now() < bigUntil;
+      bigUntil = -Infinity;
+      fireImpact(big ? 2 : 1, target);
     });
+    events.on('bossPhase', () => fireImpact(2, boss.joker));
     events.on('heroHurt', ({ damage }) => { hud.damage(damage); hud.setHealth(hero.health / hero.maxHealth); });
     const HINTS = {
       parried: () => `Knife goons parry punches. ${key('kick')} kick or ${key('cape')} cape-stun them first.`,
@@ -595,6 +617,13 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     function update(real) {
       if (toReveal.length) scene.add(toReveal.shift().ch.root);
       const playing = flow.mode === 'play' || flow.mode === 'dead';
+      // Impact frames run on real time, sampled before hit-stop and slow motion apply. Menus,
+      // pause, photo mode and comics cancel a sequence (and its hold) outright.
+      if (impactTl.active && (!playing || state.paused || comic.playing || photo.active)) impactTl.cancel();
+      impactTl.sample(impactPin === null ? performance.now() : impactPinBase + impactPin, impactOut);
+      ink.setImpact(impactOut.impact, impactOut.soft);
+      impactPanel.set(impactOut.panel);
+      if (impactOut.freeze) time.hold('impact', 0.01); else time.release('impact');
       const dt = playing && !state.paused ? time.scale(real) : 0;
       if (playing && !state.paused) {
         if (input.pressed('photo') && flow.mode === 'play' && !hero.dead) { photo.open(); return; }
@@ -701,7 +730,13 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     }
 
     const api = {
-      hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, despawn, side, stage, gfx, breakables, chainFx, swarmFx, photo,
+      hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, despawn, side,
+      // Impact frames test hook: pin(ms) samples `ms` into the sequence the next fire() starts.
+      impact: {
+        fire: (tier, target) => fireImpact(tier, target),
+        pin(ms) { impactPin = ms; impactPinBase = performance.now(); impactTl.reset(); },
+        get sample() { return { ...impactOut }; },
+      }, stage, gfx, breakables, chainFx, swarmFx, photo,
       gadgets, wheelUi, wayne, stealth, stealthFx, stealthHud,
       winFight: () => { for (const e of combat.enemies) if (e.alive && e.type !== 'joker') { e.health = 0; e.applyHit({ outcome: 'ko' }, hero.pos); } },
     };

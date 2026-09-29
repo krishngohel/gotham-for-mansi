@@ -91,11 +91,11 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
 
   // A critical hit: slow motion, a big word, and an action camera shot from the side. `shot`
   // frames the camera (see follow.actionShot); `variant` picks the speed lines.
-  function critical(target, { slow = 0.55, scale = 0.28, shot, variant } = {}) {
+  function critical(target, { slow = 0.55, scale = 0.28, shot, variant, impact } = {}) {
     time.slowMo(slow, scale);
     target.ch.headWorld(chest, -0.4);
     follow.actionShot?.(chest.clone(), hero.pos.clone(), slow + 0.35, shot);
-    events.emit('critical', { target, variant });
+    events.emit('critical', { target, variant, impact });
   }
 
   function landHit(move, target, { word: w, power = 1, stopTime = 0.06, launch = 0, crit = false } = {}) {
@@ -153,7 +153,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     target.ch.headWorld(chest, 0.2);
     events.emit('word', { text: 'KAPOW!', pos: chest.clone(), big: true });
     events.emit('tiedBreak', { count: group.length });
-    critical(target, { slow: 0.6, scale: 0.3, variant: 'rope', shot: CHAIN_SHOTS.kapow });
+    critical(target, { slow: 0.6, scale: 0.3, variant: 'rope', shot: CHAIN_SHOTS.kapow, impact: 2 });
     if (kos && engaged().length === 0) events.emit('lastHit', { target });
     return { outcome: kos ? 'ko' : 'knockdown', damage: 0, stun: 0 };
   }

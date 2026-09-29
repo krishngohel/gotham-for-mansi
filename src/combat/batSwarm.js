@@ -59,7 +59,7 @@ export function createSwarmControl(hero, api, { targets, timeline, fx = null }) 
           fx?.rise();
           // One critical, on the finishing contact: the action shot frames the first goon still up.
           const focus = targets.find((e) => e.alive) ?? targets[0];
-          api.critical(focus, { slow: 1, scale: 0.25, variant: 'swarm' });
+          api.critical(focus, { slow: 1, scale: 0.25, variant: 'swarm', impact: 2 });
           for (const e of targets) { api.release(e); api.finish(e, { power: 1.6, launch: 3 }); }
           api.word('FLAP FLAP KRAKOOM!', focus.pos, true);
           // Done as soon as the goons are down, in the same step that lets them go (as chainDone
