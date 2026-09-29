@@ -31,12 +31,16 @@ describe('settings', () => {
     expect(loadSettings(brokenStorage)).toEqual(DEFAULT_SETTINGS);
     expect(() => saveSettings(brokenStorage, DEFAULT_SETTINGS)).not.toThrow();
   });
-  it('keeps the comic toggles as booleans, on by default', () => {
+  it('keeps the comic toggles, on by default; impact frames are Full, Soft or Off (rev 3)', () => {
     const s = sanitizeSettings({});
     expect(s.lineWobble).toBe(true);
-    expect(s.impactFrames).toBe(true);
+    expect(s.impactFrames).toBe('full');
     expect(sanitizeSettings({ lineWobble: false, impactFrames: false }).lineWobble).toBe(false);
-    expect(sanitizeSettings({ impactFrames: 3 }).impactFrames).toBe(true);
+    expect(sanitizeSettings({ impactFrames: false }).impactFrames).toBe('off');
+    expect(sanitizeSettings({ impactFrames: true }).impactFrames).toBe('full');
+    expect(sanitizeSettings({ impactFrames: 'soft' }).impactFrames).toBe('soft');
+    expect(sanitizeSettings({ impactFrames: 3 }).impactFrames).toBe('full');
+    expect(sanitizeSettings({}).rev).toBe(3);
   });
   it('shows the FPS counter by default and migrates older saves once', () => {
     expect(sanitizeSettings({}).showFps).toBe(true);

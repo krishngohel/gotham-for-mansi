@@ -3,7 +3,7 @@ import { ACTIONS, DEFAULT_BINDINGS } from './bindings.js';
 const KEY = 'gotham-mansi-settings-v1';
 
 // Bumped when a default changes in a way that older saves should pick up once (see sanitizeSettings).
-export const SETTINGS_REV = 2;
+export const SETTINGS_REV = 3;
 
 export const DEFAULT_SETTINGS = {
   rev: SETTINGS_REV,
@@ -14,7 +14,7 @@ export const DEFAULT_SETTINGS = {
   cameraShake: true,
   actionCam: true,
   lineWobble: true,
-  impactFrames: true,
+  impactFrames: 'full',
   quality: 'high',
   renderScale: 1,
   dynamicRes: true,
@@ -71,7 +71,8 @@ export function sanitizeSettings(raw = {}) {
     cameraShake: bool(r.cameraShake, d.cameraShake),
     actionCam: bool(r.actionCam, d.actionCam),
     lineWobble: bool(r.lineWobble, d.lineWobble),
-    impactFrames: bool(r.impactFrames, d.impactFrames),
+    // Rev 3: the old on/off became Full, Soft or Off. A saved true is Full, false is Off.
+    impactFrames: r.impactFrames === true ? 'full' : r.impactFrames === false ? 'off' : oneOf(r.impactFrames, ['full', 'soft', 'off'], d.impactFrames),
     quality: oneOf(r.quality, ['high', 'low'], d.quality),
     renderScale: num(r.renderScale, 0.5, 1, d.renderScale),
     dynamicRes: bool(r.dynamicRes, d.dynamicRes),

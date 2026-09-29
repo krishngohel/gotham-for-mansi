@@ -337,7 +337,7 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
       body.appendChild(toggle('Camera shake', settings.cameraShake, (v) => { settings.cameraShake = v; }));
       body.appendChild(toggle('Action camera on critical hits', settings.actionCam, (v) => { settings.actionCam = v; }));
       body.appendChild(toggle('Line wobble', settings.lineWobble, (v) => { settings.lineWobble = v; }));
-      body.appendChild(toggle('Impact frames (flashing)', settings.impactFrames, (v) => { settings.impactFrames = v; }));
+      body.appendChild(choice('Impact frames', settings.impactFrames, [['full', 'Full'], ['soft', 'Soft (no flashing)'], ['off', 'Off']], (v) => { settings.impactFrames = v; }));
       body.appendChild(toggle('Auto ledge grab', settings.autoLedge, (v) => { settings.autoLedge = v; }));
     } else if (tab === 'video') {
       body.appendChild(choice('Quality', settings.quality, [['high', 'High'], ['low', 'Low']], (v) => { settings.quality = v; }));
