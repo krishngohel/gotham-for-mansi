@@ -376,3 +376,12 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0 6px; margin: 0 2px; bo
    the night scene. */
 .hud-speed.swarm { background: repeating-conic-gradient(from 0deg at 50% 50%, rgba(11, 11, 18, 0) 0deg 1.5deg, rgba(11, 11, 18, 0.9) 1.5deg 2deg, rgba(239, 230, 207, 0.8) 2deg 3.1deg, rgba(11, 11, 18, 0.9) 3.1deg 3.6deg, rgba(11, 11, 18, 0) 3.6deg 6deg); }
 .hud-speed.swarm.on { animation-duration: 1.3s; }
+
+/* Impact frames, tier 2: the moment framed as a tilted comic panel. */
+.impact-panel { position: fixed; inset: 0; pointer-events: none; opacity: 0; }
+.impact-panel.on { opacity: 1; }
+.impact-panel.out { opacity: 0; transform: scale(0.97); transition: opacity 0.12s linear, transform 0.12s ease-out; }
+.impact-panel .ip-frame { position: absolute; inset: 3.5vmin; border: 1.3vmin solid #111; box-shadow: 0 0 0 100vmax rgba(240, 232, 210, 0.92); transform: rotate(var(--tilt, 3deg)); }
+.impact-panel .ip-burst { position: absolute; left: var(--ix, 50%); top: var(--iy, 50%); width: 62vmin; height: 62vmin; transform: translate(-50%, -50%); opacity: 0.5;
+  background: radial-gradient(circle, #111 1.3px, transparent 1.8px) 0 0 / 9px 9px;
+  -webkit-mask-image: radial-gradient(circle, #000 18%, transparent 70%); mask-image: radial-gradient(circle, #000 18%, transparent 70%); }

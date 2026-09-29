@@ -14,7 +14,7 @@ uniform sampler2D tDepth;
 uniform sampler2D tNormal;
 uniform vec2 uTexel;
 uniform float uNear, uFar, uTime, uFlash, uDetective, uHalftone, uHalftoneAmount;
-uniform float uWobble, uHatch, uMidDots, uSkyDots, uColorEdges, uMisreg, uPaletteAmt, uImpact, uPaperTex, uFilter;
+uniform float uWobble, uHatch, uMidDots, uSkyDots, uColorEdges, uMisreg, uPaletteAmt, uImpact, uImpactSoft, uPaperTex, uFilter;
 uniform vec2 uImpactCenter;
 uniform vec3 uPalette[6];
 uniform vec3 uInk, uPaper, uDetectiveTint, uAccent;
@@ -145,14 +145,20 @@ void main() {
   col = mix(col, line, edge);
   if (uFlash > 0.0) col = mix(col, (L > 0.08 && edge < 0.5) ? uPaper : uInk, uFlash);
 
-  // Impact frame: black and white ink with radial speed lines out from the hit.
+  // Impact frame: black and white ink with radial speed lines out from the hit. Soft mode keeps
+  // the lines over a pale paper vignette and never inverts (no flashing).
   if (uImpact > 0.0) {
-    vec3 bw = mix(uInk, uPaper, step(0.22, L));
-    bw = mix(bw, uInk, edge);
     vec2 d = (vUv - uImpactCenter) * vec2(uTexel.y / uTexel.x, 1.0);
     float ang = atan(d.y, d.x);
     float rays = step(0.8, fract(ang * 9.549 + hash(vec2(floor(ang * 30.0), 1.0)) * 0.5)) * smoothstep(0.1, 0.45, length(d));
-    col = mix(col, mix(bw, uInk, rays * 0.9), uImpact);
+    if (uImpactSoft > 0.5) {
+      vec3 pale = mix(col, uPaper, smoothstep(0.35, 0.95, length(d)) * 0.55);
+      col = mix(col, mix(pale, uInk, rays * 0.6), uImpact);
+    } else {
+      vec3 bw = mix(uInk, uPaper, step(0.22, L));
+      bw = mix(bw, uInk, edge);
+      col = mix(col, mix(bw, uInk, rays * 0.9), uImpact);
+    }
   }
 
   // Photo-mode filters (0 = the normal ink look). Uniform-driven, so no new shader program.
@@ -231,7 +237,7 @@ export function createInkPipeline(renderer, quality, { gpuTime = false } = {}) {
     uFilter: { value: 0 },
     uWobble: { value: 0 }, uHatch: { value: 0 }, uMidDots: { value: 0 }, uSkyDots: { value: 0 },
     uColorEdges: { value: 0 }, uMisreg: { value: 0 }, uPaletteAmt: { value: 0 }, uPaperTex: { value: 0 },
-    uImpact: { value: 0 }, uImpactCenter: { value: new THREE.Vector2(0.5, 0.5) },
+    uImpact: { value: 0 }, uImpactSoft: { value: 0 }, uImpactCenter: { value: new THREE.Vector2(0.5, 0.5) },
     uPalette: { value: Array.from({ length: 6 }, () => new THREE.Color(0.5, 0.5, 0.5)) },
   };
   const quad = new THREE.Mesh(
@@ -270,20 +276,22 @@ export function createInkPipeline(renderer, quality, { gpuTime = false } = {}) {
     }
   }
 
-  let impactFrames = 0;
   function setComic(c) {
     uniforms.uWobble.value = c.wobble; uniforms.uHatch.value = c.hatch; uniforms.uMidDots.value = c.midDots;
     uniforms.uSkyDots.value = c.skyDots; uniforms.uColorEdges.value = c.colorEdges; uniforms.uMisreg.value = c.misreg;
     uniforms.uPaletteAmt.value = c.palette; uniforms.uPaperTex.value = c.paper;
   }
   function setPalette(a) { for (let i = 0; i < 6; i++) uniforms.uPalette.value[i].setRGB(a[i * 3], a[i * 3 + 1], a[i * 3 + 2]); }
-  function impact(cx, cy) { uniforms.uImpactCenter.value.set(cx, cy); impactFrames = 2; }
+  // Driven every frame by the impact timeline (game.js). Uniform writes only: no new program.
+  function setImpact(strength, soft, cx, cy) {
+    uniforms.uImpact.value = strength;
+    uniforms.uImpactSoft.value = soft ? 1 : 0;
+    if (cx !== undefined) uniforms.uImpactCenter.value.set(cx, cy);
+  }
   const FILTER_INDEX = { ink: 0, noir: 1, pop: 2, sepia: 3 };
   function setFilter(name) { uniforms.uFilter.value = FILTER_INDEX[name] ?? 0; }
 
   function render(scene, camera, time) {
-    uniforms.uImpact.value = impactFrames > 0 ? 1 : 0;
-    if (impactFrames > 0) impactFrames -= 1;
     uniforms.uNear.value = camera.near;
     uniforms.uFar.value = camera.far;
     uniforms.uTime.value = time;
@@ -341,5 +349,5 @@ export function createInkPipeline(renderer, quality, { gpuTime = false } = {}) {
     try { await renderer.compileAsync(scene, camera); } finally { renderer.setRenderTarget(null); }
   }
 
-  return { uniforms, setSize, render, setComic, setPalette, impact, setFilter, compileAsync, get gpuMs() { return gpuMs; } };
+  return { uniforms, setSize, render, setComic, setPalette, setImpact, setFilter, compileAsync, get gpuMs() { return gpuMs; } };
 }
