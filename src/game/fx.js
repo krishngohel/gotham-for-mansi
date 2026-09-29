@@ -82,10 +82,12 @@ export function createFx(scene) {
       r.t = 0;
       r.live = true;
     },
-    update(dt) {
+    // `real` (unscaled frame time) ages the starbursts: a critical's slow motion must not hold
+    // them over the action shot. Batarangs fly in game time (`dt`).
+    update(dt, real = dt) {
       for (const p of pool) {
         if (!p.m.visible) continue;
-        p.t += dt;
+        p.t += real;
         const k = p.t / p.life;
         if (k >= 1) { p.m.visible = false; continue; }
         const s = p.size * (0.5 + Math.sin(Math.min(1, k * 1.6) * Math.PI * 0.5) * 0.9);

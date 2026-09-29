@@ -50,6 +50,31 @@ export function placeWord(x, y, w, h, rotDeg, view, avoid = [], m = 24) {
   return best ?? { x: px, y: py, crowded: true };
 }
 
+// The middle of the screen, where a critical's action camera (and an impact frame) frames the
+// blow: sound words keep off it while that shot plays.
+export function actionFocusBox(view) {
+  const left = view.w * 0.33, right = view.w * 0.67, top = view.h * 0.2, bottom = view.h * 0.82;
+  return { left, right, top, bottom, width: right - left };
+}
+
+// Words ({ x, y, w, h, rot }) that cover `focus` get a new spot beside it, still on screen and off
+// `ui` and the other words. Returns the moves ({ word, x, y }); words clear of it aren't listed.
+export function moveOffFocus(words, focus, view, ui) {
+  const moves = [];
+  for (const word of words) {
+    const { hw, hh } = wordHalf(word.w, word.h, word.rot);
+    if (!(word.x + hw > focus.left && word.x - hw < focus.right && word.y + hh > focus.top && word.y - hh < focus.bottom)) continue;
+    const others = words.filter((o) => o !== word).map((o) => {
+      const h2 = wordHalf(o.w, o.h, o.rot);
+      return { left: o.x - h2.hw, right: o.x + h2.hw, top: o.y - h2.hh, bottom: o.y + h2.hh, width: 2 * h2.hw };
+    });
+    let p = placeWord(word.x, word.y, word.w, word.h, word.rot, view, [...ui, focus, ...others]);
+    if (p.crowded) p = placeWord(word.x, word.y, word.w, word.h, word.rot, view, [...ui, focus]);
+    moves.push({ word, x: p.x, y: p.y });
+  }
+  return moves;
+}
+
 export function arcDash(fraction, circumference = C, span = 0.75) {
   const f = Math.min(1, Math.max(0, fraction));
   return `${(f * span * circumference).toFixed(2)} ${circumference.toFixed(2)}`;
@@ -90,6 +115,11 @@ export function createHud(root) {
   const healthEl = el.querySelector('.hud-health');
   // Where the sound words still on screen sit, so a new one doesn't land on top of one.
   const liveWords = [];
+  // Until when (performance.now) sound words keep off the action camera's framed blow.
+  let focusUntil = 0;
+  // The objective card, a showing hint, the combo and chain icons and the health ring.
+  const uiBoxes = () => [captionEl.getBoundingClientRect(), hintEl.classList.contains('show') ? hintEl.getBoundingClientRect() : null,
+    combo.getBoundingClientRect(), chainsEl.getBoundingClientRect(), healthEl.getBoundingClientRect()];
   const flashEl = el.querySelector('.hud-flash');
   const speedEl = el.querySelector('.hud-speed');
   let hintTimer = null;
@@ -205,17 +235,31 @@ export function createHud(root) {
       // showing hint, the combo and chain icons, the health ring and any word still on screen.
       const w = s.offsetWidth, h = s.offsetHeight;
       const view = { w: innerWidth, h: innerHeight };
-      const ui = [captionEl.getBoundingClientRect(), hintEl.classList.contains('show') ? hintEl.getBoundingClientRect() : null,
-        combo.getBoundingClientRect(), chainsEl.getBoundingClientRect(), healthEl.getBoundingClientRect()];
+      const ui = uiBoxes();
+      // While a critical's action shot plays, the middle of the screen is the blow itself.
+      if (performance.now() < focusUntil) ui.push(actionFocusBox(view));
       let p = placeWord(x, y, w, h, rot, view, [...ui, ...liveWords]);
       // Too crowded to miss every word: overlapping a word beats covering the card or the HUD.
       if (p.crowded) p = placeWord(x, y, w, h, rot, view, ui);
       const { hw, hh } = wordHalf(w, h, rot);
-      const box = { left: p.x - hw, right: p.x + hw, top: p.y - hh, bottom: p.y + hh, width: 2 * hw };
+      const box = { left: p.x - hw, right: p.x + hw, top: p.y - hh, bottom: p.y + hh, width: 2 * hw, el: s, x: p.x, y: p.y, w, h, rot };
       liveWords.push(box);
       s.addEventListener('animationend', () => { s.remove(); const i = liveWords.indexOf(box); if (i >= 0) liveWords.splice(i, 1); });
       s.style.left = `${p.x}px`;
       s.style.top = `${p.y}px`;
+    },
+    // A critical's action shot is about to frame the blow in the middle of the screen: words keep
+    // off it for `ms`, and any word already there (emitted a moment before) steps aside.
+    focus(ms) {
+      focusUntil = performance.now() + ms;
+      const view = { w: innerWidth, h: innerHeight };
+      for (const m of moveOffFocus(liveWords, actionFocusBox(view), view, uiBoxes())) {
+        const b = m.word, { hw, hh } = wordHalf(b.w, b.h, b.rot);
+        b.x = m.x; b.y = m.y;
+        b.left = m.x - hw; b.right = m.x + hw; b.top = m.y - hh; b.bottom = m.y + hh;
+        b.el.style.left = `${m.x}px`;
+        b.el.style.top = `${m.y}px`;
+      }
     },
   };
 }

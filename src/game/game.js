@@ -437,6 +437,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     // hard THUD is the hero's own landing only; the boss emits 'land' too (boss.js) but has no `who`.
     events.on('land', ({ hard, who }) => { if (hard && who === 'hero') events.emit('word', { text: 'THUD', pos: hero.pos.clone(), big: false }); });
     events.on('critical', ({ variant } = {}) => hud.critical(variant));
+    // The action shot and the impact frame frame the blow mid-screen: sound words step aside.
+    events.on('critical', () => hud.focus(1300));
     // Impact frames (Part I). Tier 1: every critical. Tier 2: chain and swarm finishers, the
     // tied-bundle KAPOW (critical `impact: 2`), the special takedown and a story fight's last blow
     // (they upgrade the critical that follows within 150 ms), and the Joker's phase change.
@@ -658,7 +660,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         combat.update(dt, ctx);
         hero.update(dt, ctx);
         side.update(dt, real, { toScreen });
-        fx.update(dt);
+        fx.update(dt, real);
         fxView.detective = !!state.detectiveOn;
         stealthFx.update(dt, stealth.goons, fxView);
         gfx.update(dt);
