@@ -359,7 +359,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       if (celebrateAt(index, STEPS)) party.celebrate();
     });
     // ---- GCPD lobby dressing (goons behind bars, the trophy case): src/game/gcpdLobby.js ----
-    createGCPDLobby({ scene, assets, events, progress });
+    const gcpdLobby = createGCPDLobby({ scene, assets, events, progress });
 
     // Renders the live city from a posed camera into an image for comic panels.
     const stage = {
@@ -702,6 +702,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         // ---- Part V1: ground vehicles hook (src/vehicles/vehicles.js) ----
         vehicles.update(dt, real);
         party.update(dt);
+        gcpdLobby.update(dt);
         side.update(dt, real, { toScreen });
         fx.update(dt, real);
         fxView.detective = !!state.detectiveOn;

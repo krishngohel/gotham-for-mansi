@@ -574,19 +574,43 @@ function buildGCPDLobby(ctx) {
   const b = r.bounds;
   // The lobby's own ceiling: caps the room well below the tower's real roof (the Batsignal and
   // the party stay exactly as built above it).
-  solid(ctx, 'painted', box(b.maxX - b.minX, 0.5, b.maxZ - b.minZ, 0, CEIL - 0.25, 0), { color: 0x2a2f3c, tag: 'ceiling' });
+  solid(ctx, 'painted', box(b.maxX - b.minX, 0.5, b.maxZ - b.minZ, 0, CEIL - 0.25, 0), { color: 0x4a5060, tag: 'ceiling' });
   ctx.buckets.add('concrete', tiledBox(b.maxX - b.minX, 0.1, b.maxZ - b.minZ, 0, 0.05, 0, { uvScale: [9, 9] }));
-  checkerFloor(ctx, -8, 8, -10, 10, 0.06, 2, 0x4a4d53, 0x2e323b);
+  checkerFloor(ctx, -8, 8, -10, 10, 0.06, 2, 0x565b64, 0x3a3e46);
 
   // Warm, readable fill light: the lobby reads bright at a glance, not like the dark precinct
   // corridors elsewhere. Distance-limited, never reaches the exterior city.
-  roomFill(ctx, 0, 5, 0, 0xffdfae, 2.6, 45);
-  roomFill(ctx, 0, 5, 10, 0xffdfae, 1.6, 24);
-  lightSpot(ctx, 0, 6, 12, PALETTE.window, 30, 24);
-  lightSpot(ctx, 0, 6, -8, PALETTE.window, 26, 22);
-  lightSpot(ctx, -12, 6, -2, PALETTE.detective, 20, 18);
-  lightSpot(ctx, 12, 6, -2, PALETTE.signal, 20, 18);
+  roomFill(ctx, 0, 5.5, 0, 0xffdfae, 8, 55);
+  roomFill(ctx, 0, 5, 10, 0xffdfae, 5, 30);
+  roomFill(ctx, 0, 5, -10, 0xffdfae, 4.5, 28);
+  roomFill(ctx, -12, 5, -2, PALETTE.detective, 3, 22);
+  roomFill(ctx, 12, 5, -2, PALETTE.signal, 3, 22);
+  // A GCPD blue and gold stripe band around the room, low, so a level shot always frames some
+  // saturated colour even where the ceiling is out of view.
+  stripeBand(ctx, 'x', b.minZ, b.minX + 1, b.maxX - 1, 2.2, 0.35, PALETTE.detective);
+  stripeBand(ctx, 'x', b.maxZ, b.minX + 1, b.maxX - 1, 2.2, -0.35, PALETTE.detective);
+  stripeBand(ctx, 'z', b.minX, b.minZ + 1, b.maxZ - 1, 2.2, 0.35, PALETTE.signal);
+  stripeBand(ctx, 'z', b.maxX, b.minZ + 1, b.maxZ - 1, 2.2, -0.35, PALETTE.signal);
+  lightSpot(ctx, 0, 6, 12, PALETTE.window, 34, 26);
+  lightSpot(ctx, 0, 6, -8, PALETTE.window, 30, 24);
+  lightSpot(ctx, -12, 6, -2, PALETTE.detective, 24, 20);
+  lightSpot(ctx, 12, 6, -2, PALETTE.signal, 24, 20);
   ctx.buckets.add('pool', new THREE.CircleGeometry(7, 22).rotateX(-Math.PI / 2).translate(0, 0.12, 8), 0xffdfae);
+  ctx.buckets.add('pool', new THREE.CircleGeometry(6, 20).rotateX(-Math.PI / 2).translate(-11, 0.12, -3), PALETTE.detective);
+  ctx.buckets.add('pool', new THREE.CircleGeometry(6, 20).rotateX(-Math.PI / 2).translate(11, 0.12, -3), PALETTE.signal);
+  // Ceiling light panels: self-lit, so the room reads bright at a glance even where a dynamic
+  // light's falloff has not reached (the shared light pool only lights the closest few sources
+  // to the player at once, same as every streetlamp in the city).
+  for (const [px, pz] of [[0, 14], [0, 8], [-8, 8], [8, 8], [0, 2], [-8, 2], [8, 2], [0, -4], [-8, -4], [8, -4], [0, -10], [-8, -10], [8, -10], [0, -16]]) {
+    glow(ctx, box(3.6, 0.12, 1.7, px, CEIL - 0.28, pz), 0xfff2d0);
+  }
+  // Cove lighting along the top of every wall, at a height a normal eye-level camera actually
+  // frames (unlike the ceiling panels above, which a level shot can miss entirely): a warm,
+  // unlit strip that reads bright regardless of the dynamic light budget.
+  glow(ctx, box(b.maxX - b.minX - 1, 0.3, 0.15, 0, CEIL - 1, b.minZ + 0.3), 0xffe9b8);
+  glow(ctx, box(b.maxX - b.minX - 1, 0.3, 0.15, 0, CEIL - 1, b.maxZ - 0.3), 0xffe9b8);
+  glow(ctx, box(0.15, 0.3, b.maxZ - b.minZ - 1, b.minX + 0.3, CEIL - 1, 0), 0xffe9b8);
+  glow(ctx, box(0.15, 0.3, b.maxZ - b.minZ - 1, b.maxX - 0.3, CEIL - 1, 0), 0xffe9b8);
 
   // ---- the front desk, facing the doors, with a GCPD crest on the wall behind it ----
   solid(ctx, 'painted', box(9, 1.1, 2, 0, 0.55, 9), { color: 0x3a3f4a, tag: 'furniture' });
@@ -629,10 +653,13 @@ function buildGCPDLobby(ctx) {
   // placed at runtime: src/game/gcpdLobby.js) ----
   const cellZ = [[-9, -5], [-3.5, 0.5], [1.5, 5.5]];
   for (const [z0, z1] of cellZ) {
-    solid(ctx, 'painted', box(0.2, 3, z1 - z0 - 0.2, 15.4, 1.5, (z0 + z1) / 2), { color: 0x1c1e24, tag: 'building' });
     cellBars(ctx, 15.5, 18, 0, 3, z0);
     cellBars(ctx, 15.5, 18, 0, 3, z1);
   }
+  // A low riser floor inside the cells, and a warm-lit panel on the real back wall (x = 20) so
+  // each cell reads as its own lit space behind the bars, not just open floor.
+  ctx.buckets.add('painted', box(2.4, 0.15, cellZ[2][1] - cellZ[0][0], 16.8, 0.07, (cellZ[0][0] + cellZ[2][1]) / 2), 0x3a3d44);
+  for (const [z0, z1] of cellZ) glow(ctx, box(0.1, 1.8, z1 - z0 - 0.6, 19.5, 1.2, (z0 + z1) / 2), 0xd8ccb8);
   roomFill(ctx, 17, 3, -2, 0xd8ccb8, 1.2, 14);
 
   // ---- Gordon's office: a glass-walled room at the back, a desk and a lamp ----

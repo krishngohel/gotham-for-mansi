@@ -40,12 +40,14 @@ export function createGCPDLobby({ scene, assets, events, progress }) {
   group.name = 'gcpdLobby';
   scene.add(group);
 
+  const cellGoons = [];
   for (const slot of CELL_SLOTS) {
     const ch = createGoon(assets, { type: 'grunt', rng });
     ch.root.position.set(slot.x, 0, slot.z);
     ch.root.rotation.y = -Math.PI / 2; // faces -x, into the lobby, toward the bars
-    ch.animator.play('Idle_Loop', { fade: 0.2 });
+    ch.animator.play('Idle_Loop', { fade: 0 });
     group.add(ch.root);
+    cellGoons.push(ch);
   }
 
   const trophies = {};
@@ -67,5 +69,10 @@ export function createGCPDLobby({ scene, assets, events, progress }) {
   refresh(progress?.step ?? 0);
   events.on('step', ({ index }) => refresh(index));
 
-  return { refresh };
+  return {
+    refresh,
+    // Idle-only: no locomotion, no combat, just their own animator ticking over so they read as
+    // alive instead of frozen in a bind pose.
+    update(dt) { for (const ch of cellGoons) ch.animator.update(dt); },
+  };
 }
