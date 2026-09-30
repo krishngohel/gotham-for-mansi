@@ -108,5 +108,5 @@ conflicts, so there was nothing here to repair.
 
 ## Commits
 
-- `Merge night into interior` — the merge itself (no conflicts, no manual resolution needed).
-- This file.
+- `64a2557` — `Merge night into interior` (no conflicts, no manual resolution needed).
+- `627d4fd` — this file.
