@@ -36,6 +36,7 @@ import { pickGrapplePoint } from '../world/grapple.js';
 import { createPickups, createNeonParty } from '../world/storyProps.js';
 import { createCombat } from '../combat/combatSystem.js';
 import { createHud } from '../ui/hud.js';
+import { createRadio } from '../ui/radio.js';
 import { createStealthHud } from '../ui/stealthHud.js';
 import { glyphCode } from '../stealth/brain.js';
 import { createComicFx } from '../ui/comicFx.js';
@@ -57,7 +58,7 @@ import { createEncounters } from './encounters.js';
 import { createBalloons } from './balloons.js';
 import { createFlow } from './flow.js';
 import { STEPS } from './story.js';
-import { migrateProgress, betweenRooms, predatorNoticeReady } from './storyMigrate.js';
+import { migrateProgress } from './storyMigrate.js';
 import { wireAudio } from './sound.js';
 import { createBoss } from './boss.js';
 import { tracker } from './progressTracker.js';
@@ -243,6 +244,10 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
 
     const hud = createHud(hudRoot);
     hud.setHealth(1);
+    // Part S: the radio and cutscene dialogue panel (src/ui/radio.js). Lives alongside the HUD and
+    // never pauses play; flow.js drives it for the new 'radio' step type and the async missions'
+    // flavor lines.
+    const radio = createRadio(hudRoot, { onSound: (n) => audio.play(n) });
     const comicFx = createComicFx(document.body);
     const fx = createFx(scene);
     const stealthFx = createStealthFx(scene);
@@ -365,7 +370,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     // Late-bound: side content needs the flow, and the flow asks side content three questions.
     const sideHooks = { holdStory: () => false, marker: () => null, onRespawn: () => null };
     const flow = createFlow({
-      hero, encounters, hud, events, progress, storage, comic, stage, prompts, waypoint, beacon, balloons, pickups,
+      hero, encounters, hud, events, progress, storage, comic, stage, prompts, waypoint, beacon, balloons, pickups, radio,
       collision: world.collision, follow, boss, finale, neonParty, side: sideHooks,
       onCredits: () => {
         document.exitPointerLock?.();
@@ -601,15 +606,6 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     // (including the divebomb altitude check, which calls hero.heightAboveGround(), a raycast,
     // so it must not run every frame), and each one stops checking once it has shown.
     let hintCheckT = 0;
-    // Once, on the first free moment of play (after any returning-player gadget cards), for a save
-    // from before Part D that skipped Monarch Balcony (storyMigrate.js marks it 'due'): the goons
-    // have new tricks and a predator room is ahead.
-    function predatorNotice() {
-      progress.predatorNotice = 'shown';
-      saveProgress(storage, progress);
-      if (!betweenRooms(flow.objectives.index)) return;
-      hud.card('MEANWHILE IN GOTHAM', "Gotham's goons have learned new tricks. A rifle crew lies in wait on the catwalks at Ace Chemicals. Stay in the shadows.", 9000);
-    }
     let glideHighT = 0;
     const hintShown = { ladder: false, zip: false, divebomb: false };
 
@@ -630,8 +626,6 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       if (playing && !state.paused) {
         if (input.pressed('photo') && flow.mode === 'play' && !hero.dead) { photo.open(); return; }
         if (input.pressed('detective')) state.detectiveOn = !state.detectiveOn;
-        // 'due' first, so the card check (a DOM read) runs only while the notice is still pending.
-        if (progress.predatorNotice === 'due' && predatorNoticeReady(progress.predatorNotice, flow.mode === 'play', hud.cardShowing, gadgets.newsPending)) predatorNotice();
         pickGrapple(real);
         // Grapple is only locked while a fight is actually around you.
         const busy = combat.enemies.some((e) => e.alive && e.aware && !e.room && e.pos.distanceTo(hero.pos) < 12 && Math.abs(e.pos.y - hero.pos.y) < 4);
@@ -732,7 +726,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     }
 
     const api = {
-      hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, despawn, side,
+      hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, despawn, side, radio,
       // Impact frames test hook: pin(ms) samples `ms` into the sequence the next fire() starts.
       impact: {
         fire: (tier, target) => fireImpact(tier, target),

@@ -385,3 +385,17 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0 6px; margin: 0 2px; bo
 .impact-panel .ip-burst { position: absolute; left: var(--ix, 50%); top: var(--iy, 50%); width: 62vmin; height: 62vmin; transform: translate(-50%, -50%); opacity: 0.5;
   background: radial-gradient(circle, #111 1.3px, transparent 1.8px) 0 0 / 9px 9px;
   -webkit-mask-image: radial-gradient(circle, #000 18%, transparent 70%); mask-image: radial-gradient(circle, #000 18%, transparent 70%); }
+
+/* Part S: the radio panel. A comic speech bubble low on the left, clear of the objective card
+   (top right), the health ring and the hint caption (bottom centre), and the action camera's
+   framed shot (screen centre) during a fight. Play never pauses for it. */
+.radio-panel { position: fixed; left: 24px; bottom: 172px; width: min(360px, 40vw); display: flex; gap: 10px;
+  align-items: flex-start; opacity: 0; transform: translateY(10px); pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s; z-index: 6; }
+.radio-panel.show { opacity: 1; transform: translateY(0); pointer-events: auto; cursor: pointer; }
+.radio-portrait { flex: 0 0 auto; width: 52px; height: 52px; filter: drop-shadow(3px 3px 0 var(--ink)); }
+.radio-portrait svg { width: 100%; height: 100%; display: block; }
+.radio-body { flex: 1 1 auto; min-width: 0; background: #fffdf5; color: var(--ink); border: 3px solid var(--ink);
+  box-shadow: 4px 4px 0 var(--ink); padding: 8px 12px 10px; border-radius: 4px; transform: rotate(-0.6deg); }
+.radio-name { font: 800 15px 'Barlow Condensed', sans-serif; letter-spacing: 1px; text-transform: uppercase; color: var(--balloon); }
+.radio-text { font: 19px/1.25 'Patrick Hand SC', cursive; margin-top: 2px; word-break: break-word; min-height: 1.3em; }

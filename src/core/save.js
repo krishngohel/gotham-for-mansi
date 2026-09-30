@@ -1,4 +1,7 @@
-const KEY = 'gotham-mansi-progress-v1';
+// Part S: a full reset for the new story (Mansi's Birthday Night). Everyone starts fresh under
+// this new key; settings (gotham-mansi-settings-v1) and bindings are untouched, and the old v1
+// key is simply never read again (it can stay in storage; nothing migrates from it).
+const KEY = 'gotham-mansi-progress-v2';
 export const BALLOON_COUNT = 12;
 export const DISTRICT_IDS = ['gcpd', 'docks', 'neon', 'ace', 'clock'];
 export const MEDALS = ['bronze', 'silver', 'gold'];

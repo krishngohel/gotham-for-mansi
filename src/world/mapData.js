@@ -138,4 +138,7 @@ export const SITES = {
   monarchBalconyEntry: { x: 192, y: 22, z: -60 },
   aceCatwalks: { x: 124, y: 0.15, z: -118 },
   aceCatwalksEntry: { x: 172, y: 10, z: -124 },
+  // Part S placeholder for the funhouse door in the clock plaza, until Part I (Interiors) lands
+  // its own room and geometry at this id (see the spec's Interiors contract).
+  funhouse: { x: -78, y: 58, z: -168 },
 };

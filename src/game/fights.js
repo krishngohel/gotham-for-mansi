@@ -18,4 +18,14 @@ export const FIGHTS = {
   // Predator rooms (Part D): a squad on patrol routes that the stealth runtime drives.
   monarchBalcony: stealthFight('monarchBalcony'),
   aceCatwalks: stealthFight('aceCatwalks'),
+  // Part S (the birthday night story): the clock plaza ambush before the funhouse door, and the
+  // funhouse floor itself (site is a placeholder until Part I lands the real interior).
+  plaza: { site: 'balcony', radius: 16, waves: [[g(-6, -5), g(6, -5), k(0, 7)], [b(0, 6), g(-7, 0), g(7, 0)]] },
+  funhouseFight: { site: 'funhouse', radius: 14, waves: [[g(-5, -4), g(5, -4), k(0, 6)], [b(-4, 5), b(4, 5)]] },
 };
+
+// Harley Quinn is being built in a parallel branch: a real 'harleyHall' fight (enemy type
+// 'harley', SITE aceHall). Until that merges into this FIGHTS object, fall back to the aceYard
+// fight so the Act 2 Harley beat (src/game/story.js) stays playable on its own (coordinator
+// guidance, 2026-09-30). Once harleyHall exists here, this picks it up with no further changes.
+export const HARLEY_FIGHT = FIGHTS.harleyHall ? 'harleyHall' : 'aceYard';
