@@ -16,6 +16,8 @@ const MODES = {
   drop: { dist: 5.5, height: 2.2, side: 0, fov: 8 },
   chain: { dist: 4.8, height: 1.6, side: 0.2, fov: 2 },
   remote: { dist: 2.4, height: 0.35, side: 0, fov: 8 },
+  // The Batwing (Part V2): behind and above, wider than any glide or dive shot.
+  fly: { dist: 11, height: 2.6, side: 0, fov: 16 },
 };
 
 // Perch drop framing: the camera holds still off to the side of the drop, DROP_SIDE out from the
@@ -32,6 +34,9 @@ export function createFollowCamera(camera, collision) {
     yaw: 0, pitch: 0.22, dist: 4.2, height: 1.55, side: 0.55, fovKick: 0, hitKick: 0,
     pivot: new THREE.Vector3(), shake: 0, baseFov: 60, sensitivity: 1, invertY: false, shakeEnabled: true, actionEnabled: true,
     mode: 'ground',
+    // Batwing bank: a slight roll with the plane's turn (src/vehicles/batwing.js calls setBank()
+    // every flight frame; it self-clears the moment the mode isn't 'fly').
+    bank: 0, bankTarget: 0,
   };
   const tmp = new THREE.Vector3();
   const desired = new THREE.Vector3();
@@ -52,6 +57,8 @@ export function createFollowCamera(camera, collision) {
       s.baseFov = fov; s.sensitivity = sensitivity; s.invertY = invertY; s.shakeEnabled = cameraShake; s.actionEnabled = actionCam;
     },
     addShake(amount) { if (s.shakeEnabled) s.shake = Math.max(s.shake, amount); },
+    // Batwing bank (radians); harmless when not flying, since update() zeroes the target itself.
+    setBank(radians) { s.bankTarget = radians; },
     // A hit lands: a short FOV punch-in (narrower) that decays over about a tenth of a second.
     hitKick(amount = 3) { if (s.shakeEnabled) s.hitKick = Math.min(s.hitKick, -amount); },
     forward(out = new THREE.Vector3()) { return out.set(Math.sin(s.yaw), 0, Math.cos(s.yaw)); },
@@ -89,6 +96,9 @@ export function createFollowCamera(camera, collision) {
     update(dt, focus, look, mode = 'ground', speed = 0) {
       const m = MODES[mode] ?? MODES.ground;
       s.mode = mode;
+      // Only the Batwing drives a bank; any other mode relaxes it back to level on its own.
+      if (mode !== 'fly') s.bankTarget = 0;
+      s.bank += (s.bankTarget - s.bank) * Math.min(1, dt * 5);
       s.yaw -= look.dx * 0.0022 * s.sensitivity;
       s.pitch += look.dy * 0.0022 * s.sensitivity * (s.invertY ? -1 : 1);
       s.pitch = THREE.MathUtils.clamp(s.pitch, -1.05, 1.25);
@@ -98,7 +108,7 @@ export function createFollowCamera(camera, collision) {
       s.dist += (m.dist - s.dist) * k;
       s.height += (m.height - s.height) * k;
       s.side += (m.side - s.side) * k;
-      const speedKick = mode === 'glide' ? Math.min(10, speed * 0.3) : 0;
+      const speedKick = mode === 'glide' ? Math.min(10, speed * 0.3) : mode === 'fly' ? Math.min(16, speed * 0.22) : 0;
       s.fovKick += (m.fov + speedKick - s.fovKick) * k;
       s.hitKick *= Math.exp(-dt * 14);
 
@@ -199,6 +209,7 @@ export function createFollowCamera(camera, collision) {
         }
       }
       camera.lookAt(lookAt);
+      if (Math.abs(s.bank) > 1e-4) camera.rotateZ(s.bank);
       const fov = s.baseFov + s.fovKick + s.hitKick;
       if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = fov; camera.updateProjectionMatrix(); }
     },

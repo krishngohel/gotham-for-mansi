@@ -7,6 +7,8 @@ export const PAD_BUTTONS = {
   // RB (5) is not here: a tap is the cape stun and a hold opens the gadget wheel (createHoldTap).
   dodge: [6], batarang: [7],
   detective: [8], pause: [9], special: [11], photo: [12], help: [13], throw: [15],
+  // D-pad left (14) was the only free face/D-pad button left: the Batwing (Part V2).
+  batwing: [14],
 };
 
 // Chain takedowns: D-pad left, up and right while block (Y) is held. With block held, D-pad
