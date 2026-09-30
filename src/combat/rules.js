@@ -12,6 +12,13 @@ export const ENEMY = {
   brute: { health: 10, damage: 20, counterable: false, parry: false, armored: true, speed: 2.4, scale: 1.25 },
   rifle: { health: 4, damage: 15, counterable: false, parry: true, armored: false, speed: 3.2, scale: 1, ranged: true },
   joker: { health: 30, damage: 12, counterable: true, parry: false, armored: false, speed: 3.6, scale: 1, boss: true },
+  // Harley Quinn, a mini-boss goon (src/actors/enemy.js, src/actors/harleyChar.js): about 6
+  // grunts' worth of health, armored like a brute (immune to a plain punch/kick until stunned,
+  // and so excluded from being a chain takedown's first target the same way brutes are, in
+  // chains.js's `leaders`), but not a `boss`: chains, the swarm and dive-bomb shockwaves can all
+  // still knock her down, they just never outright KO her (chainOutcome already reads that off
+  // `def.armored`).
+  harley: { health: 24, damage: 22, counterable: false, parry: false, armored: true, speed: 3.0, scale: 1.05 },
 };
 
 // damage, and whether the move knocks down / stuns / breaks a knife guard.
@@ -41,8 +48,8 @@ export const MOVES = {
 };
 
 // How much of each attack a raised guard absorbs.
-export const BLOCK_REDUCTION = { grunt: 0.8, knife: 0.5, brute: 0.4, charge: 0, joker: 0.6, gas: 0, buzzer: 0, rifle: 0 };
-const ATTACK_DAMAGE = { grunt: 10, knife: 15, brute: 20, charge: 25, joker: 12, gas: 4, buzzer: 12, rifle: 15 };
+export const BLOCK_REDUCTION = { grunt: 0.8, knife: 0.5, brute: 0.4, charge: 0, joker: 0.6, gas: 0, buzzer: 0, rifle: 0, harleySlam: 0.3, harleySweep: 0.5, harleyThrow: 0.2 };
+const ATTACK_DAMAGE = { grunt: 10, knife: 15, brute: 20, charge: 25, joker: 12, gas: 4, buzzer: 12, rifle: 15, harleySlam: 22, harleySweep: 14, harleyThrow: 6 };
 // A rifle shot hurts a set amount per difficulty rather than Normal's figure times the difficulty
 // multiplier: two Normal shots used to take half of Batman's health in under two seconds. Hard
 // keeps what it had (25 x 1.5).

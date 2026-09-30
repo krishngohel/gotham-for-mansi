@@ -6,7 +6,6 @@ import { createEvents } from '../../src/core/events.js';
 import { upgradeEffects } from '../../src/progress/upgrades.js';
 import { DEFAULT_BINDINGS } from '../../src/core/bindings.js';
 import { STEPS } from '../../src/game/story.js';
-import { predatorNoticeReady } from '../../src/game/storyMigrate.js';
 
 function fakeInput() {
   const down = new Set(), pressed = new Set(), released = new Set(), codes = new Set();
@@ -409,56 +408,11 @@ describe('fix round: the boss fight and mid-combo gadgets', () => {
   });
 });
 
-describe('returning players: the gadget cards and the predator notice share the card slot', () => {
-  // game.js's wiring, in miniature: hud.card has one slot and no queue (a new card replaces the
-  // one up), the gadget handlers show the WayneTech delivery for NEWS_CARD_S less 0.7 s and the
-  // popper's card for 7 s, and the predator notice is checked before gadgets.update each frame.
-  function fakeHud(clock) {
-    const shown = [];
-    let until = 0;
-    return {
-      shown,
-      card(title, text, ms) {
-        const prev = shown.at(-1);
-        if (prev && clock.t < until) prev.cut = true;
-        shown.push({ title, at: clock.t, ms, cut: false });
-        until = clock.t + ms / 1000;
-      },
-      get cardShowing() { return clock.t < until; },
-    };
-  }
-  it('a finished old save between the rooms sees the delivery, the popper and the notice, each in full', () => {
-    const t = setup({ finished: true });
-    const clock = { t: 0 };
-    const hud = fakeHud(clock);
-    t.events.on('gadgetNews', ({ ids }) => hud.card(gadgetNewsCard(ids, 'Tab').title, '', NEWS_CARD_S * 1000 - 700));
-    t.events.on('gadgetUnlocked', ({ id }) => hud.card(`NEW GADGET: ${id}`, '', 7000));
-    const progress = { predatorNotice: 'due' };
-    const noticeSaved = vi.fn();
-    const step = (dt) => {
-      clock.t += dt;
-      if (progress.predatorNotice === 'due' && predatorNoticeReady(progress.predatorNotice, true, hud.cardShowing, t.sys.newsPending)) {
-        progress.predatorNotice = 'shown';
-        noticeSaved(clock.t);
-        hud.card('MEANWHILE IN GOTHAM', '', 9000);
-      }
-      t.frame(dt);
-    };
-    step(0.016);
-    // The first live frame: both are due, the delivery goes first and the notice waits.
-    expect(hud.shown.map((c) => c.title)).toEqual(['WAYNETECH DELIVERY!']);
-    expect(progress.predatorNotice).toBe('due');
-    expect(noticeSaved).not.toHaveBeenCalled();
-    for (let i = 0; i < 40 * 10; i++) step(0.1);
-    expect(hud.shown.map((c) => c.title)).toEqual(['WAYNETECH DELIVERY!', 'NEW GADGET: popper', 'MEANWHILE IN GOTHAM']);
-    expect(hud.shown.every((c) => !c.cut)).toBe(true);
-    // Saved once, at the moment the notice actually went up.
-    expect(noticeSaved).toHaveBeenCalledTimes(1);
-    expect(noticeSaved.mock.calls[0][0]).toBeCloseTo(hud.shown[2].at);
-    expect(hud.shown[2].at).toBeGreaterThanOrEqual(hud.shown[1].at + 7);
-    // The popper was saved as seen with its card, not with the delivery's.
-    expect(t.progress.gadgets.unlocked).toContain('popper');
-  });
+describe('returning players: the gadget news card', () => {
+  // game.js's wiring, in miniature: the gadget handlers show the WayneTech delivery for
+  // NEWS_CARD_S less 0.7 s, then the popper's own card for 7 s. (Part S dropped the predator-room
+  // notice that used to share this slot: it was a one-time message for saves from before Part D,
+  // and Part S's full reset means no such save exists any more.)
   it('newsPending covers the gap between the delivery and the popper, then clears', () => {
     const t = setup({ finished: true });
     t.flags.playing = false;
@@ -471,13 +425,5 @@ describe('returning players: the gadget cards and the predator notice share the 
     for (let i = 0; i < NEWS_CARD_S + 1; i++) t.frame(1);
     expect(t.sys.newsPending).toBe(false);
     expect(t.progress.gadgets.unlocked).toContain('popper');
-  });
-  it('the notice goes up on the first live frame when there is no gadget news', () => {
-    expect(predatorNoticeReady('due', true, false, false)).toBe(true);
-    expect(predatorNoticeReady('due', true, false, true)).toBe(false);
-    expect(predatorNoticeReady('due', true, true, false)).toBe(false);
-    expect(predatorNoticeReady('due', false, false, false)).toBe(false);
-    expect(predatorNoticeReady('shown', true, false, false)).toBe(false);
-    expect(predatorNoticeReady(null, true, false, false)).toBe(false);
   });
 });

@@ -1,9 +1,14 @@
 // Encounters. Positions are offsets (dx, dz) from the fight's site; y is found by collision.
 import { stealthFight } from '../stealth/stealthRooms.js';
+import { SITES } from '../world/mapData.js';
 
 const g = (dx, dz) => ({ type: 'grunt', dx, dz });
 const k = (dx, dz) => ({ type: 'knife', dx, dz });
 const b = (dx, dz) => ({ type: 'brute', dx, dz });
+const h = (dx, dz) => ({ type: 'harley', dx, dz });
+// The interiors builder (Part I) adds SITES.aceHall; fall back to the open Ace Chemicals yard
+// so this fight def works whether or not that part has landed yet.
+const HARLEY_SITE = SITES.aceHall ? 'aceHall' : 'aceYard';
 
 export const FIGHTS = {
   docksRoof: { site: 'wh3Roof', radius: 14, waves: [[g(-4, -5), g(5, -3)]] },
@@ -18,4 +23,19 @@ export const FIGHTS = {
   // Predator rooms (Part D): a squad on patrol routes that the stealth runtime drives.
   monarchBalcony: stealthFight('monarchBalcony'),
   aceCatwalks: stealthFight('aceCatwalks'),
+  // Part S (the birthday night story): the clock plaza ambush before the funhouse door, and the
+  // funhouse floor itself (site is a placeholder until Part I lands the real interior). Both use
+  // the clock tower's flat rooftop (SITES.arena, the boss's own site): 'balcony' is a thin ledge
+  // with no ground under most of a wave's spread (verified with collision.groundBelow), so a wave
+  // placed there scatters onto the street 58 units down and the fight never triggers.
+  plaza: { site: 'arena', radius: 16, waves: [[g(-6, -5), g(6, -5), k(0, 7)], [b(0, 6), g(-7, 0), g(7, 0)]] },
+  funhouseFight: { site: 'funhouse', radius: 14, waves: [[g(-4, -3), g(4, -3), k(0, 5)], [b(-3, 4), b(3, 4)]] },
+  // Act 2's Harley Quinn mini-boss fight. Wave 1: Harley and 3 goons. Wave 2: 2 knives.
+  harleyHall: { site: HARLEY_SITE, radius: 16, waves: [[h(0, 0), g(-5, -4), g(5, -4), g(0, 6)], [k(-4, 4), k(4, 4)]] },
 };
+
+// Harley Quinn is being built in a parallel branch: a real 'harleyHall' fight (enemy type
+// 'harley', SITE aceHall). Until that merges into this FIGHTS object, fall back to the aceYard
+// fight so the Act 2 Harley beat (src/game/story.js) stays playable on its own (coordinator
+// guidance, 2026-09-30). Once harleyHall exists here, this picks it up with no further changes.
+export const HARLEY_FIGHT = FIGHTS.harleyHall ? 'harleyHall' : 'aceYard';

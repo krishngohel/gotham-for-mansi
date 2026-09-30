@@ -75,8 +75,8 @@ describe('gadget bindings', () => {
     }
   });
   it('old saved bindings keep working and pick up the new defaults', () => {
-    const s = sanitizeSettings({ bindings: { batarang: ['KeyT'] } });
-    expect(s.bindings.batarang).toEqual(['KeyT']);
+    const s = sanitizeSettings({ bindings: { batarang: ['KeyU'] } });
+    expect(s.bindings.batarang).toEqual(['KeyU']);
     expect(s.bindings.gadgetWheel).toEqual(['Tab']);
     expect(s.bindings.chain4).toEqual(['Digit4']);
   });

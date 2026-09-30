@@ -119,6 +119,14 @@ if (!only || only === 'fight') {
   const { p, errors } = await openGame('fight=test&god=1');
   await p.waitForTimeout(1500);
   await skipComic(p);
+  // Part N: NW=1 spawns Nightwing as an ally into the fight scenario, so a sweep can include his
+  // AI and materials. Off by default so every other scenario/part is unaffected.
+  if (process.env.NW === '1') {
+    await p.evaluate(() => {
+      const g = window.__game;
+      g.nightwing?.spawn({ x: g.hero.pos.x - 2, y: g.hero.pos.y, z: g.hero.pos.z - 3 }, 'ally');
+    });
+  }
   await label(p, 'warmup');
   await p.waitForTimeout(5000);
   await label(p, 'fight');
