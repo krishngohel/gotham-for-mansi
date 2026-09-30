@@ -19,9 +19,12 @@ export const FIGHTS = {
   monarchBalcony: stealthFight('monarchBalcony'),
   aceCatwalks: stealthFight('aceCatwalks'),
   // Part S (the birthday night story): the clock plaza ambush before the funhouse door, and the
-  // funhouse floor itself (site is a placeholder until Part I lands the real interior).
-  plaza: { site: 'balcony', radius: 16, waves: [[g(-6, -5), g(6, -5), k(0, 7)], [b(0, 6), g(-7, 0), g(7, 0)]] },
-  funhouseFight: { site: 'funhouse', radius: 14, waves: [[g(-5, -4), g(5, -4), k(0, 6)], [b(-4, 5), b(4, 5)]] },
+  // funhouse floor itself (site is a placeholder until Part I lands the real interior). Both use
+  // the clock tower's flat rooftop (SITES.arena, the boss's own site): 'balcony' is a thin ledge
+  // with no ground under most of a wave's spread (verified with collision.groundBelow), so a wave
+  // placed there scatters onto the street 58 units down and the fight never triggers.
+  plaza: { site: 'arena', radius: 16, waves: [[g(-6, -5), g(6, -5), k(0, 7)], [b(0, 6), g(-7, 0), g(7, 0)]] },
+  funhouseFight: { site: 'funhouse', radius: 14, waves: [[g(-4, -3), g(4, -3), k(0, 5)], [b(-3, 4), b(3, 4)]] },
 };
 
 // Harley Quinn is being built in a parallel branch: a real 'harleyHall' fight (enemy type

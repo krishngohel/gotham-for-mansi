@@ -122,6 +122,7 @@ export function createFlow(d) {
     mode = 'cutscene';
     document.exitPointerLock?.();
     hud.setVisible(false);
+    radio?.skip(); // a comic page takes the whole screen; any dialogue beat still up steps aside
     events.emit('cutscene', { name, on: true });
     const pages = SCENES[name] ? SCENES[name](stage) : [];
     if (pages.length) await comic.play(pages);
@@ -154,6 +155,7 @@ export function createFlow(d) {
       mode = 'finale';
       document.exitPointerLock?.();
       hud.setVisible(false);
+      radio?.skip();
       d.finale.play().then(() => { hud.setVisible(true); mode = 'play'; advance({ type: 'cutsceneDone', scene: 'finale' }); });
     } else if (s.type === 'cutscene') {
       const REWARD = { presents: 'presents', party: 'party', cake: 'cake' };
