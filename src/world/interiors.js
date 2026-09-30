@@ -84,6 +84,18 @@ function interiorMat(ctx, color) {
   return { key: 'interiorWall', color };
 }
 
+// A dedicated, always-on fill light for one room: real ambient lift (not just baked halos), but
+// distance-limited so it never reaches the exterior city. Added once, at boot, alongside the rest
+// of the city (before ink.compileAsync), so it's part of the one-time shader compile, exactly like
+// world.js's fireworkLight (a light that exists from boot so the scene's light count never changes
+// mid-run).
+function roomFill(ctx, x, y, z, color, intensity, distance) {
+  if (typeof THREE.PointLight !== 'function') return;
+  const light = new THREE.PointLight(color, intensity, distance, 1.4);
+  light.position.set(x, y, z);
+  ctx.scene.add(light);
+}
+
 // A straight exterior wall along one axis, minus a single rectangular gap (a door or a window):
 // left pier, right pier, footer (if the gap doesn't reach the floor) and header. `axis` is the
 // wall's long run ('x' or 'z'); `at` is its fixed position on the other axis. Visual and collision
@@ -123,6 +135,40 @@ function stripeBand(ctx, axis, at, s0, s1, y, inset, color) {
   const w = axis === 'x' ? s1 - s0 : 0.34, d = axis === 'x' ? 0.34 : s1 - s0;
   const px = axis === 'x' ? (s0 + s1) / 2 : a, pz = axis === 'x' ? a : (s0 + s1) / 2;
   ctx.buckets.add(key, box(w, 1.4, d, px, y, pz), color);
+}
+
+// A circus harlequin band: alternating diamond panels along a wall running along z (fixed x).
+function harlequinBand(ctx, wallX, z0, z1, y, inset, colors) {
+  const { key } = interiorMat(ctx, colors[0]);
+  const n = Math.round((z1 - z0) / 2.2);
+  for (let i = 0; i < n; i++) {
+    const z = z0 + (z1 - z0) * ((i + 0.5) / n);
+    const diamond = new THREE.PlaneGeometry(1.9, 1.9).rotateZ(Math.PI / 4).rotateY(Math.PI / 2).translate(wallX + inset, y, z);
+    ctx.buckets.add(key, diamond, colors[i % 2]);
+  }
+}
+
+// Diagonal circus stripes on a wall running along z (fixed x): tilted bands in the (y, z) plane.
+function diagonalStripes(ctx, wallX, z0, z1, y0, y1, inset, colors) {
+  const { key } = interiorMat(ctx, colors[0]);
+  const n = Math.round((z1 - z0) / 1.6);
+  for (let i = 0; i < n; i++) {
+    const t = i / Math.max(1, n - 1);
+    const strip = box(0.5, (y1 - y0) * 1.9, 1.3, 0, 0, 0).rotateX(Math.PI / 4).translate(wallX + inset, (y0 + y1) / 2, z0 + (z1 - z0) * t);
+    ctx.buckets.add(key, strip, colors[i % 2]);
+  }
+}
+
+// A giant playing-card panel: a rounded rectangle with a big suit diamond and corner pips.
+function cardPanel(ctx, wallX, y, z, inset, cardColor, suitColor) {
+  const key = interiorMat(ctx, cardColor).key;
+  ctx.buckets.add(key, box(0.12, 5.2, 3.4, wallX + inset, y, z), cardColor);
+  const suit = new THREE.PlaneGeometry(1.7, 1.7).rotateZ(Math.PI / 4).rotateY(Math.PI / 2).translate(wallX + inset * 1.2, y, z);
+  ctx.buckets.add(key, suit, suitColor);
+  for (const s of [-1, 1]) {
+    const pip = new THREE.PlaneGeometry(0.5, 0.5).rotateZ(Math.PI / 4).rotateY(Math.PI / 2).translate(wallX + inset * 1.2, y + s * 2.1, z - 1.2);
+    ctx.buckets.add(key, pip, suitColor);
+  }
 }
 
 // A ring of coloured floor tiles (a checkerboard), drawn only (no per-tile collision: the world's
@@ -197,6 +243,14 @@ function buildFunhouse(ctx) {
     stripeBand(ctx, 'z', cx0, cz0 + 4, cz1 - 4, y, 0.45, color);
     stripeBand(ctx, 'z', cx1, cz0 + 4, cz1 - 4, y, -0.45, color);
   }
+  // Big diagonal circus stripes low and a harlequin diamond band high on the west wall, plus two
+  // giant playing-card panels, so the side walls read as circus tent, not plain grey. The east
+  // wall keeps its stripes plus the funhouse mirrors (below) as its own decoration.
+  diagonalStripes(ctx, cx0, cz0 + 5, cz1 - 5, 1, 5.5, 0.5, [PALETTE.jokerPurple, PALETTE.paper]);
+  harlequinBand(ctx, cx0, cz0 + 5, cz1 - 5, 12, 0.5, [PALETTE.jokerPurple, 0xf0e6c8]);
+  cardPanel(ctx, cx0, 6.5, -142, 0.5, 0xf0e6c8, PALETTE.balloon);
+  cardPanel(ctx, cx0, 6.5, -158, 0.5, 0xf0e6c8, PALETTE.jokerPurple);
+  harlequinBand(ctx, cx1, cz0 + 5, cz1 - 5, 15.5, -0.5, [PALETTE.jokerGreen, 0xf0e6c8]);
   // Ceiling: below the roof (h = 28), so the pitched roof deck people can stand on is untouched.
   const b = r.bounds;
   solid(ctx, 'painted', box(b.maxX - b.minX, 0.6, b.maxZ - b.minZ, CX, b.maxY - 0.3, CZ), { color: 0x1c1620, tag: 'ceiling' });
@@ -215,17 +269,20 @@ function buildFunhouse(ctx) {
     }
   }
 
-  // Carnival lights strung between every pair of pillars down each side, sagging like real bulbs.
-  for (const xc of pillarX) {
-    for (let i = 0; i < pillarZ.length - 1; i++) {
-      for (let t = 0; t <= 1; t += 0.2) {
-        const zt = pillarZ[i] + (pillarZ[i + 1] - pillarZ[i]) * t, sag = Math.sin(Math.PI * t) * 0.5;
-        const y = 19.2 - sag;
-        glow(ctx, new THREE.SphereGeometry(0.13, 8, 6).translate(xc, y, zt), rng.pick([PALETTE.balloon, PALETTE.chem, PALETTE.window]));
-        ctx.halos.add(xc, y, zt, PALETTE.window, 1.3);
-      }
+  // Carnival lights strung between every pair of pillars down each side, sagging like real bulbs:
+  // dense and bright, so the strings read as a glowing line, not scattered dots. A cross line
+  // between the two rows too, so the middle of the room is strung with lights as well.
+  const BULB_COLORS = [PALETTE.balloon, PALETTE.chem, PALETTE.window, PALETTE.jokerPurple, PALETTE.signal];
+  const bulbLine = (x1, z1, x2, z2, y0) => {
+    for (let t = 0; t <= 1; t += 0.09) {
+      const xt = x1 + (x2 - x1) * t, zt = z1 + (z2 - z1) * t, sag = Math.sin(Math.PI * t) * 0.6;
+      const y = y0 - sag, col = rng.pick(BULB_COLORS);
+      glow(ctx, new THREE.SphereGeometry(0.17, 8, 6).translate(xt, y, zt), col);
+      ctx.halos.add(xt, y, zt, col, 2.4);
     }
-  }
+  };
+  for (const xc of pillarX) for (let i = 0; i < pillarZ.length - 1; i++) bulbLine(xc, pillarZ[i], xc, pillarZ[i + 1], 19.2);
+  for (const zc of pillarZ) bulbLine(pillarX[0], zc, pillarX[1], zc, 18.4);
 
   // Balcony ring: a standing ledge along both long walls, with grapple points along its edge.
   for (const xc of [CX - 10.5, CX + 10.5]) {
@@ -239,9 +296,18 @@ function buildFunhouse(ctx) {
   glow(ctx, box(10, 0.4, 0.3, CX, 6.4, cz0 + 1.3), PALETTE.jokerPurple);
   ctx.halos.add(CX, 6.6, cz0 + 1.5, PALETTE.neonPink, 8);
   if (ctx.quality?.name !== 'low') ctx.buckets.add('cone', new THREE.CylinderGeometry(0.4, 3.6, 18, 14, 1, true).translate(CX, 10, cz0 + 6));
-  // Warm and cool light pools on the floor: a spotlight glow under the stage, a sickly one centre.
-  ctx.buckets.add('pool', new THREE.CircleGeometry(4.2, 22).rotateX(-Math.PI / 2).translate(CX, 0.13, cz0 + 6), 0xffcf7a);
-  ctx.buckets.add('pool', new THREE.CircleGeometry(5, 22).rotateX(-Math.PI / 2).translate(CX, 0.13, CZ), 0x8a5ac8);
+  // A real fill light over the nave: warm, so the room reads bright at a glance instead of
+  // relying only on baked halos. Distance-limited, never reaches the exterior city.
+  roomFill(ctx, CX, 10, CZ, 0xffdba0, 2, 55);
+  roomFill(ctx, CX, 8, cz0 + 8, PALETTE.jokerPurple, 1.6, 30);
+  // Warm and cool light pools on the floor, big and bright: a spotlight glow under the stage, a
+  // sickly one centre, and two more down each side so the whole floor reads lit, not grey.
+  ctx.buckets.add('pool', new THREE.CircleGeometry(5.4, 22).rotateX(-Math.PI / 2).translate(CX, 0.13, cz0 + 6), 0xffdba0);
+  ctx.buckets.add('pool', new THREE.CircleGeometry(6.5, 22).rotateX(-Math.PI / 2).translate(CX, 0.13, CZ), 0xa06ae0);
+  for (const zc of [-135, -165]) {
+    ctx.buckets.add('pool', new THREE.CircleGeometry(4, 20).rotateX(-Math.PI / 2).translate(CX - 7, 0.13, zc), 0x6fef3a);
+    ctx.buckets.add('pool', new THREE.CircleGeometry(4, 20).rotateX(-Math.PI / 2).translate(CX + 7, 0.13, zc), 0xff5aa0);
+  }
 
   // Funhouse mirrors: flat reflective panels along the east wall.
   for (let i = 0; i < 4; i++) ctx.buckets.add('glass', box(0.15, 6.5, 3.2, cx1 - 0.8, 6.2, -136 - i * 9));
@@ -254,23 +320,35 @@ function buildFunhouse(ctx) {
     spiral.userData.dynamic = true;
     ctx.scene.add(spiral);
     ctx.updaters.push((t) => { spiral.rotation.z = t * 0.6; });
-    // Party banners: "HAPPY BIRTHDAY" with the Joker's twist.
-    const banner = new THREE.Mesh(new THREE.PlaneGeometry(15, 6), new THREE.MeshBasicMaterial({ map: billboardTexture('HAPPY BIRTHDAY MANSI', 'COURTESY OF THE JOKER', PALETTE.jokerPurple), transparent: true }));
-    banner.position.set(CX, 17.4, -139);
+    // A big "HAPPY BIRTHDAY" banner strung right across the nave, at eye-catching height, facing
+    // both ways so it reads from the doors and from the stage.
+    const bannerTex = billboardTexture('HAPPY BIRTHDAY MANSI', 'COURTESY OF THE JOKER', PALETTE.jokerPurple);
+    const bannerMat = new THREE.MeshBasicMaterial({ map: bannerTex, transparent: true, side: THREE.DoubleSide });
+    const banner = new THREE.Mesh(new THREE.PlaneGeometry(20, 7.4), bannerMat);
+    banner.position.set(CX, 13.5, -148);
     ctx.scene.add(banner);
-    const banner2 = new THREE.Mesh(new THREE.PlaneGeometry(11, 4.4), new THREE.MeshBasicMaterial({ map: billboardTexture('GUESS WHO', 'HA HA HA HA', PALETTE.balloon), transparent: true }));
+    const banner2 = new THREE.Mesh(new THREE.PlaneGeometry(11, 4.4), new THREE.MeshBasicMaterial({ map: billboardTexture('GUESS WHO', 'HA HA HA HA', PALETTE.balloon), transparent: true, side: THREE.DoubleSide }));
     banner2.position.set(CX, 16.6, -128);
     ctx.scene.add(banner2);
   }
   bunting(ctx, cx0 + 3, -175, cx1 - 3, -175, 18.6, [PALETTE.balloon, PALETTE.chem, PALETTE.jokerPurple, PALETTE.signal]);
   bunting(ctx, cx0 + 3, -132, cx1 - 3, -132, 18.6, [PALETTE.jokerPurple, PALETTE.chem, PALETTE.balloon, PALETTE.signal]);
 
-  // Balloons scattered up near the ceiling.
+  // Balloons scattered up near the ceiling, plus big clusters lower down by the pillars, right in
+  // view from the middle of the room.
   for (let i = 0; i < 12; i++) {
     const bx = CX + rng.range(-9, 9), bz = CZ + rng.range(-25, 25), by = 15.5 + rng.range(-1, 2.2);
     const col = rng.pick([PALETTE.balloon, PALETTE.chem, PALETTE.jokerPurple, PALETTE.signal]);
     ctx.buckets.add('painted', new THREE.SphereGeometry(0.5, 10, 8).translate(bx, by, bz), col);
     ctx.buckets.add('steel', box(0.03, 1.4, 0.03, bx, by - 1.2, bz));
+  }
+  const CLUSTER_COLORS = [PALETTE.balloon, PALETTE.chem, PALETTE.jokerPurple, PALETTE.signal, PALETTE.neonPink];
+  for (const [cxc, czc] of [[CX - 7.6, -140], [CX + 7.6, -140], [CX - 7.6, -160], [CX + 7.6, -160], [CX, cz1 - 3]]) {
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      const bx = cxc + Math.cos(a) * 0.6, bz = czc + Math.sin(a) * 0.6, by = 5.5 + (i % 3) * 0.55;
+      ctx.buckets.add('painted', new THREE.SphereGeometry(0.42, 10, 8).translate(bx, by, bz), CLUSTER_COLORS[i % CLUSTER_COLORS.length]);
+    }
   }
 
   // Confetti scattered across the floor.
@@ -298,10 +376,10 @@ function hallVat(ctx, x, z) {
   ctx.buckets.add('steel', cylinder(3.65, 3.65, 0.2, x, 4.1, z, 20, true));
 }
 
-function hallPipe(ctx, x1, z1, x2, z2, y, r = 0.5) {
+function hallPipe(ctx, x1, z1, x2, z2, y, r = 0.5, color = PALETTE.rust) {
   const len = Math.hypot(x2 - x1, z2 - z1);
   const g = new THREE.CylinderGeometry(r, r, len, 10).rotateZ(Math.PI / 2).rotateY(-Math.atan2(z2 - z1, x2 - x1)).translate((x1 + x2) / 2, y, (z1 + z2) / 2);
-  solid(ctx, 'painted', g, { color: PALETTE.rust });
+  solid(ctx, 'painted', g, { color });
 }
 
 // A hand-wheel valve clamped onto a pipe run.
@@ -345,50 +423,71 @@ function buildAceHall(ctx) {
   const b = r.bounds;
   solid(ctx, 'painted', box(b.maxX - b.minX, 0.6, b.maxZ - b.minZ, FX, b.maxY - 0.3, FZ), { color: 0x1c2018, tag: 'ceiling' });
   ctx.buckets.add('concrete', tiledBox(b.maxX - b.minX, 0.15, b.maxZ - b.minZ, FX, 0.08, FZ, { uvScale: [8, 8] }));
+  // A real fill light over the vat floor: toxic green, so the hall reads bright at a glance
+  // instead of relying only on baked halos. Distance-limited, never reaches the exterior city.
+  roomFill(ctx, FX, 9, FZ, PALETTE.chem, 2.2, 55);
+  roomFill(ctx, FX, 4, FZ - 12, PALETTE.chem, 1.4, 30);
 
-  // Two rows of glowing vats.
-  hallVat(ctx, 122, -184);
-  hallVat(ctx, 158, -184);
-  hallVat(ctx, 122, -160);
-  hallVat(ctx, 158, -160);
-  for (const [px, pz, rr] of [[130, -170, 2.4], [150, -158, 1.8]]) {
-    ctx.buckets.add('pool', new THREE.CircleGeometry(rr, 18).scale(1, 0.7, 1).rotateX(-Math.PI / 2).translate(px, 0.17, pz), 0x5aa83a);
+  // Three rows of glowing, bubbling vats (six total), all clearly in view from the hall centre.
+  for (const [px, pz] of [[122, -184], [158, -184], [122, -176], [158, -168], [122, -160], [158, -160]]) hallVat(ctx, px, pz);
+  for (const [px, pz, rr] of [[130, -170, 2.6], [150, -158, 2.2], [130, -182, 2.2]]) {
+    ctx.buckets.add('pool', new THREE.CircleGeometry(rr, 18).scale(1, 0.7, 1).rotateX(-Math.PI / 2).translate(px, 0.17, pz), 0x6fef3a);
   }
-  // Hazard stripe borders on the floor around the catwalk footprint and the vat rows.
+  // Big yellow/black hazard stripe borders around the catwalk footprint and the vat rows.
   const hazard = (x1, z1, x2, z2) => {
-    const len = Math.hypot(x2 - x1, z2 - z1), n = Math.round(len / 1.1);
+    const len = Math.hypot(x2 - x1, z2 - z1), n = Math.round(len / 1.6);
     for (let i = 0; i < n; i++) {
-      const t0 = i / n, t1 = (i + 0.55) / n;
+      const t0 = i / n, t1 = (i + 0.6) / n;
       const mx = x1 + (x2 - x1) * (t0 + t1) / 2, mz = z1 + (z2 - z1) * (t0 + t1) / 2;
       const yaw = Math.atan2(x2 - x1, z2 - z1);
-      ctx.buckets.add('painted', new THREE.PlaneGeometry(0.45, len / n * 0.55).rotateX(-Math.PI / 2).rotateY(yaw).translate(mx, 0.1, mz), i % 2 ? 0x1a1a1a : PALETTE.signal);
+      ctx.buckets.add('painted', new THREE.PlaneGeometry(1.1, len / n * 0.62).rotateX(-Math.PI / 2).rotateY(yaw).translate(mx, 0.1, mz), i % 2 ? 0x14120e : PALETTE.signal);
     }
   };
-  hazard(b.minX + 8, FZ - 5, b.maxX - 8, FZ - 5);
-  hazard(b.minX + 8, FZ + 5, b.maxX - 8, FZ + 5);
+  hazard(b.minX + 6, FZ - 6, b.maxX - 6, FZ - 6);
+  hazard(b.minX + 6, FZ + 6, b.maxX - 6, FZ + 6);
+  hazard(b.minX + 6, FZ - 6, b.minX + 6, FZ + 6);
+  hazard(b.maxX - 6, FZ - 6, b.maxX - 6, FZ + 6);
 
-  // Catwalks with collision: a spine down the hall's centre and a cross-brace, on posts.
-  solid(ctx, 'steel', box(b.maxX - b.minX - 8, 0.25, 2, FX, 9, FZ), { tag: 'catwalk' });
-  solid(ctx, 'steel', box(2, 0.25, b.maxZ - b.minZ - 8, FX, 9, FZ), { tag: 'catwalk' });
-  for (let x = b.minX + 6; x < b.maxX - 5; x += 8) solid(ctx, 'steel', box(0.25, 8.9, 0.25, x, 4.45, FZ - 1));
-  for (let z = b.minZ + 6; z < b.maxZ - 5; z += 8) if (Math.abs(z - FZ) > 3) solid(ctx, 'steel', box(0.25, 8.9, 0.25, FX + 1, 4.45, z));
+  // Catwalks with collision: a spine down the hall's centre and a cross-brace, on posts. Painted
+  // a light steel grey (not the shared dark 'steel' material) so they read against the dark walls.
+  const LIGHT_STEEL = 0x9aa0a6;
+  solid(ctx, 'painted', box(b.maxX - b.minX - 8, 0.25, 2, FX, 9, FZ), { color: LIGHT_STEEL, tag: 'catwalk' });
+  solid(ctx, 'painted', box(2, 0.25, b.maxZ - b.minZ - 8, FX, 9, FZ), { color: LIGHT_STEEL, tag: 'catwalk' });
+  // Rails along the spine's edges, at grab height, so the catwalk reads even brighter from below.
+  for (const s of [-1, 1]) ctx.buckets.add('painted', box(b.maxX - b.minX - 8, 0.08, 0.08, FX, 9.9, FZ + s * 0.95), LIGHT_STEEL);
+  for (let x = b.minX + 6; x < b.maxX - 5; x += 8) solid(ctx, 'painted', box(0.25, 8.9, 0.25, x, 4.45, FZ - 1), { color: LIGHT_STEEL });
+  for (let z = b.minZ + 6; z < b.maxZ - 5; z += 8) if (Math.abs(z - FZ) > 3) solid(ctx, 'painted', box(0.25, 8.9, 0.25, FX + 1, 4.45, z), { color: LIGHT_STEEL });
   edgeGrapples(ctx, FX, FZ, b.maxX - b.minX - 8, 2, 9, 8);
   addLadder(ctx.climbables, { x: fx0 + 5, z: fz0 + 5, nx: -1, nz: 0, bottom: 0, top: 9 });
 
-  hallPipe(ctx, b.minX + 4, fz0 + 6, b.maxX - 4, fz0 + 6, 15);
-  hallPipe(ctx, b.minX + 4, fz0 + 9, b.maxX - 4, fz0 + 9, 16.5, 0.35);
+  hallPipe(ctx, b.minX + 4, fz0 + 6, b.maxX - 4, fz0 + 6, 15, 0.5, LIGHT_STEEL);
+  hallPipe(ctx, b.minX + 4, fz0 + 9, b.maxX - 4, fz0 + 9, 16.5, 0.35, LIGHT_STEEL);
   for (const x of [128, 152]) valve(ctx, x, 15, fz0 + 6);
   valve(ctx, 140, 16.5, fz0 + 9, 0.45);
-  // Hanging work lights along the catwalk.
-  for (const [x, z] of [[122, FZ - 4], [140, FZ + 3], [158, FZ - 4]]) hangingLight(ctx, x, b.maxY - 0.3, 11, z);
+  // Hanging work lights along the catwalk: bright, clearly glowing caged bulbs.
+  for (const [x, z] of [[122, FZ - 4], [140, FZ + 3], [158, FZ - 4], [131, FZ + 3], [149, FZ - 4]]) hangingLight(ctx, x, b.maxY - 0.3, 11, z);
 
-  // A raised office in the far corner, reached from the catwalk.
+  // ACE CHEMICALS painted on the north wall, the same sign face the exterior reads from outside.
+  if (typeof document !== 'undefined') {
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(20, 4.6), new THREE.MeshBasicMaterial({ map: hallSignTexture(), transparent: true, depthWrite: false }));
+    sign.position.set(FX, 14.5, fz0 + 0.55);
+    ctx.scene.add(sign);
+    ctx.halos.add(FX, 14.5, fz0 + 0.7, PALETTE.chem, 6);
+  }
+  // Factory-textured wall panels, inset just inside the flat linings, so the walls read as real
+  // sheet-metal facade instead of a flat painted colour.
+  for (const [px, pz, w, d] of [[FX, fz0 + 0.5, 44, 0.1], [FX, fz1 - 0.5, 44, 0.1], [fx1 - 0.5, FZ, 0.1, 34]]) {
+    ctx.buckets.add('facade_factory', tiledBox(w, 16, d, px, 12, pz, { uvScale: [30, 30] }));
+  }
+
+  // A raised office in the far corner, reached from the catwalk, lit warm from inside.
   solid(ctx, 'painted', box(10, 3.2, 8, 150, 10.6, -184), { color: 0x3a3f4a, tag: 'office' });
   ctx.buckets.add('glass', box(9.2, 1.5, 0.1, 150, 10.9, -179.9));
   glow(ctx, box(8.6, 1.1, 0.05, 150, 10.9, -179.85), PALETTE.window);
-  ctx.halos.add(150, 10.9, -179.8, PALETTE.window, 3);
-  lightSpot(ctx, 150, 10, -181, PALETTE.window, 26, 18);
-  for (const [lx, lz] of [[146, -188], [154, -188], [146, -180], [154, -180]]) solid(ctx, 'steel', box(0.3, 9, 0.3, lx, 4.5, lz));
+  ctx.halos.add(150, 10.9, -179.8, PALETTE.window, 5);
+  lightSpot(ctx, 150, 10, -181, PALETTE.window, 34, 22);
+  roomFill(ctx, 150, 10.9, -182, PALETTE.window, 1.2, 16);
+  for (const [lx, lz] of [[146, -188], [154, -188], [146, -180], [154, -180]]) solid(ctx, 'painted', box(0.3, 9, 0.3, lx, 4.5, lz), { color: LIGHT_STEEL });
 
   // Barrels scattered on the floor, off the catwalk footprint.
   for (let k = 0; k < 10; k++) {
@@ -402,6 +501,22 @@ function buildAceHall(ctx) {
 }
 
 // ---- canvas-based decoration: browser only (guarded by `typeof document`, see buildFunhouse) ----
+
+function hallSignTexture() {
+  const c = document.createElement('canvas');
+  c.width = 1024; c.height = 256;
+  const g = c.getContext('2d');
+  g.font = '150px Bangers, Impact, sans-serif';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.shadowColor = '#7dff4a'; g.shadowBlur = 36;
+  g.strokeStyle = '#7dff4a'; g.lineWidth = 9;
+  g.strokeText('ACE CHEMICALS', 512, 128);
+  g.fillStyle = '#f3ffe8';
+  g.fillText('ACE CHEMICALS', 512, 128);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
 
 function spiralTexture() {
   const c = document.createElement('canvas');
