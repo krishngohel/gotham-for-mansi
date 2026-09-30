@@ -70,15 +70,12 @@ export function createFlow(d) {
     switch (step.type) {
       case 'chase':
         if (!G.vehicles?.startChase) return false;
-        // The mission needs Mansi in the Batmobile first (coordinator guidance, 2026-09-30).
-        G.vehicles.summon?.();
-        if (G.vehicles.active) G.vehicles.enter?.(G.vehicles.active);
+        // The mission needs Mansi in the Batmobile first: startChase summons and enters it
+        // itself (parked, no slide-in) when she isn't already driving it, the same as startBattle.
         G.vehicles.startChase({ path: step.path ?? null, onDone: (r) => done(r?.ok !== false) });
         return true;
       case 'battle':
         if (!G.vehicles?.startBattle) return false;
-        G.vehicles.summon?.();
-        if (G.vehicles.active) G.vehicles.enter?.(G.vehicles.active);
         G.vehicles.startBattle({ site: siteOf(step), drones: step.drones ?? 6, onDone: (r) => done(r?.ok !== false) });
         return true;
       case 'armada':
