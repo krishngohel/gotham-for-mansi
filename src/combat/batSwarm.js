@@ -24,13 +24,19 @@ export function swarmAvailability({ owned, combo, origin, enemies, discount = 0 
   return { show: combo >= 6, affordable, cost };
 }
 
+// Seconds of game time. Batman is locked in the swarm for its whole length, so it stays brisk:
+// the bats land a blow every STAGGER, and control comes back AFTER s past the finisher (itself
+// slowed by FINISH_SLOW real seconds at FINISH_SCALE, plus the impact panel), not a long stall.
+export const SWARM_BEATS = { DIVE: 0.45, STAGGER: 0.14, WINDUP: 0.35, AFTER: 0.35, FINISH_SLOW: 0.6, FINISH_SCALE: 0.3 };
+
 export function swarmTimeline(count) {
+  const B = SWARM_BEATS;
   const steps = [{ at: 0, kind: 'hold', index: -1 }];
-  for (let i = 0; i < count; i++) steps.push({ at: 0.45 + i * 0.18, kind: 'stagger', index: i });
-  const fin = 0.45 + count * 0.18 + 0.35;
+  for (let i = 0; i < count; i++) steps.push({ at: B.DIVE + i * B.STAGGER, kind: 'stagger', index: i });
+  const fin = B.DIVE + count * B.STAGGER + B.WINDUP;
   steps.push({ at: fin, kind: 'finish', index: -1 });
-  steps.push({ at: fin + 0.6, kind: 'end', index: -1 });
-  return { steps, duration: fin + 0.6 };
+  steps.push({ at: fin + B.AFTER, kind: 'end', index: -1 });
+  return { steps, duration: fin + B.AFTER };
 }
 
 export function createSwarmControl(hero, api, { targets, timeline, fx = null }) {
@@ -59,11 +65,11 @@ export function createSwarmControl(hero, api, { targets, timeline, fx = null }) 
           fx?.rise();
           // One critical, on the finishing contact: the action shot frames the first goon still up.
           const focus = targets.find((e) => e.alive) ?? targets[0];
-          api.critical(focus, { slow: 1, scale: 0.25, variant: 'swarm', impact: 2 });
+          api.critical(focus, { slow: SWARM_BEATS.FINISH_SLOW, scale: SWARM_BEATS.FINISH_SCALE, variant: 'swarm', impact: 2 });
           for (const e of targets) { api.release(e); api.finish(e, { power: 1.6, launch: 3 }); }
           api.word('FLAP FLAP KRAKOOM!', focus.pos, true);
           // Done as soon as the goons are down, in the same step that lets them go (as chainDone
-          // is): control taken away in the last 0.6 s can't lose the XP.
+          // is): control taken away in the last moments can't lose the XP.
           api.events.emit('swarmDone', { count: targets.length });
         } else {
           fx?.stop();

@@ -11,6 +11,7 @@
 // Usage: node scripts/fps-sweep.mjs [baseUrl] [high|low]
 // Env:   OUT=<file.json> writes the raw result; SHOTS=<dir> saves a screenshot at each spot;
 //        ONLY=main|fight|boss|side|stealth|gadgets runs one page only; EXTRA=<query> replaces the default extra URL params (dynres=0).
+//        FRAMES=1 adds every frame ({ page, l, dt, calls, tris, t }) to the OUT file, to see when a spike lands.
 import { chromium } from 'playwright-core';
 import { writeFileSync, mkdirSync } from 'node:fs';
 
@@ -328,13 +329,16 @@ if (!only || only === 'gadgets') {
   await row('popper', 'g:popper', () => p.keyboard.press('KeyR'), 7000);
   // The Bat Swarm's own maximum (SWARM.maxTargets = 6): 4 grunts, a knife and a brute, the same
   // squad shape a real max-size swarm takedown would face.
+  // The XP award and the upgrade purchases (level-up cards, sounds, saves) happen before the row's
+  // label, so g:swarm times the swarm itself, not a burst of level-ups.
+  await p.evaluate(() => {
+    const g = window.__game;
+    g.wayne.award(20000, 'sweep');
+    for (const id of ['reflexes', 'flow', 'efficient', 'fastFinish', 'swarm']) g.wayne.buy(id);
+  });
+  await p.waitForTimeout(2500);
   await row('batarang', 'g:swarm', async () => {
-    await p.evaluate(() => {
-      const g = window.__game;
-      g.wayne.award(20000, 'sweep');
-      for (const id of ['reflexes', 'flow', 'efficient', 'fastFinish', 'swarm']) g.wayne.buy(id);
-      for (let i = 0; i < 15; i++) g.combat.combo.hit();
-    });
+    await p.evaluate(() => { for (let i = 0; i < 15; i++) window.__game.combat.combo.hit(); });
     await p.waitForTimeout(200);
     await p.keyboard.press('Digit4');
   }, 3500, ['grunt', 'grunt', 'grunt', 'grunt', 'knife', 'brute']);
@@ -368,7 +372,7 @@ const rows = {};
 for (const l of labels) rows[l] = stat(all.filter((f) => f.l === l));
 // Hitches: any frame over 25 ms once the warmup is over (screenshots excluded).
 const hitches = all.filter((f) => !['boot', 'warmup', 'shot'].includes(f.l) && f.dt > 25).map((f) => ({ page: f.page, l: f.l, ms: +f.dt.toFixed(1), at: +(f.t / 1000).toFixed(2) }));
-const result = { quality: q, extra, meta, rows, hitches };
+const result = { quality: q, extra, meta, rows, hitches, frames: process.env.FRAMES ? all : undefined };
 console.log(JSON.stringify({ quality: q, ...meta }));
 for (const [l, r] of Object.entries(rows)) console.log(`${l.padEnd(20)} med ${String(r.medMs).padStart(6)}  p95 ${String(r.p95Ms).padStart(6)}  max ${String(r.maxMs).padStart(6)}  fps ${String(r.fps).padStart(4)}  calls ${r.calls}  tris ${r.tris}`);
 console.log(`hitches >25ms after warmup: ${hitches.length}`, JSON.stringify(hitches.slice(0, 30)));

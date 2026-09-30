@@ -276,7 +276,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       dev: params.get('gadgets') === 'all',
     });
     const chainFx = createChainFx(scene, camera);
-    const swarmFx = createSwarmFx(scene);
+    const swarmFx = createSwarmFx(scene, { count: quality.swarmBats }); // fewer bats on Low
     const rng = createRng(99);
     // The live WayneTech effects (src/progress/upgrades.js): combat, the hero and the gadgets all
     // read this one object; buying an upgrade refills it (Task 22).

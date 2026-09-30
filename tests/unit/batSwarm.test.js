@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SWARM, swarmTargets, swarmAvailability, swarmTimeline, createSwarmControl } from '../../src/combat/batSwarm.js';
+import { SWARM, SWARM_BEATS, swarmTargets, swarmAvailability, swarmTimeline, createSwarmControl } from '../../src/combat/batSwarm.js';
 import { createEvents } from '../../src/core/events.js';
 import * as THREE from 'three';
 import { createCombat } from '../../src/combat/combatSystem.js';
@@ -35,7 +35,12 @@ describe('Bat Swarm rules', () => {
     expect(tl.steps.filter((s) => s.kind === 'stagger').map((s) => s.index)).toEqual([0, 1, 2]);
     const at = tl.steps.map((s) => s.at);
     expect([...at].sort((a, b) => a - b)).toEqual(at);
-    expect(tl.duration).toBeCloseTo(1.94);
+    expect(tl.duration).toBeCloseTo(SWARM_BEATS.DIVE + 3 * SWARM_BEATS.STAGGER + SWARM_BEATS.WINDUP + SWARM_BEATS.AFTER);
+  });
+  it('keeps Batman locked for about two seconds at most, even against a full squad of six', () => {
+    expect(swarmTimeline(SWARM.maxTargets).duration).toBeLessThanOrEqual(2.05);
+    // The finisher's slow motion is a beat, not a stall.
+    expect(SWARM_BEATS.FINISH_SLOW).toBeLessThanOrEqual(0.6);
   });
 });
 
