@@ -38,13 +38,6 @@ export function createWarmCast(assets) {
   // sighting (a new hoop, the crime van) from uploading anything mid-play.
   [createPillar(), createRingMesh(), createVan(), createLootBags()].forEach((m, i) => { m.position.set(40 + i * 5, -50, 0); group.add(m); });
   add(createJoker(assets), (x += 2));
-  // Nightwing (Part N): both looks, so neither the ally suit nor the Party Crasher disguise
-  // compiles a shader or uploads a texture on its first real spawn.
-  add(createNightwingCharacter(assets, 'ally'), (x += 2));
-  add(createNightwingCharacter(assets, 'crasher'), (x += 2));
-  // Harley Quinn (the Act 2 mini-boss, src/actors/harleyChar.js): her split suit, pigtails and
-  // mallet compiled here so her first spawn doesn't build a program.
-  add(createHarleyCharacter(assets), (x += 2));
   // Every gadget material and geometry (gel, ice, smoke, confetti, lines, debris, textured
   // breakables): drawn once here so no gadget compiles a shader on first use.
   group.add(createGadgetWarm());
@@ -63,5 +56,21 @@ export function createWarmCast(assets) {
   tether.position.set((x += 2), -50, 0);
   tether.layers.set(LAYER_FX);
   group.add(tether);
+  return group;
+}
+
+// Nightwing (both looks) and Harley Quinn: not on the loading-screen critical path. Neither
+// appears until well into Act 1 (the Crasher) or Act 2 (Harley's fight), minutes of travel and
+// fighting away from the title screen, so warming them can happen once, off-screen, right after
+// the first real frame (game.js schedules this on idle) instead of before it. Same technique as
+// createWarmCast (drawn once at y = -50, nothing kept): the first real spawn of either still
+// never compiles a shader or uploads a texture, it just does not hold up boot to do it.
+export function createWarmCastLate(assets) {
+  const group = new THREE.Group();
+  group.name = 'warmCastLate';
+  const add = (ch, x) => { ch.root.position.set(x, -50, 0); group.add(ch.root); return ch; };
+  add(createNightwingCharacter(assets, 'ally'), 0);
+  add(createNightwingCharacter(assets, 'crasher'), 2);
+  add(createHarleyCharacter(assets), 4);
   return group;
 }

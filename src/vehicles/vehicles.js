@@ -311,12 +311,19 @@ export function createVehicles(deps) {
     const dx = other.group.position.x - pos.x, dz = other.group.position.z - pos.z;
     const d = Math.hypot(dx, dz);
     if (d < inst.radius + other.radius + 0.3 && other.ramCd <= 0) {
-      const nx = d > 1e-4 ? dx / d : 1, nz = d > 1e-4 ? dz / d : 0;
-      other.v.yaw = Math.atan2(nx, nz);
+      const isChaseVan = chase?.active && other === chase.van;
+      // A parked or borrowed car spins off however it was hit: fun, arcade, doesn't matter where
+      // it ends up. The chase van keeps its own path-following yaw instead: a full contact-normal
+      // spin can knock it sideways off a narrow street and out of updateChase's own steering
+      // range, turning one lucky ram into an unwinnable (or just tedious) game of catch-up.
+      if (!isChaseVan) {
+        const nx = d > 1e-4 ? dx / d : 1, nz = d > 1e-4 ? dz / d : 0;
+        other.v.yaw = Math.atan2(nx, nz);
+      }
       other.v.speed = Math.min(other.tuning.maxSpeed * 0.6, Math.abs(inst.v.speed) * 0.5 + 3);
       other.v.drift = 0;
       other.ramCd = 0.6;
-      if (chase?.active && other === chase.van && chase.ramCounter.ram()) {
+      if (isChaseVan && chase.ramCounter.ram()) {
         fx?.impact(other.group.position.clone(), 1.1);
         events.emit('word', { text: 'KRUNCH!', pos: other.group.position.clone().setY(other.group.position.y + 1.2), big: true });
         meter.set(`CHASE  ${chase.ramCounter.hits}/${chase.hitsNeeded}`);
@@ -337,6 +344,16 @@ export function createVehicles(deps) {
       console.warn('startChase: needs at least two path points; skipping the chase.');
       onDone?.({ ok: false });
       return;
+    }
+    // The mission needs Mansi in the Batmobile: bring her down to street level at the start of
+    // the chase road (she may still be up on whatever rooftop the previous step left her on),
+    // summon it there (parked, no slide) and get her in it before the van starts moving, the same
+    // way startBattle does.
+    if (!active || active.kind !== 'batmobile') {
+      const groundY = collision.groundBelow(path[0].x, path[0].y ?? 40, path[0].z, 0.3);
+      hero.teleport({ x: path[0].x, y: groundY > -Infinity ? groundY : (path[0].y ?? 0), z: path[0].z });
+      summon('batmobile', { instant: true });
+      enter(bm);
     }
     const van = createJokerVan();
     van.kind = 'jokerVan';
@@ -392,7 +409,10 @@ export function createVehicles(deps) {
   function startBattle({ site, drones, onDone } = {}) {
     if (!site) { console.warn('startBattle: no site given; skipping the battle.'); onDone?.({ ok: false }); return; }
     if (!active || active.kind !== 'batmobile') {
-      if (!bm.summoned || !bm.group.visible) { hero.teleport(site); summon('batmobile', { instant: true }); }
+      // Always re-place her at the site first: the Batmobile may already be summoned, but parked
+      // wherever an earlier mission (the chase, or free roam) left it, possibly nowhere near here.
+      hero.teleport(site);
+      summon('batmobile', { instant: true });
       enter(bm);
     }
     const count = Array.isArray(drones) ? drones.length : (drones ?? 3);
@@ -556,11 +576,20 @@ export function createVehicles(deps) {
     updateBattle(dt);
   }
 
+  // Dev/QA fast path (scripts/playthrough.mjs, the same way it force-wins a fight): completes
+  // whichever mission is running right now as a win, through the exact same onDone path a real
+  // 3rd ram or a real last drone would take, so the story advances exactly as it would live.
+  function debugWin() {
+    if (chase?.active) { endChase(true); return true; }
+    if (battle?.active) { endBattle(true); return true; }
+    return false;
+  }
+
   return {
     summon, enter, exit, eject,
     get active() { return active; },
     update,
-    startChase, startBattle,
+    startChase, startBattle, debugWin,
     // Dev/story helpers, not part of the frozen contract above.
     get batmobile() { return bm; },
     get streetCars() { return streetCars; },
