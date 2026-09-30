@@ -120,7 +120,8 @@ export function createAudio() {
     // kind: 'batmobile' | 'car' | 'wing' | null (falsy fades out whichever engine is playing).
     // level: 0..1 overall presence. speed: 0..1 fraction of that vehicle's own top speed.
     setEngine: guard((kind, level = 1, speed = 0, opts = {}) => {
-      state.engine = { kind: kind || null, level: clamp01(level), speed: clamp01(speed), boost: !!opts.boost };
+      const e = state.engine; // mutated in place: this is called every frame while driving
+      e.kind = kind || null; e.level = clamp01(level); e.speed = clamp01(speed); e.boost = !!opts.boost;
       if (amb) amb.setEngine(state.engine.kind, state.engine.level, state.engine.speed, { boost: state.engine.boost });
     }),
     setCombatIntensity: guard((x) => { state.intensity = clamp01(x); if (music) music.setIntensity(state.intensity); }),

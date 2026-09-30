@@ -774,7 +774,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       if (flow.mode === 'finale') finale.update(real);
       else finale.update(state.paused ? 0 : real);
       flow.update(state.paused ? 0 : real, camera);
-      sound.update(real);
+      sound.update(real, { hush: state.paused || comic.playing || photo.active || flow.mode !== 'play' });
     }
 
     const api = {

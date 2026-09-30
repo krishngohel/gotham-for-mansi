@@ -141,7 +141,10 @@ export function wireAudio({ audio, events, hero, combat, flow, voice = null, set
   audio.setRain(0.8);
 
   return {
-    update() {
+    // hush: gameplay is stopped (pause menu, a comic, photo mode). The vehicle code only sets the
+    // engine while it runs, so silence the loops here; it sets them again on the next played frame.
+    update(real, { hush = false } = {}) {
+      if (hush) { audio.setEngine(null); audio.setGlide(0); }
       const step = flow.objectives.step;
       const want = trackPlaying ? 'none'
         : step?.type === 'boss' ? 'boss'
@@ -149,7 +152,7 @@ export function wireAudio({ audio, events, hero, combat, flow, voice = null, set
         : flow.mode === 'cutscene' ? 'title'
         : (fighting || combat.active) && !(stealth?.active && !stealth.alarm) ? 'combat' : 'explore';
       if (want !== mode) { mode = want; audio.music(want); }
-      audio.setGlide(hero.state === 'glide' ? Math.min(1, 0.35 + hero.speed / 40) : 0);
+      if (!hush) audio.setGlide(hero.state === 'glide' ? Math.min(1, 0.35 + hero.speed / 40) : 0);
       const heat = combat.active ? Math.min(1, combat.enemies.filter((e) => e.alive && e.aware).length / 6 + combat.combo.value / 16) : 0;
       audio.setCombatIntensity(heat);
     },
