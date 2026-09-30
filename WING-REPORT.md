@@ -1,8 +1,74 @@
-# Part V2: The Batwing - Report
+# Part V2: The Batwing, plus the cinematic camera - Report
 
 Branch `wing`, on top of `main` (b13c946). Commits:
 - `9d84eb7` Batwing (Part V2): call it, fly it, pop the Joker balloon armada
 - `41ab0e2` Batwing: fix the silhouette read per review (coordinator feedback pass)
+- `5a31bc7` Add the Part V2 (Batwing) report
+- `14f5c06` In-engine cinematic camera: sliding letterbox, HUD fade, radio/subtitle lines
+
+## Part 2: the in-engine cinematic camera (added after the Batwing shipped)
+
+`createCinematic({ camera, hero, hudRoot })` in `src/ui/cinematic.js`, exposed as
+`window.__game.cinematic`:
+
+```js
+cinematic.play(shots, { lines = [], onDone } = {})
+// shots: [{ from:{x,y,z}, to:{x,y,z}, look:{x,y,z}, lookTo?:{x,y,z}, dur, fov? }, ...]
+cinematic.orbit(center, radius, height, dur, opts = {})
+// opts doubles as orbitShots' own options (segments, startAngle, sweep, fov) and play()'s
+// (lines, onDone)
+cinematic.skip()
+cinematic.active   // getter
+```
+
+The camera eases through the shot list in world space (smoothstep, the same ease the Batwing's
+boarding swoop and the hero's zip use), sliding in black top/bottom letterbox bars (11% each,
+with an inked edge stroke where they meet the footage) and fading the HUD out. The hero freezes
+for the duration (`hero.frozen = true`; game time and everything else, weather included, keep
+running exactly as normal - confirmed a lightning flash rendered correctly mid-shot during the
+browser check). Esc or Space skips straight to the ease back to the follow camera. A line shows
+through `window.__game.radio?.say?.(...)` if that system is present (it isn't in this worktree;
+verified the fallback path instead), otherwise as a subtitle in the bottom letterbox. Once the
+shots (or a skip) finish, the camera eases back to wherever the live follow camera currently is
+(read fresh each frame during that ease, so the handoff never snaps even if the player nudges the
+mouse mid-cinematic) over 0.7s, then `onDone()` fires.
+
+Wired into `src/game/game.js` in one small marked hook ("Cinematic camera"): created next to the
+Batwing, updated once per frame right after `follow.update(...)` (it overrides whatever camera
+pose follow.update just set, per the spec's own suggested approach, so no changes to
+`src/game/camera.js` were needed). One extra line was needed outside that hook: the existing
+pause-key handler already skips itself while `game.comic.playing`; it now also skips while
+`game.cinematic.active`, so Esc skips the cinematic instead of also opening the pause menu.
+
+Pure sampler in `src/ui/cinematicShots.js` (`ease`, `sampleShot`, `sampleShot`/`sampleSequence`
+fill a reused `out` object instead of allocating, `totalDuration`, `orbitShots`), unit tested in
+`tests/unit/cinematicShots.test.js`: easing shape, a shot's start/end/clamp-past-end, `lookTo`
+lerp vs. a fixed look point, `fov` default/override, sequence indexing and the done/clamped-pose
+state, and `orbitShots`' geometry (radius/height held, shots chain `to` into the next `from`).
+
+**Note on the pad/vehicle-exit feedback:** left `src/core/input.js`'s existing `batwing: [14]` pad
+entry alone here, since that's this branch's own D-pad-Left mapping; the coordinator said the
+integration branch already resolved the conflict with the Batmobile's `vehicle` action by giving
+D-pad Left to `vehicle` there, which is an integration-side decision outside this worktree.
+
+### Browser verification (cinematic)
+
+Built with `npx vite build --outDir "$TEMP/wdist"`, previewed on port 5283 (`--strictPort`, muted),
+driven with `scripts/dev-play.mjs`, stopped by PID. Played `cinematic.orbit({x:0,y:44,z:0}, 30, 14,
+6, { segments: 3, lines: [...] })` from the GCPD roof (`?at=signal&god=1`): three shots orbiting
+the Batsignal. Screenshots (same scratchpad folder as the Batwing shots):
+- `cine-01-slide-in.png` - letterbox slid in, HUD gone, first subtitle line ("Gordon: Mansi, do
+  you copy.") showing, the roof and signal beam framed from above.
+- `cine-02-mid-shot-subtitle.png` - second shot, second line ("Something is stuck to the signal.").
+- `cine-03-second-shot.png` - happened to land on the game's own periodic lightning flash (the
+  ink shader's `uFlash`, unrelated to this system) mid-shot; confirms the cinematic renders
+  correctly through the world's own effects, though it's not a representative "normal" frame.
+- `cine-04-return-easing.png`, `cine-05-back-to-follow.png` - after the sequence: letterbox gone,
+  HUD back, hero unfrozen, camera settled back into the ordinary third-person follow view.
+
+I looked at all of these before committing. `eval` checks alongside the shots confirmed
+`cinematic.active`, `hero.frozen`, and the HUD's `opacity` toggling correctly at each stage, and
+returning to `false`/`false`/`''` cleanly at the end.
 
 ## What works
 
