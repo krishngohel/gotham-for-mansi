@@ -166,7 +166,11 @@ export const STEPS = [
   // ---------------------------------------------------------------- Act 3: The Clock Plaza
   { id: 'actThreeTitle', type: 'cutscene', scene: 'actThree', cinematic: CINEMATIC.actThree },
   {
-    id: 'armadaRun', type: 'armada', text: 'The Joker has balloons rigged over the clock plaza. Take the Batwing through them.', site: 'balcony', balloons: 14, checkpoint: 'arena',
+    // balloons: measured with a real-input scripted flight (darts and flythroughs, the same
+    // controls a player has) against main 0eac04f: 14 balloons took ~300s (5 min) to clear, well
+    // past the mission's 1-3 minute target (each balloon needs its own find-and-aim pass across a
+    // 110x40x110 m drift region, ~20s on average). Cut to 10 (~200s at that pace) for headroom.
+    id: 'armadaRun', type: 'armada', text: 'The Joker has balloons rigged over the clock plaza. Take the Batwing through them.', site: 'balcony', balloons: 10, checkpoint: 'arena',
     lines: [
       g('nightwing', "Batwing's yours whenever you call it. I will meet you on the ground."),
       g('joker', 'Up, up and away! Try not to pop too many of my party balloons, party girl!'),

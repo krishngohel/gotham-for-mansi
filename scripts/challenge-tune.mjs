@@ -9,6 +9,8 @@ import { CHALLENGES, suggestThresholds } from '../src/game/challenges.js';
 const base = process.argv[2] ?? 'http://localhost:5206/';
 const only = process.argv.slice(3);
 const shots = process.env.SHOTS ?? '';
+// REPS=1 for a fast single-run debug iteration; unset (or REPS=3) keeps the real 3-run sampling.
+const REPS = Number(process.env.REPS ?? 3);
 if (shots) mkdirSync(shots, { recursive: true });
 const browser = await chromium.launch({ args: ['--mute-audio', '--ignore-gpu-blocklist', '--use-angle=d3d11'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
@@ -289,7 +291,10 @@ async function driveRun(id, n) {
     }
     const recovering = now < recoverUntil;
     const slowForTurn = !recovering && approachingTurn && dist < 25 && s.speed > 13;
-    steerKey = await setKey(steerKey, recovering ? null : Math.abs(err) < 0.08 ? null : err > 0 ? 'KeyD' : 'KeyA');
+    // D now turns right (steer goes in negated in vehicles.js: "Physics steer is +1 = yaw up = a
+    // LEFT turn ... the D key is move.x +1, a right turn, so it goes in negated"). Wanting yaw to
+    // increase (err > 0) means holding A, not D.
+    steerKey = await setKey(steerKey, recovering ? null : Math.abs(err) < 0.08 ? null : err > 0 ? 'KeyA' : 'KeyD');
     longKey = await setKey(longKey, (recovering || slowForTurn) ? 'KeyS' : 'KeyW');
     const wantBoost = !recovering && !slowForTurn && !(approachingTurn && dist < 25) && Math.abs(err) < 0.25 && dist > 18;
     if (wantBoost !== boostOn) { await page.keyboard[wantBoost ? 'down' : 'up']('ShiftLeft'); boostOn = wantBoost; }
@@ -312,11 +317,57 @@ async function driveRun(id, n) {
 // next ring: pitch (forward/back climbs/dives, see wingFlight.js stepWing) and roll (left/right
 // banks and turns) bang-banged toward the bearing to it; boost only when already lined up and far
 // out, since a boosted plane turns at the same rate as a cruising one but with a wider radius.
+// Walks forward along (prevPt -> rings[idx] -> rings[idx+1] -> ...), a lookahead distance ahead
+// of wherever `s` projects onto the first segment, spilling over into later segments instead of
+// clamping at the next ring. Clamping there (the first version of this fix) meant the aim point
+// collapsed back to the raw ring center for the whole last stretch of every leg, since a 16-22m
+// lookahead ate most of a ~29m segment, and TRACE showed exactly the same close-in orbit failure
+// as plain pursuit right at that point. Spilling over keeps the plane always aiming somewhat past
+// whatever ring is next, so it threads each one on the way through instead of ever needing to
+// stop and point straight at it.
+function leadPoint(rings, idx, prevPt, s, lookahead) {
+  let from = prevPt, i = idx, first = true;
+  for (;;) {
+    const to = rings[i];
+    const sx = to.x - from.x, sy = to.y - from.y, sz = to.z - from.z;
+    const segLen = Math.hypot(sx, sy, sz) || 1;
+    const ux = sx / segLen, uy = sy / segLen, uz = sz / segLen;
+    const proj = first ? Math.max(0, Math.min(segLen, (s.x - from.x) * ux + (s.y - from.y) * uy + (s.z - from.z) * uz)) : 0;
+    const avail = segLen - proj;
+    if (lookahead <= avail || i === rings.length - 1) {
+      const lead = proj + Math.min(lookahead, avail);
+      return { x: from.x + ux * lead, y: from.y + uy * lead, z: from.z + uz * lead };
+    }
+    lookahead -= avail;
+    from = to; i += 1; first = false;
+  }
+}
+
 async function flyRun(id, n) {
   await page.setViewportSize(VEHICLE_VIEWPORT);
   await fresh(id, '&q=low');
+  // Lifts the in-page copy's own time limit for this measurement run only (the runner fails the
+  // challenge once run.logic.time exceeds it): the current committed limit is itself one of the
+  // guessed numbers this script exists to replace, so it must not be allowed to cut a real
+  // completion time short before suggestThresholds ever sees it.
+  await page.evaluate((id) => { const c = window.__game.side.data.CHALLENGES.find((x) => x.id === id); if (c) c.limit = 999; }, id);
   const flyCh = CHALLENGES.find((c) => c.id === id);
   const rings = flyCh.rings;
+  // wingWalk's rings sit exactly on one circle (challenges.js: ringLoop(-62, -160, 46, ...)),
+  // derived here rather than hardcoded so this still works if the course geometry ever changes.
+  // Ring-to-ring point chasing (the leadPoint chain above) got every leg but one, then locked into
+  // a many-second, very slowly converging spiral on the last one or two rings: TRACE showed dist
+  // shrink lap over lap (30 -> 20 -> 14 m) but never inside the 5 m ring within a 90+ s window,
+  // because the plane's minimum turn radius at brake speed (~20 m) is already close to the 46 m
+  // loop radius, so any reactive, late correction overshoots. Flying the circle itself continuously
+  // (aim a fixed lead angle ahead of wherever the plane currently sits on the circle, every tick,
+  // not just when a ring is reached) keeps it tangent to the curve the whole way, so by the time
+  // each ring arrives the plane is already lined up instead of scrambling to intercept it.
+  const CENTER_X = rings.reduce((a, r) => a + r.x, 0) / rings.length;
+  const CENTER_Z = rings.reduce((a, r) => a + r.z, 0) / rings.length;
+  const RADIUS = rings.reduce((a, r) => a + Math.hypot(r.x - CENTER_X, r.z - CENTER_Z), 0) / rings.length;
+  const ANGLE_STEP = (Math.PI * 2) / rings.length;
+  const LEAD_ANGLE = 0.4; // rad, about 2/3 of one ring's spacing around the loop
   let pitchKey = null, rollKey = null, boostOn = false, brakeKey = null;
   let shotAt = 1500;
   const t0 = Date.now();
@@ -327,36 +378,54 @@ async function flyRun(id, n) {
     });
     const idx = Math.min(s.next, rings.length - 1);
     const target = rings[idx];
-    // Pure pursuit straight at the ring center converges fine from a distance, but right up close
-    // it fails the way any point-chasing pursuer does: the bearing rate needed to stay locked on
-    // blows up as distance shrinks, and the plane's turn rate (roll*turnRate, max ~1 rad/s at full
-    // bank, wingFlight.js) can't keep up. TRACE showed it closing to within ~9 m of a ring (radius
-    // 5) then swinging back out into a stable orbit, never quite threading it. Fix: fly the line
-    // instead of chasing the point (rail-following, same idea as driveRun's gates) - aim at a
-    // lookahead point on the straight segment from the previous ring (rings are close enough
-    // together, ~29 m apart on a 46 m-radius loop, that the segment is a fair local approximation
-    // of the course's own curve) advanced toward the ring, so the approach angle stays shallow.
-    const prevPt = idx === 0 ? flyCh.start : rings[idx - 1];
-    const segX = target.x - prevPt.x, segY = target.y - prevPt.y, segZ = target.z - prevPt.z;
-    const segLen = Math.hypot(segX, segY, segZ) || 1;
-    const ux = segX / segLen, uy = segY / segLen, uz = segZ / segLen;
-    const proj = Math.max(0, Math.min(segLen, (s.x - prevPt.x) * ux + (s.y - prevPt.y) * uy + (s.z - prevPt.z) * uz));
-    const LOOKAHEAD = 16;
-    const lead = Math.min(segLen, proj + LOOKAHEAD);
-    const aimX = prevPt.x + ux * lead, aimY = prevPt.y + uy * lead, aimZ = prevPt.z + uz * lead;
-    const dx = aimX - s.x, dz = aimZ - s.z, dy = aimY - s.y;
+    let aim;
+    if (idx === 0) {
+      // The one-off run from the clock tower roof to the first ring: not on the circle yet, so
+      // this leg is a straight point-chase (no repeated orbit risk, it only ever happens once).
+      aim = leadPoint(rings, 0, flyCh.start, s, 14);
+    } else {
+      // On the circle: aim at a point LEAD_ANGLE further around it than wherever the plane
+      // currently projects onto the circle, continuously (not "the next ring" as a fixed point).
+      const rawA = Math.atan2(s.x - CENTER_X, s.z - CENTER_Z);
+      const idxAngle = idx * ANGLE_STEP;
+      let curA = rawA;
+      while (curA < idxAngle - Math.PI) curA += Math.PI * 2;
+      while (curA > idxAngle + Math.PI) curA -= Math.PI * 2;
+      const aimA = curA + LEAD_ANGLE;
+      const aFrac = aimA / ANGLE_STEP;
+      const i0 = Math.floor(aFrac);
+      const w = (i) => rings[((i % rings.length) + rings.length) % rings.length];
+      const r0 = w(i0), r1 = w(i0 + 1);
+      const t = aFrac - i0;
+      aim = { x: CENTER_X + Math.sin(aimA) * RADIUS, y: r0.y + (r1.y - r0.y) * t, z: CENTER_Z + Math.cos(aimA) * RADIUS };
+    }
+    // Altitude undulates at TWICE the loop's angular rate (ringLoop's sin(2a) in challenges.js),
+    // so the same lead angle used for XZ overshoots badly in Y (confirmed by TRACE: closing to
+    // 0.7 m horizontally on a ring while 8.7 m off in altitude, since the lookahead point's own Y
+    // was already leaning toward the NEXT ring's height). Pitch tracks the actual next ring's
+    // altitude, not the lookahead point's.
+    const dx = aim.x - s.x, dz = aim.z - s.z, dy = target.y - s.y;
     const dist = Math.hypot(target.x - s.x, target.z - s.z);
     const err = wrap(Math.atan2(dx, dz) - s.yaw);
-    rollKey = await setKey(rollKey, Math.abs(err) < 0.06 ? null : err > 0 ? 'KeyD' : 'KeyA');
+    // Same D-now-turns-right fix as the car (batwing.js: "Roll +1 banks and turns LEFT ... D and
+    // mouse-right mean a right turn, so both go in negated").
+    rollKey = await setKey(rollKey, Math.abs(err) < 0.06 ? null : err > 0 ? 'KeyA' : 'KeyD');
     pitchKey = await setKey(pitchKey, Math.abs(dy) < 1.5 ? null : dy > 0 ? 'KeyW' : 'KeyS');
     // Still brake for a large heading error (off the line, or just spawned): shrinks the turn
     // radius (brakeSpeed 20 m/s vs cruise 42) so it can actually get back onto the lookahead line.
     const wantBrake = Math.abs(err) > 0.35;
     brakeKey = await setKey(brakeKey, wantBrake ? 'Space' : null);
-    const wantBoost = !wantBrake && Math.abs(err) < 0.2 && Math.abs(dy) < 4 && dist > 25;
+    // Boosting was the actual culprit behind the orbit-on-approach failures, not just a close-in
+    // turn-radius problem: every ring-to-ring leg on this loop turns about 36 degrees (10 rings
+    // evenly spaced around one circle), so arriving at a ring at boost speed (76 m/s, carried
+    // from the previous, now-straight-feeling leg) makes the NEXT turn's radius huge, sending the
+    // plane on a multi-second detour before it can recover (confirmed by TRACE: dist spiking to
+    // 70+ m right after almost every ring pass while boostOn had been true coming in). This loop
+    // is flown at cruise the whole way; boost stays off.
+    const wantBoost = false;
     if (wantBoost !== boostOn) { await page.keyboard[wantBoost ? 'down' : 'up']('ShiftLeft'); boostOn = wantBoost; }
     const elapsed = Date.now() - t0;
-    if (process.env.TRACE) console.log(`${id}-${n} t=${(elapsed / 1000).toFixed(1)} next=${s.next} x=${s.x.toFixed(1)} y=${s.y.toFixed(1)} z=${s.z.toFixed(1)} dist=${dist.toFixed(1)} err=${err.toFixed(2)} dy=${dy.toFixed(1)} brake=${wantBrake} roll=${s.roll.toFixed(2)} spd=${s.speed.toFixed(1)}`);
+    if (process.env.TRACE) console.log(`${id}-${n} t=${(elapsed / 1000).toFixed(1)} next=${s.next} x=${s.x.toFixed(1)} y=${s.y.toFixed(1)} z=${s.z.toFixed(1)} yaw=${s.yaw.toFixed(2)} aimX=${aim.x.toFixed(1)} aimZ=${aim.z.toFixed(1)} tgtX=${target.x.toFixed(1)} tgtZ=${target.z.toFixed(1)} dist=${dist.toFixed(1)} err=${err.toFixed(2)} dy=${dy.toFixed(1)} brake=${wantBrake} roll=${s.roll.toFixed(2)} spd=${s.speed.toFixed(1)}`);
     if (elapsed >= shotAt) { await shot(`${id}-${n}-mid`); shotAt = Infinity; }
     await page.waitForTimeout(80);
   }
@@ -378,13 +447,13 @@ for (const ch of CHALLENGES) {
   // the on-foot courses (see vehicleChallenges.js), but need a real driving/flying pilot instead
   // of parkourRun's move-specific legs or glideRun's glide-camera aim.
   if (ch.id === 'gothamGrandPrix') {
-    for (let n = 0; n < 3; n++) { const r = await driveRun(ch.id, n); if (r && !r.failed) samples.push(r.value); console.log(ch.id, n, r); }
+    for (let n = 0; n < REPS; n++) { const r = await driveRun(ch.id, n); if (r && !r.failed) samples.push(r.value); console.log(ch.id, n, r); }
   } else if (ch.id === 'wingWalk') {
-    for (let n = 0; n < 3; n++) { const r = await flyRun(ch.id, n); if (r && !r.failed) samples.push(r.value); console.log(ch.id, n, r); }
+    for (let n = 0; n < REPS; n++) { const r = await flyRun(ch.id, n); if (r && !r.failed) samples.push(r.value); console.log(ch.id, n, r); }
   } else if (ch.kind === 'rings') {
-    for (let n = 0; n < 3; n++) { const r = await glideRun(ch.id, n); if (r && !r.failed) samples.push(r.value); console.log(ch.id, n, r); }
+    for (let n = 0; n < REPS; n++) { const r = await glideRun(ch.id, n); if (r && !r.failed) samples.push(r.value); console.log(ch.id, n, r); }
   } else if (ch.kind === 'arena') {
-    for (let n = 0; n < 3; n++) { const r = await arenaRun(n); if (r && !r.failed) samples.push(r.value); console.log(ch.id, n, r); }
+    for (let n = 0; n < REPS; n++) { const r = await arenaRun(n); if (r && !r.failed) samples.push(r.value); console.log(ch.id, n, r); }
   } else {
     const r = await parkourRun();
     console.log(ch.id, r);
