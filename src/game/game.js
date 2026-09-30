@@ -73,7 +73,7 @@ import { goldStandardPages, fromKrishnPages } from './rewardPages.js';
 import { createFinale } from './finale.js';
 import { createSideContent } from './sideContent.js';
 import { createPhotoMode } from '../ui/photoMode.js';
-import { createWarmCast } from './warmCast.js';
+import { createWarmCast, createWarmCastLate } from './warmCast.js';
 import { drawEverything, uploadTextures, readyObjects } from '../render/prewarm.js';
 import { createDynamicRes, sanitizeResScale } from '../render/dynamicRes.js';
 import { createImpactTimeline } from '../render/impactTimeline.js';
@@ -1019,6 +1019,21 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   mark('prewarm');
   requestAnimationFrame(frame);
   state.ready = true;
+  // Nightwing and Harley (see warmCast.js): warmed once, off-screen, on idle right after the
+  // first real frame instead of before it. Neither appears until minutes into a run (the Crasher
+  // in Act 1, Harley in Act 2), so this never risks a first-use hitch; it just keeps their shader
+  // and texture cost off the loading screen.
+  const warmLater = () => {
+    try {
+      const late = createWarmCastLate(assets);
+      scene.add(late);
+      uploadTextures(renderer, scene);
+      drawEverything(renderer, ink, scene, camera);
+      scene.remove(late);
+    } catch (err) { console.error(err); }
+  };
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(warmLater, { timeout: 2000 });
+  else setTimeout(warmLater, 300);
   // The Joker's lines download while the title screen is up.
   setTimeout(() => voice.warm(), 1500);
   // Dev and test shortcuts skip the title: ?at=<step>, ?play=1, ?fight=test.
