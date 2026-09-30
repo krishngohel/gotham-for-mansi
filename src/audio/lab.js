@@ -56,6 +56,14 @@ slider(mixRow, 'rain', 0, (v) => audio.setRain(v));
 slider(mixRow, 'glide wind', 0, (v) => audio.setGlide(v));
 slider(mixRow, 'combat intensity', 0, (v) => audio.setCombatIntensity(v));
 
+const engineRow = section('Vehicle engines');
+const engineState = { kind: null, speed: 0.5, boost: false };
+function applyEngine() { audio.setEngine(engineState.kind, 1, engineState.speed, { boost: engineState.boost }); }
+['batmobile', 'car', 'wing'].forEach((k) => button(engineRow, `engine: ${k}`, () => { engineState.kind = k; applyEngine(); }));
+button(engineRow, 'engine: off', () => { engineState.kind = null; applyEngine(); });
+slider(engineRow, 'engine speed', 0.5, (v) => { engineState.speed = v; applyEngine(); });
+button(engineRow, 'boost: off', (b) => { engineState.boost = !engineState.boost; b.textContent = `boost: ${engineState.boost ? 'on' : 'off'}`; applyEngine(); });
+
 const checkRow = section('Self-check');
 const table = document.createElement('pre');
 button(checkRow, 'run offline check', async (b) => {
@@ -135,6 +143,16 @@ window.__audioCheck = async function audioCheck({ musicSeconds = 4 } = {}) {
     amb.tick(3);
   }));
   results.push(await render('loop:glide', 3, (ctx, mix) => createAmbience(ctx, mix.sfxIn).setGlide(1, 0.01)));
+  // Vehicle engine loops (src/audio/ambience.js setEngine): full speed, and the Batmobile with
+  // its boost layer too. Same pattern as loop:rain/loop:glide above: one call at full level,
+  // then a 3 s render (the setTargetAtTime ramp is mostly settled well inside that window).
+  for (const [label, kind, boost] of [['batmobile', 'batmobile', false], ['batmobile boost', 'batmobile', true], ['car', 'car', false], ['wing', 'wing', false]]) {
+    results.push(await render(`loop:engine:${label}`, 3, (ctx, mix) => {
+      const amb = createAmbience(ctx, mix.sfxIn);
+      amb.setEngine(kind, 1, 1, { boost });
+      amb.tick(3);
+    }));
+  }
   const failures = results.filter((r) => r.flag).map((r) => r.name);
   return { ok: failures.length === 0, failures, results };
 };

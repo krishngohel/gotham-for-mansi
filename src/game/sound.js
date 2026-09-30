@@ -117,6 +117,27 @@ export function wireAudio({ audio, events, hero, combat, flow, voice = null, set
   on('upgradeBought', () => audio.play('upgrade'));
   on('swarmStart', () => audio.play('swarm'));
 
+  // ---- vehicles (src/vehicles/vehicles.js, src/vehicles/batwing.js) ----
+  // Continuous engine loops live in ambience.js (setEngine), called every frame from the vehicle
+  // code itself; everything here is one-shots.
+  on('vehicleEnter', ({ kind }) => { audio.play('carDoor'); audio.play('ignition', { pitch: kind === 'batmobile' ? 0.85 : 1.15 }); });
+  on('vehicleExit', ({ kind }) => audio.play('carDoor', { pitch: kind === 'batmobile' ? 0.9 : 1.1 }));
+  on('vehicleBoost', () => audio.play('boostRoar'));
+  // Ram/crash impact, scaled by impact speed: quiet nudge around the ram threshold, full gain by
+  // a hard highway-speed hit.
+  on('vehicleImpact', ({ speed }) => audio.play('crash', { gain: Math.min(1.1, 0.5 + speed / 22), pitch: Math.min(1.15, 0.85 + speed / 70) }));
+  on('cannonFire', () => audio.play('cannonFire'));
+  on('droneShot', () => audio.play('droneShot', { pitch: vary(0.08) }));
+  on('shellHit', () => audio.play('shellBlast'));
+  on('armorHit', () => audio.play('armorHit'));
+  on('droneDestroyed', () => audio.play('droneBoom', { pitch: vary(0.1) }));
+  // The Batwing's balloon armada: reuses the existing 'pop' + 'balloon' pair (same sequence as
+  // the birthday balloons above), scaled a little by how many popped in one hit.
+  on('armadaPop', ({ count }) => {
+    audio.play('pop', { gain: Math.min(1.3, 0.8 + 0.12 * count) });
+    setTimeout(() => audio.play('balloon', { gain: Math.min(1.1, 0.7 + 0.08 * count) }), 120);
+  });
+
   audio.setRain(0.8);
 
   return {

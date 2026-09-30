@@ -253,7 +253,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const hud = createHud(hudRoot);
     hud.setHealth(1);
     // ---- Batwing (Part V2): src/vehicles/batwing.js, contract in the design doc ----
-    const batwing = createBatwing({ scene, camera, hero, follow, collision: world.collision, events, hudRoot: hudRoot.querySelector('.hud') ?? hudRoot });
+    const batwing = createBatwing({ scene, camera, hero, follow, collision: world.collision, events, hudRoot: hudRoot.querySelector('.hud') ?? hudRoot, audio });
     // Part S: the radio and cutscene dialogue panel (src/ui/radio.js). Lives alongside the HUD and
     // never pauses play; flow.js drives it for the new 'radio' step type and the async missions'
     // flavor lines.
@@ -288,7 +288,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     });
     hero.combat = combat;
     // ---- Part V1: ground vehicles (src/vehicles/vehicles.js) ----
-    const vehicles = createVehicles({ scene, collision: world.collision, hero, events, input, follow, combat, fx, hudRoot });
+    const vehicles = createVehicles({ scene, collision: world.collision, hero, events, input, follow, combat, fx, hudRoot, audio });
     // Predator stealth: room goons, perches, silent takedowns and perch drops (Part D).
     stealth = createStealth({ hero, combat, events, collision: world.collision, perches: world.grapplePoints.filter((p) => p.perch), rng });
     // Predator visuals (src/stealth/stealthFx.js): vision cones, laser sights, tracers and flashes.
