@@ -55,7 +55,9 @@ export function createCinematic({ camera, hero, hudRoot }) {
     // The radio, if the story branch's src/ui/radio.js is wired in, speaks the line; otherwise a
     // plain subtitle in the letterbox does.
     if (window.__game?.radio?.say) {
-      try { window.__game.radio.say(text, line); sub.style.opacity = '0'; return; } catch { /* best effort */ }
+      // radio.say takes a list of { speaker, text, portrait } lines (src/ui/radioQueue.js).
+      const speaker = (typeof line === 'object' && (line.speaker ?? line.who)) || '';
+      try { window.__game.radio.say([{ speaker, text, portrait: line?.portrait ?? speaker }]); sub.style.opacity = '0'; return; } catch { /* best effort */ }
     }
     sub.textContent = text;
     sub.style.opacity = '1';
