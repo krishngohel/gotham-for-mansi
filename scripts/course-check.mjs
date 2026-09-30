@@ -48,7 +48,8 @@ const report = await page.evaluate(() => {
       if (wall) issues.push(`${ch.id} leg to ring ${i}: blocked by ${wall}`);
       const h = Math.hypot(r.x - prev.x, r.z - prev.z), drop = prev.y - r.y;
       info.push(`${ch.id} leg ${i}: ${h.toFixed(0)} m, drop ${drop.toFixed(1)} m, slope 1:${(h / Math.max(drop, 0.01)).toFixed(1)}`);
-      if (drop < -1) issues.push(`${ch.id} leg to ring ${i}: climbs ${(-drop).toFixed(1)} m`);
+      // Only a glide-only course cannot climb: powered flight (the Batwing's Wing Walk) can.
+      if (drop < -1 && !ch.poweredFlight) issues.push(`${ch.id} leg to ring ${i}: climbs ${(-drop).toFixed(1)} m`);
       prev = r;
     }
     for (const [i, c] of (ch.checkpoints ?? []).entries()) onGround(`${ch.id} checkpoint ${i}`, c, 0.8);
