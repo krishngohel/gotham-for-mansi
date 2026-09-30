@@ -58,6 +58,7 @@ import { createChainFx } from './chainFx.js';
 import { createSwarmFx } from './swarmFx.js';
 import { createEncounters } from './encounters.js';
 import { createNightwing } from '../allies/nightwing.js';
+import { createInteriors } from '../world/interiors.js';
 import { createBalloons } from './balloons.js';
 import { createFlow } from './flow.js';
 import { STEPS } from './story.js';
@@ -327,6 +328,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       e.remove();
     };
     const encounters = createEncounters({ spawn, despawn, combat, events, collision: world.collision, stealth });
+    // ---- Part I: interiors (see src/world/interiors.js) ----
+    const interiors = createInteriors({ hero, events, rain: world.rain, collision: world.collision });
     const balloons = createBalloons(scene, progress.balloons);
     const pickups = createPickups(scene, world.halos, SITES);
     const neonParty = createNeonParty(scene, world.halos);
@@ -670,6 +673,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
           swarmLabel = bindingLabel(settings.bindings, 'chain4');
         }
         gadgets.update(real, dt, ctx);
+        interiors.update();
         stealth.update(dt);
         nightwing.update(dt); // Part N: before combat.update, so a team takedown can lock ctx.lockInput for this frame
         combat.update(dt, ctx);
@@ -753,7 +757,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
 
     const api = {
       hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, despawn, side,
-      batwing, nightwing, radio, vehicles, cinematic,
+      batwing, nightwing, radio, vehicles, cinematic, interiors,
       // Impact frames test hook: pin(ms) samples `ms` into the sequence the next fire() starts.
       impact: {
         fire: (tier, target) => fireImpact(tier, target),
