@@ -20,14 +20,9 @@ await page.evaluate(() => {
   const G = window.__game;
   G.__unlocked = [];
   G.events.on('gadgetUnlocked', ({ id }) => G.__unlocked.push(id));
-  // The real Batmobile/Batwing minigames (chase, battle, armada) need a human at the wheel or the
-  // stick; they have their own dedicated verification (VEH-REPORT.md, WING-REPORT.md). This script
-  // verifies the STORY, so it takes flow.js's own degrade path for those three steps instead
-  // (radio lines, then a short timer) by hiding the parts from window.__game, exactly the way the
-  // story plays when a part is missing entirely. Nightwing and Interiors are left alone: 'crasher'
-  // / 'ally' / 'interior' steps complete quickly either way and are worth exercising for real.
-  G.vehicles = null;
-  G.batwing = null;
+  // The real Batmobile/Batwing minigames (chase, battle, armada) run for real: the loop below
+  // finishes each through vehicles.debugWin() / batwing.debugWin(), the same completion path a
+  // player's win takes, so the story's wiring to the real parts is exercised end to end.
 });
 
 const state = () => page.evaluate(() => {
