@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { createRng } from '../core/rng.js';
 import { WORLD } from '../world/mapData.js';
-import { stepDrive, driveVelocity, bounceOffWall, createRamCounter, mergeTuning } from './vehiclePhysics.js';
+import { stepDrive, driveVelocity, bounceOffWall, createRamCounter, mergeTuning, findClearGroundSpot } from './vehiclePhysics.js';
 import { createBatmobile, createStreetCar, createJokerVan, createDroneTank, createTracer, createShell } from './vehicleModels.js';
 
 // The same street centrelines cityLife.js drives its ambient traffic on (60 m block grid, 14 m
@@ -140,16 +140,55 @@ export function createVehicles(deps) {
   const SUMMON_FAR = 8;   // meters: where the Batmobile first appears, out of Batman's way
   const SUMMON_NEAR = 2.6; // meters: where it parks, safely inside ENTER_RANGE
   const SUMMON_DUR = 0.85; // seconds: the slide-in
+  // Above this straight-line distance, the nearest street line isn't actually near Batman (a big
+  // open yard or plaza, mid-block): nearestStreetSpawn only ever checks one axis, so a spot on a
+  // "nearest" line can still be tens of meters away across the other axis. Past this, fall back
+  // to a clear-ground search centered on him instead.
+  const STREET_SPOT_MAX = 14;
+  const CLEAR_SPOT_RADII = [3, 4.5, 6, 8, 11, 15]; // meters, rings tried around Batman in the fallback
 
   // ---------------- summon / enter / exit ----------------
   // Appears on a real street point 6 to 10 m from Batman, facing along the street toward him,
   // then slides in over SUMMON_DUR and parks a few meters away (inside ENTER_RANGE) with a
   // screech. { instant: true } (used by startBattle, so it can chain straight into enter()) skips
   // the slide and places it parked immediately.
+  // A spot's ground is real and the Batmobile's own footprint fits there without a wall pushing
+  // it away: the collision-aware half of findClearGroundSpot's isClear(x, y, z) contract.
+  function clearBatmobileSpot(x, y, z) {
+    const gy = collision.groundBelow(x, y + 4, z, 0.3);
+    if (gy <= -Infinity) return null;
+    const probe = { x, y: gy, z };
+    const r = collision.resolveCylinder(probe, bm.radius, 1.6, { prevY: gy });
+    if (r.hitWall) return null;
+    // resolveCylinder nudges an embedded cylinder out the nearest side; a big nudge means the
+    // footprint didn't really fit at (x, z) at all, so this candidate isn't the clear spot it
+    // looked like.
+    if (Math.hypot(probe.x - x, probe.z - z) > 0.4) return null;
+    return { x: probe.x, y: gy, z: probe.z };
+  }
+
   function summon(kind = 'batmobile', { instant = false } = {}) {
     if (kind !== 'batmobile') return; // only the Batmobile is summonable; street cars are found, not called
     if (bm.arriving) return; // already on the way
     const spot = nearestStreetSpawn(hero.pos, SUMMON_FAR);
+    const spotDist = Math.hypot(spot.x - hero.pos.x, spot.z - hero.pos.z);
+    if (spotDist > STREET_SPOT_MAX) {
+      // Batman is too far from any street line for a street-side summon to make sense (a big
+      // open yard, a plaza, deep mid-block): find the nearest spot the car actually fits instead
+      // of snapping to a street tile that could be tens of meters away across the block.
+      const clear = findClearGroundSpot(hero.pos, clearBatmobileSpot, CLEAR_SPOT_RADII);
+      if (!clear) { toast.show('No room for the Batmobile here.', 2500); return; }
+      const yaw = hero.bat.yaw;
+      bm.v.speed = 0; bm.v.drift = 0; bm.v.yaw = yaw;
+      bm.group.rotation.y = yaw;
+      bm.group.position.set(clear.x, clear.y, clear.z);
+      bm.group.visible = true;
+      bm.summoned = true;
+      bm.arriving = null;
+      events.emit('word', { text: 'SCREEECH!', pos: bm.group.position.clone().setY(clear.y + 1), big: true });
+      toast.show('The Batmobile screeches in.', 2200);
+      return;
+    }
     const park = nearestStreetSpawn(hero.pos, SUMMON_NEAR);
     const yaw = Math.atan2(park.x - spot.x, park.z - spot.z);
     bm.v.speed = 0; bm.v.drift = 0; bm.v.yaw = yaw;
