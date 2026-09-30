@@ -89,7 +89,7 @@ function armorBar(hudRoot) {
 function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
 
 export function createVehicles(deps) {
-  const { scene, collision, hero, events, input, follow, combat, fx, hudRoot } = deps;
+  const { scene, collision, hero, events, input, follow, combat, fx, hudRoot, audio } = deps;
   const rng = createRng(7331); // own rng: never draws from ctx.rng (the city's seed)
 
   const toast = tinyToast(hudRoot);
@@ -103,6 +103,7 @@ export function createVehicles(deps) {
 
   let active = null;      // the instance currently being driven, or null
   let lastSteer = 0;      // this frame's steer input, for the driven car's front-wheel visual
+  let wasBoosting = false; // last frame's boost state, so 'vehicleBoost' fires once per press
 
   // ---------------- the Batmobile ----------------
   const bm = createBatmobile();
@@ -362,6 +363,8 @@ export function createVehicles(deps) {
     if (v.traffic) v.traffic = false;
     if (v.kind === 'car') v.borrowed = true;
     events.emit('vehicleExit', { kind: v.kind });
+    audio?.setEngine(null);
+    wasBoosting = false;
     active = null;
   }
 
@@ -388,11 +391,14 @@ export function createVehicles(deps) {
     if (v.traffic) v.traffic = false; // see the same note in exit()
     if (v.kind === 'car') v.borrowed = true;
     events.emit('vehicleExit', { kind: v.kind });
+    audio?.setEngine(null);
+    wasBoosting = false;
     active = null;
   }
 
   // ---------------- one vehicle's physics step ----------------
   function integrateVehicle(inst, input2, dt) {
+    inst.wallCd = Math.max(0, (inst.wallCd ?? 0) - dt); // cooldown: see the crash event below
     stepDrive(inst.v, input2, dt, inst.tuning);
     driveVelocity(inst.v, inst.tuning, velScratch);
     const pos = inst.group.position;
@@ -405,6 +411,12 @@ export function createVehicles(deps) {
       const pl = Math.hypot(pushX, pushZ);
       if (pl > 1e-5) {
         const nx = pushX / pl, nz = pushZ / pl;
+        // A fresh, fast hit on the player's own car: a crash sound (cooldown so being pinned
+        // against a wall doesn't retrigger it every frame).
+        if (inst === active && inst.wallCd <= 0) {
+          const impactSpeed = Math.hypot(velScratch.x, velScratch.z);
+          if (impactSpeed > 6) { events.emit('vehicleImpact', { speed: impactSpeed }); inst.wallCd = 0.5; }
+        }
         wallVel.x = velScratch.x; wallVel.z = velScratch.z;
         bounceOffWall(wallVel, nx, nz, inst.tuning.wallRestitution);
         const fxh = Math.sin(inst.v.yaw), fzh = Math.cos(inst.v.yaw), rxh = -Math.cos(inst.v.yaw), rzh = Math.sin(inst.v.yaw);
@@ -457,6 +469,7 @@ export function createVehicles(deps) {
     const dx = other.group.position.x - pos.x, dz = other.group.position.z - pos.z;
     const d = Math.hypot(dx, dz);
     if (d < inst.radius + other.radius + 0.3 && other.ramCd <= 0) {
+      events.emit('vehicleImpact', { speed: Math.abs(inst.v.speed) });
       const isChaseVan = chase?.active && other === chase.van;
       // A parked or borrowed car spins off however it was hit: fun, arcade, doesn't matter where
       // it ends up. The chase van keeps its own path-following yaw instead: a full contact-normal
@@ -644,6 +657,7 @@ export function createVehicles(deps) {
   function fireCannon() {
     if (!battle?.active || active !== bm || battle.cannonCdT > 0) return;
     battle.cannonCdT = 0.35;
+    events.emit('cannonFire');
     const yaw = bm.v.yaw;
     const fxh = Math.sin(yaw), fzh = Math.cos(yaw);
     const ox = bm.group.position.x + fxh * 2.6, oz = bm.group.position.z + fzh * 2.6;
@@ -680,6 +694,7 @@ export function createVehicles(deps) {
         hitDrone.group.visible = false;
         fx?.impact(hitDrone.group.position.clone().setY(hitDrone.group.position.y + 0.9), 1.8);
         events.emit('word', { text: 'KRAKOOM!', pos: hitDrone.group.position.clone().setY(hitDrone.group.position.y + 1.7), big: true });
+        events.emit('droneDestroyed');
         spawnDebris(hitDrone.group.position);
         const remaining = battle.drones.filter((d) => !d.dead).length;
         meter.set(`DRONES  ${remaining}`);
@@ -722,6 +737,7 @@ export function createVehicles(deps) {
       d.fireT -= dt;
       if (d.fireT <= 0) {
         d.fireT = 2.6 + rng.range(0, 2.2);
+        events.emit('droneShot');
         const shell = createShell(0x8a2fbf);
         shell.position.set(d.group.position.x, d.group.position.y + 0.95, d.group.position.z);
         const dist = Math.hypot(dx, dz) || 1;
@@ -741,10 +757,12 @@ export function createVehicles(deps) {
         const hit = Math.hypot(hitDx, hitDz) < SHELL_HIT_RADIUS;
         if (hit || s.userData.life <= 0) {
           if (hit) {
+            events.emit('shellHit');
             follow.addShake?.(4);
             if (active === bm) {
               damageArmor(bm.armor, SHELL_DAMAGE);
               armorHud.set(bm.armor.hp / bm.maxArmor);
+              events.emit('armorHit');
               if (bm.armor.hp <= 0) { scene.remove(s); d.shells.splice(i, 1); disableBatmobile(); return; }
             }
           }
@@ -793,10 +811,17 @@ export function createVehicles(deps) {
         handbrake: input.down('jump'),
         boost: input.down('sprint'),
       };
-      if (active.kind === 'batmobile') bm.setBoost(driveInput.boost && driveInput.throttle > 0);
+      const boosting = active.kind === 'batmobile' && driveInput.boost && driveInput.throttle > 0;
+      if (active.kind === 'batmobile') bm.setBoost(boosting);
+      if (boosting && !wasBoosting) events.emit('vehicleBoost');
+      wasBoosting = boosting;
       integrateVehicle(active, driveInput, dt);
       hero.pos.copy(active.group.position);
       hero.speed = Math.abs(active.v.speed);
+      // Engine loop: level stays 1 while driving (fade in/out lives in ambience.js's
+      // setTargetAtTime ramps, not here), speed normalized 0..1 by this vehicle's own top speed.
+      const engineMax = (boosting ? active.tuning.maxBoostSpeed : active.tuning.maxSpeed) || 1;
+      audio?.setEngine(active.kind === 'batmobile' ? 'batmobile' : 'car', 1, Math.abs(active.v.speed) / engineMax, { boost: boosting });
       ramGoons(active);
       ramVehicles(active, dt);
       if (battle?.active && active === bm && input.pressed('punch')) fireCannon();
