@@ -7,6 +7,7 @@ import { buildMapData, WORLD, SITES } from '../world/mapData.js';
 import { createCityContext, buildCity, finishCity } from '../world/cityBuilder.js';
 import { buildDistricts } from '../world/districts.js';
 import { buildZiplines } from '../world/ziplines.js';
+import { buildInteriors, INTERIOR_ROOMS } from '../world/interiors.js';
 import { createSkyDome } from '../world/sky.js';
 import { createBackdrop } from '../world/skyline.js';
 import { createBatsignal } from '../world/batsignal.js';
@@ -40,6 +41,10 @@ export function createWorld(scene, quality) {
   buildCity(ctx, data);
   buildDistricts(ctx);
   buildZiplines(ctx);
+  // Part I: enterable interiors (the Joker funhouse inside the cathedral, the Ace Chemicals hall).
+  // Built here, alongside the rest of the city, so its geometry merges into the same buckets and
+  // freezes with everything else in finishCity below.
+  buildInteriors(ctx);
   finishCity(ctx);
 
   // Lighting: a low sky fill so walls turned from the moon fall into shadow, a moon that casts

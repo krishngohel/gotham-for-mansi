@@ -27,8 +27,12 @@ const state = () => page.evaluate(() => {
   return { id: s?.id ?? null, type: s?.type ?? null, mode: G.flow.mode, site: G.flow.target, phase: G.boss?.phase, joker: G.boss?.joker.state };
 });
 let shotN = 0;
-for (let guard = 0; guard < 240; guard++) {
+// Part S: skip radio dialogue instantly (a real player reads it at typewriter pace; the script
+// just needs the beat to finish so its async step, if any, can proceed or degrade).
+async function skipRadio() { await page.evaluate(() => { if (window.__game.radio?.playing) window.__game.radio.skip(); }); }
+for (let guard = 0; guard < 600; guard++) {
   await page.waitForTimeout(400);
+  await skipRadio();
   const s = await state();
   if (!s.id) break;
   if (s.mode === 'cutscene' || s.mode === 'dead') {

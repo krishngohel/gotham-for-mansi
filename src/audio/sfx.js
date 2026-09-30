@@ -632,6 +632,13 @@ export const SFX = {
     flutter(ctx, out, t + 0.15, p, { dur: 1.6, rate: 22, freq: 1500, to: 900, gain: 0.25, Q: 0.9, a: 0.3 });
     return t + 2;
   } },
+
+  // Part S, the radio panel: a short burst of static as a new voice cuts in over the comms.
+  radioCrackle: { wet: 0.02, max: 2, fn(ctx, out, t, p) {
+    crackle(ctx, out, t, { dur: 0.22, count: 16, freq: 3200 * p, gain: 0.22 });
+    noise(ctx, out, t, { type: 'bandpass', freq: 1100 * p, Q: 0.7, d: 0.07, gain: 0.15 });
+    return t + 0.25;
+  } },
 };
 
 export const SFX_NAMES = Object.keys(SFX);
