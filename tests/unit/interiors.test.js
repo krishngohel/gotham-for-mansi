@@ -40,7 +40,7 @@ describe('interior room bounds', () => {
   it('roomAt tells the two rooms apart and returns null everywhere else', () => {
     expect(roomAt({ x: -120, y: 1, z: -150 })).toBe('funhouse');
     expect(roomAt({ x: 140, y: 1, z: -172 })).toBe('aceHall');
-    expect(roomAt({ x: 0, y: 1, z: 0 })).toBe(null);
+    expect(roomAt({ x: 0, y: 1, z: 50 })).toBe(null);
   });
 
   it('roomBounds pads every side outward from the clear floor plan', () => {
@@ -50,6 +50,61 @@ describe('interior room bounds', () => {
     expect(b.maxX).toBeGreaterThan(raw.maxX);
     expect(b.minZ).toBeLessThan(raw.minZ);
     expect(b.maxZ).toBeGreaterThan(raw.maxZ);
+  });
+});
+
+describe('the gcpd lobby', () => {
+  it('the lobby floor and a step past the street doors read as inside; the plaza does not', () => {
+    const g = INTERIOR_ROOMS.gcpd;
+    expect(insideRoom(g, { x: 0, y: 1, z: 0 })).toBe(true);
+    expect(insideRoom(g, { x: 0, y: 0, z: 19 })).toBe(true); // a step past the street doors
+    expect(insideRoom(g, { x: 0, y: 0, z: 25 })).toBe(false); // out on the plaza (the outside pose)
+    expect(roomAt({ x: 0, y: 1, z: 0 })).toBe('gcpd');
+  });
+
+  it('SITES.gcpdLobby (the fight/arrival spot) sits on solid floor, inside the room', () => {
+    const ctx = buildCtx();
+    const y = ctx.collision.groundBelow(SITES.gcpdLobby.x, SITES.gcpdLobby.y, SITES.gcpdLobby.z, 0.3);
+    expect(Math.abs(y - SITES.gcpdLobby.y)).toBeLessThanOrEqual(0.35);
+    expect(insideRoom(INTERIOR_ROOMS.gcpd, SITES.gcpdLobby)).toBe(true);
+  });
+
+  it('the fight site matches the pure room data', () => {
+    expect(SITES.gcpdLobby).toMatchObject({ x: INTERIOR_ROOMS.gcpd.fight.x, z: INTERIOR_ROOMS.gcpd.fight.z });
+  });
+
+  it('the street doors are a real, walkable gap: no wall blocks a straight line through them', () => {
+    const ctx = buildCtx();
+    const d = { x: 0 - 0, y: 0, z: 15 - 24 };
+    const len = Math.hypot(d.x, d.y, d.z);
+    const hit = ctx.collision.raycast({ x: 0, y: 1.2, z: 24 }, { x: d.x / len, y: d.y / len, z: d.z / len }, len);
+    expect(hit).toBe(null);
+  });
+
+  it('the north, east and west walls are real collision (only the south door face is open)', () => {
+    const ctx = buildCtx();
+    const blocked = (a, b) => {
+      const d = { x: b.x - a.x, y: b.y - a.y, z: b.z - a.z };
+      const len = Math.hypot(d.x, d.y, d.z);
+      return !!ctx.collision.raycast(a, { x: d.x / len, y: d.y / len, z: d.z / len }, len);
+    };
+    expect(blocked({ x: 0, y: 1.2, z: 10 }, { x: 0, y: 1.2, z: -30 })).toBe(true); // north wall
+    expect(blocked({ x: 10, y: 1.2, z: 0 }, { x: 30, y: 1.2, z: 0 })).toBe(true); // east wall
+    expect(blocked({ x: -10, y: 1.2, z: 0 }, { x: -30, y: 1.2, z: 0 })).toBe(true); // west wall
+  });
+
+  it('the lobby ceiling is real collision, so the follow camera cannot see through to the tower above', () => {
+    const ctx = buildCtx();
+    const hit = ctx.collision.raycast({ x: 0, y: 2, z: 0 }, { x: 0, y: 1, z: 0 }, 30);
+    expect(hit).toBeTruthy();
+    expect(hit.box.tag).toBe('ceiling');
+  });
+
+  it('the holding cell bars stand as real collision', () => {
+    const ctx = buildCtx();
+    // A wall-tagged box near the east cells (x around 15.5 to 18), not just the plain east wall
+    // (x = 20): confirms the cell bar posts, not only the exterior, were actually built.
+    expect(ctx.collision.boxes.some((bx) => bx.tag === 'building' && bx.minX > 15 && bx.maxX < 19)).toBe(true);
   });
 });
 

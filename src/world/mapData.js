@@ -27,7 +27,10 @@ const B = (o) => ({ roof: 'flat', parapet: true, cornice: true, storefront: fals
 function landmarks() {
   const list = [];
   // GCPD headquarters: the Batsignal roof.
-  list.push(B({ id: 'gcpd', x: 0, z: 0, w: 40, d: 40, h: 42, style: 'deco', props: 'none', district: 'gcpd', landmark: true, storefront: true, neon: [{ text: 'GCPD', face: 's', y: 33, color: 'cyan', big: true }] }));
+  // hollow + exteriorHoles: Part I (interiors), the GCPD lobby. Face 4 (+z, south, the storefront
+  // side) opens for the street doors; the roof (the Batsignal and the party) and every other face
+  // are untouched.
+  list.push(B({ id: 'gcpd', x: 0, z: 0, w: 40, d: 40, h: 42, style: 'deco', props: 'none', district: 'gcpd', landmark: true, storefront: true, neon: [{ text: 'GCPD', face: 's', y: 33, color: 'cyan', big: true }], hollow: true, exteriorHoles: [4] }));
 
   // The Docks: warehouses along the waterfront, a container yard, cold storage.
   list.push(B({ id: 'wh1', x: -180, z: 180, w: 40, d: 40, h: 12, style: 'warehouse', roof: 'sawtooth', parapet: false, cornice: false, district: 'docks' }));
@@ -150,4 +153,7 @@ export const SITES = {
   // Part S's 'toFunhouse' step targets this, not the nave floor itself, so the travel waypoint
   // leads Mansi up to the door instead of pointing through a solid wall from outside.
   funhouseDoor: { x: -120, y: 0, z: -108 },
+  // The GCPD headquarters lobby (Part I, src/world/interiors.js's INTERIOR_ROOMS.gcpd), just
+  // inside the street doors on the south face.
+  gcpdLobby: { x: 0, y: 0.15, z: 6 },
 };

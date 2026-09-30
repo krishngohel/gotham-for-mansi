@@ -46,6 +46,18 @@ export const INTERIOR_ROOMS = {
     fight: { x: 140, y: 0.15, z: -172, radius: 12 },
     outside: { x: 96, y: 0, z: -164 },
   },
+  gcpd: {
+    id: 'gcpd', name: 'GCPD Headquarters', building: 'gcpd',
+    // A single ground-floor lobby under the tower (the roof, the Batsignal and the party stay
+    // exactly as built): the clear floor, a little inset from the walls at x/z = +-20.
+    bounds: { minX: -18, maxX: 18, minY: 0, maxY: 6, minZ: -18, maxZ: 18 },
+    doors: [
+      // The street doors, south face (the storefront side), under the GCPD sign.
+      { id: 'doors', x: 0, y: 0, z: 20, w: 7, h: 4.5, walk: true },
+    ],
+    fight: { x: 0, y: 0.15, z: 6, radius: 9 },
+    outside: { x: 0, y: 0, z: 25 },
+  },
 };
 
 // Padded a little past the clear interior: "inside" reads true right up to the walls and a step
@@ -509,6 +521,134 @@ function buildAceHall(ctx) {
   lightSpot(ctx, d.x + 6, 4, d.z, PALETTE.window, 24, 16);
 }
 
+// A row of vertical cell bars between two posts, with a horizontal top and bottom rail.
+function cellBars(ctx, x0, x1, y0, y1, z, color = 0x2a2c32) {
+  ctx.buckets.add('steel', box(x1 - x0, 0.06, 0.06, (x0 + x1) / 2, y0, z), color);
+  ctx.buckets.add('steel', box(x1 - x0, 0.06, 0.06, (x0 + x1) / 2, y1, z), color);
+  solid(ctx, 'steel', box(0.08, y1 - y0, 0.08, x0, (y0 + y1) / 2, z), { color, tag: 'building' });
+  solid(ctx, 'steel', box(0.08, y1 - y0, 0.08, x1, (y0 + y1) / 2, z), { color, tag: 'building' });
+  const n = Math.max(2, Math.round((x1 - x0) / 0.32));
+  for (let i = 1; i < n; i++) {
+    const x = x0 + (x1 - x0) * (i / n);
+    solid(ctx, 'steel', cylinder(0.032, 0.032, y1 - y0, x, (y0 + y1) / 2, z, 6), { color, tag: 'building' });
+  }
+}
+
+// A single evidence card: a pinned photo/card with a red pin, connected to `to` (or nothing) by a
+// taut string. Purely decorative (no per-card collision).
+function evidenceCard(ctx, x, y, z, wallX, color, to) {
+  ctx.buckets.add('painted', box(0.02, 0.9, 0.7, wallX, y, z), color);
+  ctx.buckets.add('painted', cylinder(0.05, 0.05, 0.06, wallX + 0.05, y + 0.38, z), PALETTE.balloon);
+  if (!to) return;
+  const len = Math.hypot(to.y - y, to.z - z);
+  const string = box(0.015, len, 0.015, wallX + 0.06, (y + to.y) / 2, (z + to.z) / 2);
+  string.rotateX(Math.atan2(to.z - z, to.y - y));
+  ctx.buckets.add('painted', string, PALETTE.balloon);
+}
+
+function buildGCPDLobby(ctx) {
+  const rng = createRng(5115);
+  const GH = 42; // the tower's own full height: only the lobby has its own ceiling below this
+  const CEIL = 7; // the lobby's own ceiling
+  const g0 = -20, g1 = 20;
+  const r = INTERIOR_ROOMS.gcpd;
+  const d = r.doors[0];
+  const doorGap = { g0: d.x - d.w / 2, g1: d.x + d.w / 2, gy0: 0, gy1: d.h };
+  // South wall (z = 20): the street doors, under the GCPD sign, full tower height above the
+  // doorway (the upper floors are still there, just capped by the lobby's own ceiling below).
+  // North, east and west keep their normal facade mesh outside and get their own collision plus
+  // an inside lining now the whole-volume box is gone.
+  wallWithGap(ctx, 'x', g1, g0, g1, GH, WT, doorGap, PALETTE.deco);
+  ctx.collision.addBox(g0, 0, g0 - WT / 2, g1, GH, g0 + WT / 2, 'building');
+  ctx.collision.addBox(g0 - WT / 2, 0, g0, g0 + WT / 2, GH, g1, 'building');
+  ctx.collision.addBox(g1 - WT / 2, 0, g0, g1 + WT / 2, GH, g1, 'building');
+  wallLining(ctx, 'x', g0, g0, g1, GH, 0.3, PALETTE.deco);
+  wallLining(ctx, 'z', g0, g0, g1, GH, 0.3, PALETTE.deco);
+  wallLining(ctx, 'z', g1, g0, g1, GH, -0.3, PALETTE.deco);
+
+  const b = r.bounds;
+  // The lobby's own ceiling: caps the room well below the tower's real roof (the Batsignal and
+  // the party stay exactly as built above it).
+  solid(ctx, 'painted', box(b.maxX - b.minX, 0.5, b.maxZ - b.minZ, 0, CEIL - 0.25, 0), { color: 0x2a2f3c, tag: 'ceiling' });
+  ctx.buckets.add('concrete', tiledBox(b.maxX - b.minX, 0.1, b.maxZ - b.minZ, 0, 0.05, 0, { uvScale: [9, 9] }));
+  checkerFloor(ctx, -8, 8, -10, 10, 0.06, 2, 0x4a4d53, 0x2e323b);
+
+  // Warm, readable fill light: the lobby reads bright at a glance, not like the dark precinct
+  // corridors elsewhere. Distance-limited, never reaches the exterior city.
+  roomFill(ctx, 0, 5, 0, 0xffdfae, 2.6, 45);
+  roomFill(ctx, 0, 5, 10, 0xffdfae, 1.6, 24);
+  lightSpot(ctx, 0, 6, 12, PALETTE.window, 30, 24);
+  lightSpot(ctx, 0, 6, -8, PALETTE.window, 26, 22);
+  lightSpot(ctx, -12, 6, -2, PALETTE.detective, 20, 18);
+  lightSpot(ctx, 12, 6, -2, PALETTE.signal, 20, 18);
+  ctx.buckets.add('pool', new THREE.CircleGeometry(7, 22).rotateX(-Math.PI / 2).translate(0, 0.12, 8), 0xffdfae);
+
+  // ---- the front desk, facing the doors, with a GCPD crest on the wall behind it ----
+  solid(ctx, 'painted', box(9, 1.1, 2, 0, 0.55, 9), { color: 0x3a3f4a, tag: 'furniture' });
+  ctx.buckets.add('painted', box(9.2, 0.08, 2.2, 0, 1.11, 9), 0x5a606e);
+  for (const s of [-1, 1]) ctx.buckets.add('painted', box(0.1, 1.6, 0.1, s * 4.3, 0.8, 8.2), 0x14151b);
+  // The crest: a shield of dark stone on the wall, with a bat pip and a five-point badge star.
+  ctx.buckets.add('painted', new THREE.CircleGeometry(2.1, 5).rotateY(Math.PI).translate(0, 4.6, 17.6), 0x2a2f3c);
+  ctx.buckets.add('painted', new THREE.CircleGeometry(0.85, 5).rotateY(Math.PI).translate(0, 4.6, 17.55), PALETTE.detective);
+  ctx.buckets.add('painted', new THREE.PlaneGeometry(0.16, 3.2).rotateY(Math.PI).translate(-0.85, 4.6, 17.5), PALETTE.detective);
+  ctx.buckets.add('painted', new THREE.PlaneGeometry(0.16, 3.2).rotateY(Math.PI).translate(0.85, 4.6, 17.5), PALETTE.detective);
+
+  // ---- the trophy case: an empty glass shelf unit (the rescued gifts, src/game/gcpdLobby.js,
+  // show and hide inside it at runtime, tracking party guests as the story unlocks them) ----
+  solid(ctx, 'painted', box(6.4, 0.15, 1.2, 0, 1.0, -2), { color: 0x5a606e, tag: 'furniture' });
+  solid(ctx, 'painted', box(6.4, 0.15, 1.2, 0, 2.0, -2), { color: 0x5a606e, tag: 'furniture' });
+  for (const s of [-1, 0, 1]) ctx.buckets.add('steel', box(0.06, 2.1, 0.06, s * 3.1, 1.6, -2));
+  ctx.buckets.add('glass', box(6.5, 2.2, 0.06, 0, 1.65, -1.4));
+  ctx.buckets.add('glass', box(6.5, 2.2, 0.06, 0, 1.65, -2.6));
+
+  // ---- the evidence board: the west wall, Joker clue cards and polaroids strung with red
+  // string, under a title card that says the whole story out loud ----
+  const evX = -19.6;
+  const pins = [[-6, 2.6], [-3.8, 3.4], [-4.6, 1.8], [-1.6, 2.9], [0.6, 2.2], [-2.4, 1.4], [2.6, 3.1], [-6.4, 4.1]];
+  const evCenter = { y: 3.0, z: -6.5 };
+  for (const [z, y] of pins) evidenceCard(ctx, 0, y, z, evX, rng.pick([0xefe6cf, PALETTE.jokerPurple, PALETTE.jokerGreen]), evCenter);
+  evidenceCard(ctx, 0, evCenter.y, evCenter.z, evX, PALETTE.balloon, null);
+  if (typeof document !== 'undefined') {
+    const title = new THREE.Mesh(
+      new THREE.PlaneGeometry(4.4, 1.4),
+      new THREE.MeshBasicMaterial({ map: billboardTexture('WHO IS THE', 'PARTY CRASHER?', PALETTE.balloon), transparent: true, side: THREE.DoubleSide }),
+    );
+    title.position.set(evX + 0.03, 5.1, -6.5);
+    title.rotation.y = Math.PI / 2;
+    ctx.scene.add(title);
+  }
+  ctx.halos.add(evX + 0.2, 3.5, -6.5, PALETTE.balloon, 6);
+  lightSpot(ctx, evX + 2, 5, -6.5, PALETTE.window, 20, 14);
+
+  // ---- holding cells: the east wall, three barred cells (idle Joker goons, non-hostile, are
+  // placed at runtime: src/game/gcpdLobby.js) ----
+  const cellZ = [[-9, -5], [-3.5, 0.5], [1.5, 5.5]];
+  for (const [z0, z1] of cellZ) {
+    solid(ctx, 'painted', box(0.2, 3, z1 - z0 - 0.2, 15.4, 1.5, (z0 + z1) / 2), { color: 0x1c1e24, tag: 'building' });
+    cellBars(ctx, 15.5, 18, 0, 3, z0);
+    cellBars(ctx, 15.5, 18, 0, 3, z1);
+  }
+  roomFill(ctx, 17, 3, -2, 0xd8ccb8, 1.2, 14);
+
+  // ---- Gordon's office: a glass-walled room at the back, a desk and a lamp ----
+  solid(ctx, 'painted', box(9, 3, 6, -8, 3.2, -14), { color: 0x3a3f4a, tag: 'office' });
+  ctx.buckets.add('glass', box(0.1, 2.2, 5.4, -3.55, 2.8, -14));
+  glow(ctx, box(0.06, 1.6, 4.6, -3.5, 2.8, -14), PALETTE.window);
+  ctx.halos.add(-3.5, 2.8, -14, PALETTE.window, 6);
+  roomFill(ctx, -8, 2.6, -14, PALETTE.window, 1.3, 18);
+  lightSpot(ctx, -8, 3, -13, PALETTE.window, 22, 16);
+  solid(ctx, 'painted', box(2.6, 0.9, 1.3, -8, 0.45, -15), { color: 0x2a2436, tag: 'furniture' });
+  glow(ctx, box(0.4, 0.5, 0.4, -8.9, 1.05, -15.3), PALETTE.signal);
+  ctx.halos.add(-8.9, 1.15, -15.3, PALETTE.signal, 2.6);
+
+  // A little street-level scatter: a coat stand and a couple of chairs by the desk.
+  ctx.buckets.add('steel', cylinder(0.04, 0.04, 1.7, 7.5, 0.85, 6, 8));
+  ctx.buckets.add('steel', cylinder(0.4, 0.04, 0.3, 7.5, 1.75, 6, 8));
+  for (const [cx, cz] of [[-6.5, 6.5], [6.5, 6.5]]) {
+    solid(ctx, 'painted', box(0.9, 0.9, 0.9, cx, 0.45, cz), { color: 0x3a3f4a, tag: 'furniture' });
+  }
+}
+
 // ---- canvas-based decoration: browser only (guarded by `typeof document`, see buildFunhouse) ----
 
 function hallSignTexture() {
@@ -551,6 +691,7 @@ function spiralTexture() {
 export function buildInteriors(ctx) {
   buildFunhouse(ctx);
   buildAceHall(ctx);
+  buildGCPDLobby(ctx);
 }
 
 // ---- runtime: the Part I contract ----
