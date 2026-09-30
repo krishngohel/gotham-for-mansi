@@ -565,6 +565,11 @@ function buildGCPDLobby(ctx) {
   wallLining(ctx, 'x', g0, g0, g1, GH, 0.3, PALETTE.deco);
   wallLining(ctx, 'z', g0, g0, g1, GH, 0.3, PALETTE.deco);
   wallLining(ctx, 'z', g1, g0, g1, GH, -0.3, PALETTE.deco);
+  // The tower above the lobby (from its own ceiling up to the real roof) still needs to be
+  // solid: it is what the roof (the Batsignal and the party, SITES.start/signal) actually
+  // stands on. hollow: true dropped the single whole-volume box that used to cover this along
+  // with the ground floor, so it is rebuilt here, floor to roof, minus the lobby's own footprint.
+  ctx.collision.addBox(g0, CEIL, g0, g1, GH, g1, 'building');
 
   const b = r.bounds;
   // The lobby's own ceiling: caps the room well below the tower's real roof (the Batsignal and
