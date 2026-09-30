@@ -124,6 +124,10 @@ export const STEPS = [
       g('harley', 'The cake stays right where it is, birthday bat. Come say hi to my crew.'),
     ],
   },
+  {
+    id: 'toHarleyDoor', type: 'interior', text: "Harley's crew is in the chemical hall. The loading dock door is open.", site: 'aceHallDoor', room: 'aceHall', radius: 10, checkpoint: 'aceHallDoor',
+    lines: [g('alfred', 'The loading dock is open. That is either careless or a trap. Mind the difference.')],
+  },
   { id: 'harleyFight', type: 'fight', fight: HARLEY_FIGHT, text: "Fight through Harley's crew." },
   { id: 'a3', type: 'fight', fight: 'vats', text: 'Protect the cake, no matter what she throws at you!' },
   { id: 'aceCatwalks', type: 'fight', fight: 'aceCatwalks', text: 'Rifle goons on the vat hall catwalks have the cake in their sights. Take them out quietly.', tutorial: ['distract', 'vent', 'ledgeStealth'], checkpoint: 'aceCatwalksEntry' },
@@ -156,7 +160,8 @@ export const STEPS = [
       g('nightwing', "And I am holding the middle of it. Let's finish this together."),
     ],
   },
-  { id: 'nightwingAlly', type: 'ally', text: 'Nightwing has your back for this one.', at: 'balcony' },
+  { id: 'nightwingAlly', type: 'ally', text: 'Nightwing has your back for this one.', at: 'plaza' },
+  { id: 'toPlaza', text: 'Get down to the plaza and back Nightwing up.', site: 'plaza', radius: 14, checkpoint: 'plaza' },
   { id: 'plazaFight', type: 'fight', fight: 'plaza', text: 'Clear the plaza with Nightwing at your side.' },
   {
     id: 'toFunhouse', type: 'interior', text: 'The last of the party is behind the funhouse door in the old cathedral.', site: 'funhouseDoor', room: 'funhouse', radius: 10, checkpoint: 'arena',
