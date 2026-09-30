@@ -92,7 +92,11 @@ export function createVehicles(deps) {
 
   // ---------------- street cars (commandeerable) ----------------
   const streetCars = [];
-  function spawnStreetCars(count = 12) {
+  // Perf audit (2026-09-30): each street car is ~17 unmerged draw calls (a real extruded body,
+  // not city-bucket geometry), and from an elevated vantage several are in view at once, so this
+  // was a meaningful share of the frame budget on every page, not just the ones with vehicles in
+  // shot. Halved from 12: still plenty of cars to steal around the city, well under budget.
+  function spawnStreetCars(count = 6) {
     for (let i = 0; i < count; i++) {
       const alongX = rng.chance(0.5);
       const line = rng.pick(LINES);
@@ -117,7 +121,7 @@ export function createVehicles(deps) {
       streetCars.push(car);
     }
   }
-  spawnStreetCars(12);
+  spawnStreetCars();
 
   function enterables() { return [bm, ...streetCars]; }
 
