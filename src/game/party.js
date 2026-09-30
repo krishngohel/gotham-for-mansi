@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createGoon } from '../actors/characters.js';
-import { createCake, createPartyKit } from '../world/storyProps.js';
+import { createPartyKit } from '../world/storyProps.js';
 import { toonMaterial, addHullOutline } from '../render/toon.js';
 import { PALETTE } from '../config/palette.js';
 import { createRng } from '../core/rng.js';
@@ -96,7 +96,7 @@ export function createParty({ scene, assets, events, gfx, finale }) {
   const guests = []; // { id, ch, dance() }
   const dancers = []; // every ch added, for celebrate()
   const pulsers = []; // { mesh, base } emissive lights to pulse
-  let djKit = null, bakerCake = null, decorated = false;
+  let djKit = null, decorated = false;
 
   // Set dressing shared by every guest (string lights + the banner), built once, the first time
   // any guest is added, so an empty roof never pays for it.
@@ -142,6 +142,8 @@ export function createParty({ scene, assets, events, gfx, finale }) {
       }
       return [ch];
     },
+    // Stands beside the existing cake prop (src/game/finale.js's own, at its table near (3, 4))
+    // instead of bringing a second one: freeRoam() (called from celebrate() below) reveals it.
     baker(slot) {
       const ch = addNpc(buildGuestBody(assets, rng), slot);
       const apron = prop(new THREE.BoxGeometry(0.34, 0.5, 0.1), PALETTE.paper);
@@ -154,9 +156,6 @@ export function createParty({ scene, assets, events, gfx, finale }) {
       toque.add(toqueBase, toqueTop);
       toque.position.y = 0.16;
       ch.bone('Head')?.add(toque);
-      bakerCake = createCake();
-      bakerCake.position.set(slot.x + 1.3, Y, slot.z + 0.3);
-      group.add(bakerCake);
       return [ch];
     },
     band(slots) {
@@ -287,13 +286,12 @@ export function createParty({ scene, assets, events, gfx, finale }) {
       dancers.length = 0;
       pulsers.length = 0;
       while (group.children.length) group.remove(group.children[0]);
-      djKit = null; bakerCake = null; decorated = false;
+      djKit = null; decorated = false;
     },
     update(dt) {
       const now = performance.now() / 1000;
       for (const p of pulsers) p.mesh.material.color.copy(p.base).multiplyScalar(0.6 + Math.sin(now * p.k) * 0.4);
       if (djKit) djKit.userData.ball.rotation.y += dt * 1.2;
-      if (bakerCake) for (const f of bakerCake.userData.flames) f.scale.y = 0.8 + Math.sin(now * 9 + f.position.x * 9) * 0.25;
     },
   };
   return api;
