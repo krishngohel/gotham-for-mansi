@@ -132,13 +132,19 @@ function ring(ctx, key, x, z, w, d, y, hgt, over) {
 }
 
 // Returns the texture u offset so window-aligned relief can find the painted windows.
-function facade(ctx, style, w, h, d, x, y0, z) {
+// `collide` and `excludeFaces` exist only for a hollow, enterable landmark (Part I: interiors):
+// they never draw an extra rng call, so every other building's layout is untouched. `collide:
+// false` skips the whole-volume box (the building gets its own wall/ceiling collision instead,
+// built by src/world/interiors.js); `excludeFaces` drops side faces (0 +x, 1 -x, 4 +z, 5 -z) from
+// the shared exterior box so a real doorway or window can be cut into that face by hand.
+function facade(ctx, style, w, h, d, x, y0, z, { collide = true, excludeFaces = [] } = {}) {
   const uOffset = ctx.rng.next();
+  const faces = excludeFaces.length ? [0, 1, 4, 5].filter((f) => !excludeFaces.includes(f)) : [0, 1, 4, 5];
   ctx.buckets.add(`facade_${style}`, tiledBox(w, h, d, x, y0 + h / 2, z, {
-    uvScale: [FACADE_METERS[style], FLOOR_METERS], uOffset, faces: [0, 1, 4, 5],
+    uvScale: [FACADE_METERS[style], FLOOR_METERS], uOffset, faces,
   }));
   ctx.buckets.add('roof', tiledBox(w, h, d, x, y0 + h / 2, z, { uvScale: [8, 8], faces: [2] }));
-  ctx.collision.addBox(x - w / 2, y0, z - d / 2, x + w / 2, y0 + h, z + d / 2, 'building');
+  if (collide) ctx.collision.addBox(x - w / 2, y0, z - d / 2, x + w / 2, y0 + h, z + d / 2, 'building');
   return uOffset;
 }
 
@@ -461,7 +467,7 @@ function roofProps(ctx, b, x, z, w, d, y, squeeze = 1) {
 
 function building(ctx, b) {
   const { x, z, w, d, h, style } = b;
-  const uFacade = facade(ctx, style, w, h, d, x, 0, z);
+  const uFacade = facade(ctx, style, w, h, d, x, 0, z, { collide: !b.hollow, excludeFaces: b.exteriorHoles ?? [] });
   ctx.roofs.push({ id: b.id, x, z, w, d, y: h, district: b.district });
   if (b.storefront && h > 8) {
     const uShop = ctx.rng.next();

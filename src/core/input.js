@@ -7,10 +7,9 @@ export const PAD_BUTTONS = {
   // RB (5) is not here: a tap is the cape stun and a hold opens the gadget wheel (createHoldTap).
   dodge: [6], batarang: [7],
   detective: [8], pause: [9], special: [11], photo: [12], help: [13], throw: [15],
-  // D-pad down (13) is already 'help' and D-pad up/right are taken too, so vehicle (summon,
-  // enter, exit) takes D-pad left (14): it doubles as the chain1 chord button below, and the
-  // existing chord-latch machinery already suppresses it from firing 'vehicle' while block (Y)
-  // is held for a chain takedown.
+  // D-pad left (14) is the last free pad button: vehicle (summon, enter, exit the Batmobile or a
+  // street car). It doubles as the chain1 chord button; the chord latch keeps it from firing
+  // 'vehicle' while block (Y) is held. The Batwing has no default pad button (keyboard Y).
   vehicle: [14],
 };
 

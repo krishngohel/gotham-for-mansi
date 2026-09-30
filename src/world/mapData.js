@@ -58,12 +58,16 @@ function landmarks() {
   for (const n of neonEast) list.push(B({ id: n.id ?? `ne${n.z}`, x: 180, z: n.z, w: 40, d: n.d, h: n.h, style: n.h > 30 ? 'deco' : 'brick', district: 'neon', storefront: true, neon: n.neon ?? [], billboard: n.billboard, landmark: !!n.landmark, fireEscape: 'w' }));
 
   // Ace Chemicals: the factory, its smokestacks, the vat platform.
-  list.push(B({ id: 'factory', x: 140, z: -172, w: 64, d: 44, h: 24, style: 'factory', roof: 'sawtooth', parapet: true, district: 'ace', props: 'none', landmark: true }));
+  // hollow + exteriorHoles: Part I (interiors). The factory keeps its sawtooth roof deck exactly
+  // as built; only its west wall (face 1) gets a doorway, cut into src/world/interiors.js's hall.
+  list.push(B({ id: 'factory', x: 140, z: -172, w: 64, d: 44, h: 24, style: 'factory', roof: 'sawtooth', parapet: true, district: 'ace', props: 'none', landmark: true, hollow: true, exteriorHoles: [1] }));
   list.push(B({ id: 'acelab', x: 70, z: -118, w: 30, d: 26, h: 14, style: 'concrete', district: 'ace', props: 'industrial' }));
   list.push(B({ id: 'vatdeck', x: 180, z: -118, w: 26, d: 26, h: 10, style: 'steel', parapet: true, cornice: false, district: 'ace', props: 'none', landmark: true }));
 
   // Clock plaza: the cathedral and the clock tower hall (the boss arena is its roof).
-  list.push(B({ id: 'cathedral', x: -120, z: -150, w: 26, d: 62, h: 28, style: 'stone', roof: 'pitched', parapet: false, cornice: true, district: 'clock', props: 'none', landmark: true }));
+  // hollow + exteriorHoles: Part I (interiors), the Joker funhouse. Faces 4 (+z, the plaza doors)
+  // and 5 (-z, the rose window) are cut by src/world/interiors.js; the pitched roof is untouched.
+  list.push(B({ id: 'cathedral', x: -120, z: -150, w: 26, d: 62, h: 28, style: 'stone', roof: 'pitched', parapet: false, cornice: true, district: 'clock', props: 'none', landmark: true, hollow: true, exteriorHoles: [4, 5] }));
   list.push(B({ id: 'hall', x: -62, z: -160, w: 40, d: 40, h: 58, style: 'stone', district: 'clock', props: 'none', landmark: true }));
   return list;
 }
@@ -138,4 +142,8 @@ export const SITES = {
   monarchBalconyEntry: { x: 192, y: 22, z: -60 },
   aceCatwalks: { x: 124, y: 0.15, z: -118 },
   aceCatwalksEntry: { x: 172, y: 10, z: -124 },
+  // Interiors (Part I, src/world/interiors.js): the nave floor inside the cathedral (the Act 3
+  // finale fight) and the factory hall floor (a fight or stealth room, entered at the loading dock).
+  funhouse: { x: -120, y: 0.15, z: -150 },
+  aceHall: { x: 140, y: 0.15, z: -172 },
 };

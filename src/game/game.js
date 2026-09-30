@@ -36,6 +36,7 @@ import { pickGrapplePoint } from '../world/grapple.js';
 import { createPickups, createNeonParty } from '../world/storyProps.js';
 import { createCombat } from '../combat/combatSystem.js';
 import { createHud } from '../ui/hud.js';
+import { createRadio } from '../ui/radio.js';
 import { createStealthHud } from '../ui/stealthHud.js';
 import { glyphCode } from '../stealth/brain.js';
 import { createComicFx } from '../ui/comicFx.js';
@@ -47,6 +48,8 @@ import { createAudio } from '../audio/audio.js';
 import { createVoice } from '../audio/voice.js';
 import { createWorld } from './world.js';
 import { createFollowCamera } from './camera.js';
+import { createBatwing } from '../vehicles/batwing.js';
+import { createCinematic } from '../ui/cinematic.js';
 import { createFx } from './fx.js';
 import { createStealthFx } from '../stealth/stealthFx.js';
 import { createGadgetFx } from '../gadgets/gadgetFx.js';
@@ -54,10 +57,12 @@ import { createBreakables } from '../world/breakables.js';
 import { createChainFx } from './chainFx.js';
 import { createSwarmFx } from './swarmFx.js';
 import { createEncounters } from './encounters.js';
+import { createNightwing } from '../allies/nightwing.js';
+import { createInteriors } from '../world/interiors.js';
 import { createBalloons } from './balloons.js';
 import { createFlow } from './flow.js';
 import { STEPS } from './story.js';
-import { migrateProgress, betweenRooms, predatorNoticeReady } from './storyMigrate.js';
+import { migrateProgress } from './storyMigrate.js';
 import { wireAudio } from './sound.js';
 import { createBoss } from './boss.js';
 import { createVehicles } from '../vehicles/vehicles.js';
@@ -244,6 +249,14 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
 
     const hud = createHud(hudRoot);
     hud.setHealth(1);
+    // ---- Batwing (Part V2): src/vehicles/batwing.js, contract in the design doc ----
+    const batwing = createBatwing({ scene, camera, hero, follow, collision: world.collision, events, hudRoot: hudRoot.querySelector('.hud') ?? hudRoot });
+    // Part S: the radio and cutscene dialogue panel (src/ui/radio.js). Lives alongside the HUD and
+    // never pauses play; flow.js drives it for the new 'radio' step type and the async missions'
+    // flavor lines.
+    const radio = createRadio(hudRoot, { onSound: (n) => audio.play(n) });
+    // ---- Cinematic camera: src/ui/cinematic.js ----
+    const cinematic = createCinematic({ camera, hero, hudRoot: hudRoot.querySelector('.hud') ?? hudRoot });
     const comicFx = createComicFx(document.body);
     const fx = createFx(scene);
     const stealthFx = createStealthFx(scene);
@@ -297,7 +310,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
 
     let nextId = 0;
     const spawn = (type, p) => {
-      const e = createEnemy({ id: `e${nextId++}`, type, assets, scene, collision: world.collision, rng });
+      const e = createEnemy({ id: `e${nextId++}`, type, assets, scene, collision: world.collision, rng, events });
       // Stealth clips get their mixer actions now, not on the first patrol step or choke.
       e.ch.animator.prime(type === 'rifle' ? ['Rifle_Idle', 'Rifle_Walk', 'Rifle_Aim', 'Rifle_Search', 'Choked'] : ['Choked']);
       readyObjects(e.ch.root);
@@ -315,6 +328,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       e.remove();
     };
     const encounters = createEncounters({ spawn, despawn, combat, events, collision: world.collision, stealth });
+    // ---- Part I: interiors (see src/world/interiors.js) ----
+    const interiors = createInteriors({ hero, events, rain: world.rain, collision: world.collision });
     const balloons = createBalloons(scene, progress.balloons);
     const pickups = createPickups(scene, world.halos, SITES);
     const neonParty = createNeonParty(scene, world.halos);
@@ -368,7 +383,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     // Late-bound: side content needs the flow, and the flow asks side content three questions.
     const sideHooks = { holdStory: () => false, marker: () => null, onRespawn: () => null };
     const flow = createFlow({
-      hero, encounters, hud, events, progress, storage, comic, stage, prompts, waypoint, beacon, balloons, pickups,
+      hero, encounters, hud, events, progress, storage, comic, stage, prompts, waypoint, beacon, balloons, pickups, radio,
       collision: world.collision, follow, boss, finale, neonParty, side: sideHooks,
       onCredits: () => {
         document.exitPointerLock?.();
@@ -593,6 +608,14 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     scene.add(marker);
 
     const ctx = { input, cam: follow, grappleTarget: null, fx, chainFx, swarmFx };
+    // ---- Part N: Nightwing (src/allies/nightwing.js) ----
+    const nightwing = createNightwing({ assets, scene, collision: world.collision, events, combat, hero, rng, ctx });
+    events.on('crasherTaunt', ({ text }) => hud.card('PARTY CRASHER', text, 2500));
+    events.on('teamTakedown', ({ target }) => events.emit('word', { text: 'TEAM UP!', pos: target.ch.headWorld(new THREE.Vector3(), -0.3), big: true }));
+    // ---- end Part N ----
+    // ---- Harley Quinn (src/actors/harleyChar.js, src/combat/harleyLogic.js): HUD taunt card ----
+    events.on('harleyTaunt', ({ text }) => hud.card('HARLEY QUINN', text, 2500));
+    // ---- end Harley Quinn ----
     let lastCombo = -1;
     let chainLabels = ['1', '2', '3'];
     let swarmLabel = '4';
@@ -604,15 +627,6 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     // (including the divebomb altitude check, which calls hero.heightAboveGround(), a raycast,
     // so it must not run every frame), and each one stops checking once it has shown.
     let hintCheckT = 0;
-    // Once, on the first free moment of play (after any returning-player gadget cards), for a save
-    // from before Part D that skipped Monarch Balcony (storyMigrate.js marks it 'due'): the goons
-    // have new tricks and a predator room is ahead.
-    function predatorNotice() {
-      progress.predatorNotice = 'shown';
-      saveProgress(storage, progress);
-      if (!betweenRooms(flow.objectives.index)) return;
-      hud.card('MEANWHILE IN GOTHAM', "Gotham's goons have learned new tricks. A rifle crew lies in wait on the catwalks at Ace Chemicals. Stay in the shadows.", 9000);
-    }
     let glideHighT = 0;
     const hintShown = { ladder: false, zip: false, divebomb: false };
 
@@ -633,8 +647,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       if (playing && !state.paused) {
         if (input.pressed('photo') && flow.mode === 'play' && !hero.dead) { photo.open(); return; }
         if (input.pressed('detective')) state.detectiveOn = !state.detectiveOn;
-        // 'due' first, so the card check (a DOM read) runs only while the notice is still pending.
-        if (progress.predatorNotice === 'due' && predatorNoticeReady(progress.predatorNotice, flow.mode === 'play', hud.cardShowing, gadgets.newsPending)) predatorNotice();
+        // Batwing (Part V2): call it from a roof or a glide, or eject back into a glide.
+        if (input.pressed('batwing')) { if (batwing.active) batwing.exit(); else batwing.call(); }
         pickGrapple(real);
         // Grapple is only locked while a fight is actually around you.
         const busy = combat.enemies.some((e) => e.alive && e.aware && !e.room && e.pos.distanceTo(hero.pos) < 12 && Math.abs(e.pos.y - hero.pos.y) < 4);
@@ -659,9 +673,12 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
           swarmLabel = bindingLabel(settings.bindings, 'chain4');
         }
         gadgets.update(real, dt, ctx);
+        interiors.update();
         stealth.update(dt);
+        nightwing.update(dt); // Part N: before combat.update, so a team takedown can lock ctx.lockInput for this frame
         combat.update(dt, ctx);
         hero.update(dt, ctx);
+        batwing.update(dt, real);
         // ---- Part V1: ground vehicles hook (src/vehicles/vehicles.js) ----
         vehicles.update(dt, real);
         side.update(dt, real, { toScreen });
@@ -674,6 +691,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         breakables.update(state.t, hero.pos);
         if (hero.pos.y < -0.8) { hero.teleport(hero.lastSafe); events.emit('splash'); }
         follow.update(real, gadgets.cameraFocus ?? hero.pos, gadgets.wheelOpen ? NO_LOOK : input.look, gadgets.cameraMode ?? combat.cameraMode ?? hero.cameraMode(), hero.speed);
+        // Cinematic camera: overrides whatever follow.update() just set, after it ran.
+        cinematic.update(dt);
         // After follow.update, so the rope ribbon billboards toward this frame's camera, not
         // last frame's. It reads only goon and hand positions, which are already final.
         chainFx.update(dt);
@@ -737,7 +756,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     }
 
     const api = {
-      hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, despawn, side, vehicles,
+      hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, despawn, side,
+      batwing, nightwing, radio, vehicles, cinematic, interiors,
       // Impact frames test hook: pin(ms) samples `ms` into the sequence the next fire() starts.
       impact: {
         fire: (tier, target) => fireImpact(tier, target),
@@ -875,7 +895,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       return;
     }
     const pauseKeys = settings.bindings.pause, helpKeys = settings.bindings.help;
-    if (pauseKeys.includes(e.code) && !input.capturing && !game.comic.playing) { e.preventDefault(); state.paused ? (menus.open ? resume() : null) : pause(); }
+    if (pauseKeys.includes(e.code) && !input.capturing && !game.comic.playing && !game.cinematic.active) { e.preventDefault(); state.paused ? (menus.open ? resume() : null) : pause(); }
     else if (helpKeys.includes(e.code) && !state.paused && game.flow.mode === 'play') {
       game.gadgets.halt();
       state.paused = true;

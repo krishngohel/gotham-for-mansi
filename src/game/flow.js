@@ -7,8 +7,20 @@ import { SITES } from '../world/mapData.js';
 import { saveProgress, BALLOON_COUNT } from '../core/save.js';
 import MANSI from '../mansi.config.js';
 
+// Part S mission types: async beats that finish on their own event instead of a site radius. Each
+// tries the real system first (through window.__game, never captured at creation so it still works
+// however late that part attaches itself) and falls back to a short timer, so the story always
+// reaches credits with any subset of Vehicles, Batwing or Nightwing missing.
+const ASYNC_TYPES = new Set(['radio', 'chase', 'battle', 'armada', 'crasher', 'ally']);
+const DEGRADE_MS = 2200;
+// A plain travel step may still finish while Mansi is driving or flying (that is the point of
+// getting there). Every other kind of beat needs her on foot first (coordinator guidance,
+// 2026-09-30): a cutscene, fight, boss, collect or any of these async ones except the two that put
+// her IN a vehicle on purpose (chase, battle, armada).
+const EXIT_VEHICLE_TYPES = new Set(['cutscene', 'fight', 'boss', 'radio', 'crasher', 'ally', 'interior', 'collect']);
+
 export function createFlow(d) {
-  const { hero, encounters, hud, events, progress, storage, comic, stage, prompts, waypoint, beacon, balloons, pickups, collision } = d;
+  const { hero, encounters, hud, events, progress, storage, comic, stage, prompts, waypoint, beacon, balloons, pickups, collision, radio } = d;
   const side = d.side ?? { holdStory: () => false, marker: () => null, onRespawn: () => null };
   const objectives = createObjectives(STEPS, progress.step);
   let mode = 'play';
@@ -17,6 +29,7 @@ export function createFlow(d) {
   let t = 0;
 
   const save = () => saveProgress(storage, progress);
+  const theGame = () => (typeof window !== 'undefined' ? window.__game : null);
 
   function siteOf(s) {
     if (!s) return null;
@@ -42,6 +55,69 @@ export function createFlow(d) {
     return { ...SITES[cp] };
   }
 
+  // One synthetic "done" event per async step, whether the real system finished it or it degraded
+  // to a timer. objectives.js matches these the same way either way. Deferred a tick: a real part
+  // that reports done() synchronously (as 'ally' does below) must never re-enter enterStep() while
+  // the step that triggered it is still being entered.
+  function finishAsync(step, ok = true) { setTimeout(() => advance({ type: `${step.type}Done`, id: step.id, ok }), 0); }
+
+  // Hands an async step to the real part if window.__game has it, wired to call `done` when that
+  // part reports finished. Returns false (never having called anything) when the part, or the one
+  // method this step needs, is not there yet.
+  function tryReal(step, done) {
+    const G = theGame();
+    if (!G) return false;
+    switch (step.type) {
+      case 'chase':
+        if (!G.vehicles?.startChase) return false;
+        // The mission needs Mansi in the Batmobile first (coordinator guidance, 2026-09-30).
+        G.vehicles.summon?.();
+        if (G.vehicles.active) G.vehicles.enter?.(G.vehicles.active);
+        G.vehicles.startChase({ path: step.path ?? null, onDone: (r) => done(r?.ok !== false) });
+        return true;
+      case 'battle':
+        if (!G.vehicles?.startBattle) return false;
+        G.vehicles.summon?.();
+        if (G.vehicles.active) G.vehicles.enter?.(G.vehicles.active);
+        G.vehicles.startBattle({ site: siteOf(step), drones: step.drones ?? 6, onDone: (r) => done(r?.ok !== false) });
+        return true;
+      case 'armada':
+        if (!G.batwing?.startArmada) return false;
+        G.batwing.call?.();
+        G.batwing.startArmada({ balloons: step.balloons ?? 12, onDone: (r) => done(r?.ok !== false) });
+        return true;
+      case 'crasher': {
+        if (!G.nightwing?.spawn || !G.nightwing?.crasherFlee) return false;
+        const p = SITES[step.at] ?? target ?? hero.pos;
+        G.nightwing.spawn(p, 'crasher');
+        const off = events.on('crasherEscaped', () => { off(); done(true); });
+        setTimeout(() => G.nightwing?.crasherFlee(SITES[step.to] ?? p), 1200);
+        return true;
+      }
+      case 'ally':
+        if (!G.nightwing?.spawn) return false;
+        G.nightwing.spawn(SITES[step.at] ?? hero.pos, 'ally');
+        done(true);
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  // Plays a step's radio lines (if any), then either lets the real part run or, when it (or the
+  // whole module) is missing, completes on a short timer. A pure 'radio' beat is done as soon as
+  // its lines finish: the dialogue was the whole mission.
+  function startAsync(step) {
+    const done = (ok = true) => finishAsync(step, ok);
+    const proceed = () => {
+      if (step.type === 'radio') { done(true); return; }
+      if (tryReal(step, done)) return;
+      setTimeout(() => done(true), DEGRADE_MS);
+    };
+    if (step.lines?.length && radio) radio.say(step.lines).then(proceed);
+    else proceed();
+  }
+
   async function playScene(name) {
     mode = 'cutscene';
     document.exitPointerLock?.();
@@ -60,6 +136,11 @@ export function createFlow(d) {
     progress.stepId = s?.id ?? null;
     save();
     if (!s) return;
+    if (EXIT_VEHICLE_TYPES.has(s.type)) {
+      const G = theGame();
+      if (G?.vehicles?.active) G.vehicles.exit();
+      if (G?.batwing?.active) G.batwing.exit();
+    }
     hud.setObjective(s.text ?? '');
     target = siteOf(s);
     fightStarted = false;
@@ -83,6 +164,8 @@ export function createFlow(d) {
       });
     }
     if (s.type === 'boss') playScene('bossIntro').then(() => d.boss?.begin());
+    if (ASYNC_TYPES.has(s.type)) startAsync(s);
+    if (s.type === 'interior' && s.lines?.length) radio?.say(s.lines);
     if (s.type === 'credits') {
       progress.finished = true;
       save();
@@ -185,12 +268,15 @@ export function createFlow(d) {
       if (mode !== 'play') return;
       const s = objectives.step;
       encounters.update(dt, hero);
-      if (s && target && !side.holdStory() && s.type !== 'fight' && s.type !== 'boss' && s.type !== 'cutscene') {
+      if (s && target && !side.holdStory() && s.type !== 'fight' && s.type !== 'boss' && s.type !== 'cutscene' && !ASYNC_TYPES.has(s.type)) {
         const dxz = Math.hypot(hero.pos.x - target.x, hero.pos.z - target.z);
         const dy = Math.abs(hero.pos.y - target.y);
         if (dxz < (s.radius ?? 8) && dy < 6) {
           if (s.type === 'collect') { pickups.take(s.item); encounters.cleanupBodies(); events.emit('pickup', { item: s.item }); advance({ type: 'collected', item: s.item }); }
-          else advance({ type: 'reached', step: s.id });
+          else {
+            if (s.type === 'interior') theGame()?.interiors?.enter?.(s.room);
+            advance({ type: 'reached', step: s.id });
+          }
         }
       }
       const near = target && Math.hypot(hero.pos.x - target.x, hero.pos.z - target.z) < 7 && Math.abs(hero.pos.y - target.y) < 5;
@@ -201,6 +287,7 @@ export function createFlow(d) {
       if (b >= 0) collectBalloon(b);
       pickups.update(t);
       prompts.update(dt);
+      radio?.update(dt);
     },
     // After the credits: roam the city, finish the balloon hunt, watch the fireworks.
     freeRoam() {

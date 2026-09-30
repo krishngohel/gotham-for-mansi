@@ -8,17 +8,22 @@ export const SCENES = {
   intro: (stage) => [
     {
       panels: [
-        { span: 'wide', img: stage.shot({ cam: [34, 74, 70], look: [-30, 30, -70] }), caption: 'Gotham City. Another night of rain.' },
-        { img: stage.shot({ cam: [-5, 44.2, -2], look: [-12, 43.6, -12], hero: null }), caption: 'The Batsignal is lit. Somebody wants attention.', captionPos: 'bottom' },
-        { voice: 'intro1', img: jokerTV('grin'), balloons: [J(`Good evening, Gotham! And a very happy birthday to ${MANSI.name.toUpperCase()}!`, 50, 5, { w: 80 })] },
+        { span: 'wide', img: stage.shot({ cam: [34, 74, 70], look: [-30, 30, -70] }), caption: `Gotham City, midnight. Commissioner Gordon promised ${MANSI.name} a citywide birthday.` },
+        { img: stage.shot({ cam: [-5, 44.2, -2], look: [-12, 43.6, -12], hero: null }), caption: 'Then the Batsignal flickers, and the light on the clouds is not a bat anymore. It is a cake.', captionPos: 'bottom' },
+        { voice: 'intro1', img: jokerTV('grin'), balloons: [J(`Good evening, Gotham! And a very happy birthday to the birthday girl herself, ${MANSI.name.toUpperCase()}!`, 50, 5, { w: 80 })] },
         { voice: 'intro2', span: 'wide', img: jokerTV('smug'), balloons: [J('I borrowed the cake, the presents and the whole party. Come and get them, if you can! HA HA HA!', 50, 5, { w: 70 })] },
       ],
     },
     {
       layout: 'single',
-      panels: [{ span: 'full', img: stage.shot({ cam: [3.2, 42.8, 23], look: [-4, 47, 8], fov: 50, hero: { at: [0.5, 42, 17.5], yaw: -2.7, anim: 'Idle_Loop' } }), caption: `Gotham needs you, ${MANSI.name}.`, captionPos: 'bottom' }],
+      panels: [{ span: 'full', img: stage.shot({ cam: [3.2, 42.8, 23], look: [-4, 47, 8], fov: 50, hero: { at: [0.5, 42, 17.5], yaw: -2.7, anim: 'Idle_Loop' } }), caption: `Gotham needs you, ${MANSI.name}. Happy birthday. Now go get your party back.`, captionPos: 'bottom' }],
     },
   ],
+
+  // Act title cards: a plain, big comic panel between chapters, reusing titleCard().
+  actOne: () => [{ layout: 'single', panels: [{ span: 'full', img: titleCard('ACT ONE: THE PARTY IS STOLEN', 'The Docks and Neon Row') }] }],
+  actTwo: () => [{ layout: 'single', panels: [{ span: 'full', img: titleCard('ACT TWO: ACE CHEMICALS', 'Follow the smell of frosting') }] }],
+  actThree: () => [{ layout: 'single', panels: [{ span: 'full', img: titleCard('ACT THREE: THE CLOCK PLAZA', 'Balloons, a funhouse, and the Joker') }] }],
 
   card: (stage) => [
     {

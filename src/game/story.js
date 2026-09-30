@@ -1,15 +1,56 @@
-// The whole game, in order. Steps without a type are "reach" steps: get to the site.
-// tutorial: prompt ids introduced when the step begins (see ui/prompts.js).
+// The whole game, in order: Mansi's Birthday Night. Steps without a type are "reach" steps: get
+// to the site. tutorial: prompt ids introduced when the step begins (see ui/prompts.js).
 //
-// NEVER remove or rename a step id. Saves store the id (progress.stepId) and storyMigrate.js finds
-// the step by it; an id that disappears makes that save fall back to its index read against the
-// pre-Part D list, which lands it on the wrong step. Add new steps with new ids; retire one by
-// keeping its id on a step that stands in its place.
+// This is Part S's full-reset rework (see docs/superpowers/specs/2026-09-30-birthday-night-design.md).
+// Saves now live under a new key (src/core/save.js, src/game/storyMigrate.js) and are placed purely
+// by stepId, so ids here are free to change between reworks. They stay stable *within* this story
+// only so that gadget unlocks (src/gadgets/gadgetDefs.js) and the chapter list
+// (src/game/progressTracker.js CHAPTERS) keep pointing at the right beat: 'intro', 'toDocks',
+// 'toYard', 'toNeon', 'toStreet', 'toMonarch', 'toAce', 'toVat', 'toTower' must not move to a
+// different place in the story than the one they already mark.
+//
+// New mission types (see flow.js): 'radio' (a dialogue beat), 'chase' / 'battle' (ground vehicles),
+// 'armada' (the Batwing), 'crasher' / 'ally' (Nightwing), 'interior' (a room site). Every one of
+// them is read against window.__game at run time; when the part that provides it is missing, flow.js
+// plays the step's `lines` and completes it on a short timer, so the whole story always reaches
+// credits even with none of Vehicles, Batwing, Nightwing or Interiors merged in yet.
+import { HARLEY_FIGHT } from './fights.js';
+
+const g = (speaker, text) => ({ speaker, portrait: speaker, text });
+
 export const STEPS = [
+  // ---------------------------------------------------------------- Prologue: GCPD roof
   { id: 'intro', type: 'cutscene', scene: 'intro' },
   { id: 'signal', text: 'Something is stuck to the Batsignal. Go and look.', site: 'signal', radius: 4.5, tutorial: ['move', 'look'], checkpoint: 'start' },
   { id: 'card', type: 'cutscene', scene: 'card' },
+  {
+    id: 'gordonRadio', type: 'radio', text: 'Gordon is on the radio.', checkpoint: 'signal',
+    lines: [
+      g('gordon', 'Gordon here. Sorry to spoil the surprise, but the surprise is already spoiled.'),
+      g('gordon', 'We had a whole night planned for Mansi. Gifts, the band, a cake the size of a squad car.'),
+      g('gordon', 'A man in a mask grabbed the first gift off the truck and ran before my officers blinked.'),
+      g('gordon', 'Whoever he is, he was headed for the Docks. Happy birthday, by the way. Some night for it.'),
+    ],
+  },
+  {
+    id: 'crasherIntro', type: 'crasher', text: 'A masked figure is getting away with the first gift.', at: 'signal', to: 'wh3Roof',
+    lines: [g('crasher', 'Nothing personal, birthday girl. Catch me if you can.')],
+  },
+  { id: 'actOneTitle', type: 'cutscene', scene: 'actOne' },
+
+  // ---------------------------------------------------------------- Act 1: Docks and Neon Row
   { id: 'toDocks', text: 'The presents are at the Docks. Glide there.', site: 'wh3Roof', radius: 16, tutorial: ['glide', 'dive', 'grapple'], checkpoint: 'signal' },
+  {
+    id: 'alfredRadio', type: 'radio', text: 'Alfred is on the radio.', checkpoint: 'wh3Roof',
+    lines: [
+      g('alfred', 'Alfred here, Mansi. I have brought the car around. Try not to enjoy it too much.'),
+      g('alfred', "It rather suits a birthday: entirely too much power for anyone's own good."),
+    ],
+  },
+  {
+    id: 'batmobileChase', type: 'chase', text: 'Run down the Joker van before it reaches the warehouses.', site: 'wh3Roof',
+    lines: [g('alfred', 'A van just peeled off the dock road with your gift wrap sticking out the back. After it.')],
+  },
   { id: 'f1', type: 'fight', fight: 'docksRoof', text: 'Take down the goons on the warehouse roof.', tutorial: ['punch', 'kick', 'counter'] },
   { id: 'toYard', text: 'More goons in the container yard below. Drop down.', site: 'yard', radius: 14, checkpoint: 'wh3Roof' },
   { id: 'f2', type: 'fight', fight: 'yard', text: 'Clear the container yard.', tutorial: ['block', 'dodge', 'throw'] },
@@ -23,27 +64,97 @@ export const STEPS = [
   { id: 'n2', type: 'fight', fight: 'street', text: 'Clear the street.', tutorial: ['batarang'] },
   { id: 'toMonarch', text: 'The party is on the Monarch Theater roof.', site: 'monarchRoof', radius: 14, checkpoint: 'neonStreet' },
   { id: 'n3', type: 'fight', fight: 'monarch', text: 'Crash the party crashers.', tutorial: ['special'] },
+  {
+    id: 'crasherRooftop', type: 'crasher', text: 'The masked man is right there.', at: 'monarchRoof', to: 'monarchBalconyEntry',
+    lines: [
+      g('mansi', 'Nowhere left to run.'),
+      g('crasher', 'Wrong again.'),
+    ],
+  },
   { id: 'monarchBalcony', type: 'fight', fight: 'monarchBalcony', text: 'Rifle goons guard the balcony below the roof. Stay in the shadows and take them down one at a time.', tutorial: ['crouch', 'silent', 'perch', 'perchDrop'], checkpoint: 'monarchBalconyEntry' },
-  { id: 'party', type: 'collect', item: 'party', site: 'party', radius: 3, text: 'Take the party back.', checkpoint: 'monarchRoof' },
+  { id: 'party', type: 'collect', item: 'party', site: 'party', radius: 3, text: "Take back the DJ's rig and the band's gear.", checkpoint: 'monarchRoof' },
   { id: 'rewardParty', type: 'cutscene', scene: 'party' },
+  {
+    id: 'aceClueRadio', type: 'radio', text: 'Gordon is on the radio.', checkpoint: 'party',
+    lines: [
+      g('gordon', 'The DJ says thank you, by the way. Never seen a rescue with a better beat drop.'),
+      g('gordon', "Forensics found the Joker's next clue. It smells like burnt sugar and industrial solvent."),
+      g('gordon', 'Ace Chemicals. Of course it is Ace Chemicals. Head north.'),
+    ],
+  },
+
+  // ---------------------------------------------------------------- Act 2: Ace Chemicals
+  { id: 'actTwoTitle', type: 'cutscene', scene: 'actTwo' },
   { id: 'toAce', text: 'Something smells like frosting at Ace Chemicals. Go north.', site: 'aceYard', radius: 16, checkpoint: 'party' },
+  {
+    id: 'aceBattle', type: 'battle', text: 'Drone tanks are dug in across the yard. Use the cannon.', site: 'aceYard',
+    lines: [g('alfred', 'Motion in the yard, and none of it is friendly. Batmobile cannon, if you would.')],
+  },
   { id: 'a1', type: 'fight', fight: 'aceYard', text: 'A brute. Stun it with your cape, then pile on.', tutorial: ['brute'] },
   { id: 'toFactory', text: 'Get up onto the factory roof.', site: 'factoryRoof', radius: 18, checkpoint: 'aceYard' },
   { id: 'a2', type: 'fight', fight: 'factory', text: 'Clear the factory roof.' },
   { id: 'toVat', text: 'The cake is on the deck over the vats.', site: 'vatDeck', radius: 11, checkpoint: 'factoryRoof' },
-  { id: 'a3', type: 'fight', fight: 'vats', text: 'Protect the cake!' },
+  {
+    id: 'harleyRadio', type: 'radio', text: 'Someone is on the Joker\'s open channel.', checkpoint: 'factoryRoof',
+    lines: [
+      g('harley', "Aw, is it somebody's birthday? Puddin never lets ME have a party."),
+      g('harley', 'The cake stays right where it is, birthday bat. Come say hi to my crew.'),
+    ],
+  },
+  { id: 'harleyFight', type: 'fight', fight: HARLEY_FIGHT, text: "Fight through Harley's crew." },
+  { id: 'a3', type: 'fight', fight: 'vats', text: "Protect the cake from Harley's crew!" },
   { id: 'aceCatwalks', type: 'fight', fight: 'aceCatwalks', text: 'Rifle goons on the vat hall catwalks have the cake in their sights. Take them out quietly.', tutorial: ['distract', 'vent', 'ledgeStealth'], checkpoint: 'aceCatwalksEntry' },
-  { id: 'cake', type: 'collect', item: 'cake', site: 'cake', radius: 3, text: 'Save the cake.', checkpoint: 'vatDeck' },
+  { id: 'cake', type: 'collect', item: 'cake', site: 'cake', radius: 3, text: "Save the baker's cake.", checkpoint: 'vatDeck' },
   { id: 'rewardCake', type: 'cutscene', scene: 'cake' },
-  { id: 'toTower', text: 'The Joker is waiting at the clock tower. End this.', site: 'arena', radius: 18, checkpoint: 'cake' },
+  {
+    id: 'crasherReveal', type: 'radio', text: 'The masked man is waiting by the gate, mask in hand.', checkpoint: 'cake',
+    lines: [
+      g('crasher', 'Before you swing at me again, you should probably see who you have been chasing.'),
+      g('nightwing', "Nightwing. Surprise. Well, it WAS supposed to be a surprise, before I kept grabbing your gifts on camera."),
+      g('nightwing', "The Bat-family planned a whole reveal for later tonight. The Joker rather ruined the timing."),
+      g('mansi', 'You have been running from me across two rooftops.'),
+      g('nightwing', 'In my defence, that part was extremely fun. Come on, birthday girl. Let us go get the rest of your party back.'),
+    ],
+  },
+
+  // ---------------------------------------------------------------- Act 3: The Clock Plaza
+  { id: 'actThreeTitle', type: 'cutscene', scene: 'actThree' },
+  {
+    id: 'armadaRun', type: 'armada', text: 'The Joker has balloons rigged over the clock plaza. Take the Batwing through them.', site: 'balcony', balloons: 14, checkpoint: 'balcony',
+    lines: [
+      g('nightwing', "Batwing's yours whenever you call it. I will meet you on the ground."),
+      g('joker', 'Up, up and away! Try not to pop too many of my party balloons, party girl!'),
+    ],
+  },
+  {
+    id: 'nightwingTagRadio', type: 'radio', text: 'Gordon and Nightwing are both on the line.', checkpoint: 'balcony',
+    lines: [
+      g('gordon', "GCPD is holding the plaza perimeter. Nobody else gets in or out until you're done."),
+      g('nightwing', "And I am holding the middle of it. Let's finish this together."),
+    ],
+  },
+  { id: 'nightwingAlly', type: 'ally', text: 'Nightwing has your back for this one.', at: 'balcony' },
+  { id: 'plazaFight', type: 'fight', fight: 'plaza', text: 'Clear the plaza with Nightwing at your side.' },
+  {
+    id: 'toFunhouse', type: 'interior', text: 'The last of the party is behind the funhouse door in the old cathedral.', site: 'funhouse', room: 'funhouse', radius: 12, checkpoint: 'balcony',
+    lines: [g('nightwing', 'Funhouse door, dead ahead. This is exactly as safe as it sounds, which is to say, not very.')],
+  },
+  { id: 'funhouseFight', type: 'fight', fight: 'funhouseFight', text: "Fight through the Joker's funhouse floor." },
+  {
+    id: 'rescueGuestsRadio', type: 'radio', text: 'The last guests are found.', checkpoint: 'funhouse',
+    lines: [
+      g('nightwing', 'Found the band, tied up but tuning their instruments out of spite. Found the rest of the guest list too.'),
+      g('gordon', "Everyone's accounted for, Mansi. Every guest, every gift, the cake, the band, all of it."),
+      g('oracle', "One more thing before you go. The clock tower's cameras just lit up. He's waiting for you."),
+    ],
+  },
+  { id: 'toTower', text: 'The Joker is waiting at the clock tower. End this.', site: 'arena', radius: 18, checkpoint: 'funhouse' },
   { id: 'boss', type: 'boss', text: 'Defeat the Joker.', checkpoint: 'arena' },
   { id: 'finale', type: 'cutscene', scene: 'finale' },
   { id: 'credits', type: 'credits' },
 ];
 
-// Lessons a later step repeats for a save that skipped the step teaching them. A save from before
-// Part D jumps straight past Monarch Balcony, so its first predator room is the catwalks: there the
-// basics come first, unless the move that proves them is already in progress.moves.
+// Lessons a later step repeats for a save that skipped the step teaching them.
 export const CATCH_UP = {
   aceCatwalks: [
     { move: 'silentTakedown', tips: ['crouch', 'silent'] },

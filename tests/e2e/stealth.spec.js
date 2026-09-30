@@ -52,11 +52,11 @@ test('clearing a predator room moves the story on', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test('a save from before the stealth steps resumes on the same step', async ({ page }) => {
+test('a save under the new (v2) key resumes on its saved step id', async ({ page }) => {
   const errors = await collectErrors(page);
   await page.goto('/');
   await page.waitForFunction(ready, null, { timeout: 90000 });
-  await page.evaluate(() => localStorage.setItem('gotham-mansi-progress-v1', JSON.stringify({ step: 25, balloons: [], suit: 'm' })));
+  await page.evaluate(() => localStorage.setItem('gotham-mansi-progress-v2', JSON.stringify({ stepId: 'cake', balloons: [], suit: 'm' })));
   await page.reload();
   await page.waitForFunction(ready, null, { timeout: 90000 });
   await page.evaluate(() => window.__game.begin('m', false));
