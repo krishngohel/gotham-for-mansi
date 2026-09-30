@@ -27,7 +27,10 @@ test('new game: suit select, intro comic, then play', async ({ page }) => {
   await page.locator('.mbtn.primary').click();
   await page.locator('.suit-card.suit-m').click();
   await page.waitForFunction(() => window.__game.flow?.mode === 'cutscene', null, { timeout: 30000 });
-  await expect(page.locator('.comic.show')).toBeVisible();
+  // The intro now plays an optional cinematic push-in (window.__game.cinematic) ahead of the comic
+  // pages; Escape skips whichever of the two is currently up.
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.comic.show')).toBeVisible({ timeout: 10000 });
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => window.__game.flow.mode === 'play', null, { timeout: 10000 });
   expect(await page.locator('.hud-caption .obj').textContent()).toContain('Batsignal');
