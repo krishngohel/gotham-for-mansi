@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { createBat, createGoon, createJoker } from '../actors/characters.js';
 import { createNightwingCharacter } from '../actors/nightwingChar.js';
+import { createHarleyCharacter } from '../actors/harleyChar.js';
 import { createCape } from '../actors/cape.js';
 import { createPillar, createRingMesh, createVan, createLootBags } from '../world/sideProps.js';
 import { createGadgetWarm } from '../gadgets/gadgetFx.js';
@@ -41,6 +42,9 @@ export function createWarmCast(assets) {
   // compiles a shader or uploads a texture on its first real spawn.
   add(createNightwingCharacter(assets, 'ally'), (x += 2));
   add(createNightwingCharacter(assets, 'crasher'), (x += 2));
+  // Harley Quinn (the Act 2 mini-boss, src/actors/harleyChar.js): her split suit, pigtails and
+  // mallet compiled here so her first spawn doesn't build a program.
+  add(createHarleyCharacter(assets), (x += 2));
   // Every gadget material and geometry (gel, ice, smoke, confetti, lines, debris, textured
   // breakables): drawn once here so no gadget compiles a shader on first use.
   group.add(createGadgetWarm());

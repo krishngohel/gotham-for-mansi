@@ -74,7 +74,7 @@ describe('story data', () => {
   it('fights have waves of known enemy types', () => {
     for (const [id, f] of Object.entries(FIGHTS)) {
       expect(f.waves.length, id).toBeGreaterThan(0);
-      for (const w of f.waves) for (const e of w) expect(['grunt', 'knife', 'brute', 'rifle']).toContain(e.type);
+      for (const w of f.waves) for (const e of w) expect(['grunt', 'knife', 'brute', 'rifle', 'harley']).toContain(e.type);
     }
   });
 });

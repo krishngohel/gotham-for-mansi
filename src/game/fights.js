@@ -1,9 +1,14 @@
 // Encounters. Positions are offsets (dx, dz) from the fight's site; y is found by collision.
 import { stealthFight } from '../stealth/stealthRooms.js';
+import { SITES } from '../world/mapData.js';
 
 const g = (dx, dz) => ({ type: 'grunt', dx, dz });
 const k = (dx, dz) => ({ type: 'knife', dx, dz });
 const b = (dx, dz) => ({ type: 'brute', dx, dz });
+const h = (dx, dz) => ({ type: 'harley', dx, dz });
+// The interiors builder (Part I) adds SITES.aceHall; fall back to the open Ace Chemicals yard
+// so this fight def works whether or not that part has landed yet.
+const HARLEY_SITE = SITES.aceHall ? 'aceHall' : 'aceYard';
 
 export const FIGHTS = {
   docksRoof: { site: 'wh3Roof', radius: 14, waves: [[g(-4, -5), g(5, -3)]] },
@@ -18,4 +23,6 @@ export const FIGHTS = {
   // Predator rooms (Part D): a squad on patrol routes that the stealth runtime drives.
   monarchBalcony: stealthFight('monarchBalcony'),
   aceCatwalks: stealthFight('aceCatwalks'),
+  // Act 2's Harley Quinn mini-boss fight. Wave 1: Harley and 3 goons. Wave 2: 2 knives.
+  harleyHall: { site: HARLEY_SITE, radius: 16, waves: [[h(0, 0), g(-5, -4), g(5, -4), g(0, 6)], [k(-4, 4), k(4, 4)]] },
 };
