@@ -140,6 +140,9 @@ const RAW = [
     // the clock tower roof) and ejects her into a glide when it ends.
     id: 'wingWalk', name: 'Wing Walk', kind: 'rings',
     blurb: 'Call the Batwing and fly the ring course around the clock tower.',
+    // Powered flight, not a glide: scripts/course-check.mjs's climb check (built for the
+    // glide-only ring courses) does not apply here.
+    poweredFlight: true,
     // On the clock tower's own roof (the "hall" landmark, matching the arena site nearby), not
     // in open air: the pillar has to be somewhere Mansi can actually walk up to on foot.
     start: { x: -62, y: 58, z: -154, yaw: 0 },
