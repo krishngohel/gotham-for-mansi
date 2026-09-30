@@ -32,7 +32,13 @@ function paintRegions(mesh, classify, colors, lm) {
   mesh.geometry.setAttribute('color', new THREE.BufferAttribute(out, 3));
 }
 
-function makeCharacter(assets, bodyKey) {
+// Exported for allies/nightwingChar.js: the same character factory and vertex-paint helpers the
+// hero suits use (paintRegions is the gold suit's own code-painting path), so a new cast member
+// can be built without duplicating the rig, foot-planting or region-painting machinery.
+export function makeCharacter(assets, bodyKey) { return buildCharacter(assets, bodyKey); }
+export { paintRegions, rigidMesh };
+
+function buildCharacter(assets, bodyKey) {
   const root = new THREE.Group();
   // root (position, yaw) -> tilt (pitch/roll around the hips) -> model
   const tilt = new THREE.Group();

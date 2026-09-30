@@ -6,6 +6,7 @@
 // programs and uploaded textures.
 import * as THREE from 'three';
 import { createBat, createGoon, createJoker } from '../actors/characters.js';
+import { createNightwingCharacter } from '../actors/nightwingChar.js';
 import { createCape } from '../actors/cape.js';
 import { createPillar, createRingMesh, createVan, createLootBags } from '../world/sideProps.js';
 import { createGadgetWarm } from '../gadgets/gadgetFx.js';
@@ -36,6 +37,10 @@ export function createWarmCast(assets) {
   // sighting (a new hoop, the crime van) from uploading anything mid-play.
   [createPillar(), createRingMesh(), createVan(), createLootBags()].forEach((m, i) => { m.position.set(40 + i * 5, -50, 0); group.add(m); });
   add(createJoker(assets), (x += 2));
+  // Nightwing (Part N): both looks, so neither the ally suit nor the Party Crasher disguise
+  // compiles a shader or uploads a texture on its first real spawn.
+  add(createNightwingCharacter(assets, 'ally'), (x += 2));
+  add(createNightwingCharacter(assets, 'crasher'), (x += 2));
   // Every gadget material and geometry (gel, ice, smoke, confetti, lines, debris, textured
   // breakables): drawn once here so no gadget compiles a shader on first use.
   group.add(createGadgetWarm());

@@ -55,6 +55,7 @@ import { createBreakables } from '../world/breakables.js';
 import { createChainFx } from './chainFx.js';
 import { createSwarmFx } from './swarmFx.js';
 import { createEncounters } from './encounters.js';
+import { createNightwing } from '../allies/nightwing.js';
 import { createBalloons } from './balloons.js';
 import { createFlow } from './flow.js';
 import { STEPS } from './story.js';
@@ -593,6 +594,11 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     scene.add(marker);
 
     const ctx = { input, cam: follow, grappleTarget: null, fx, chainFx, swarmFx };
+    // ---- Part N: Nightwing (src/allies/nightwing.js) ----
+    const nightwing = createNightwing({ assets, scene, collision: world.collision, events, combat, hero, rng, ctx });
+    events.on('crasherTaunt', ({ text }) => hud.card('PARTY CRASHER', text, 2500));
+    events.on('teamTakedown', ({ target }) => events.emit('word', { text: 'TEAM UP!', pos: target.ch.headWorld(new THREE.Vector3(), -0.3), big: true }));
+    // ---- end Part N ----
     let lastCombo = -1;
     let chainLabels = ['1', '2', '3'];
     let swarmLabel = '4';
@@ -662,6 +668,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         }
         gadgets.update(real, dt, ctx);
         stealth.update(dt);
+        nightwing.update(dt); // Part N: before combat.update, so a team takedown can lock ctx.lockInput for this frame
         combat.update(dt, ctx);
         hero.update(dt, ctx);
         batwing.update(dt, real);
@@ -739,7 +746,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
 
     const api = {
       hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, despawn, side,
-      batwing,
+      batwing, nightwing,
       // Impact frames test hook: pin(ms) samples `ms` into the sequence the next fire() starts.
       impact: {
         fire: (tier, target) => fireImpact(tier, target),
