@@ -20,6 +20,14 @@ await page.evaluate(() => {
   const G = window.__game;
   G.__unlocked = [];
   G.events.on('gadgetUnlocked', ({ id }) => G.__unlocked.push(id));
+  // The real Batmobile/Batwing minigames (chase, battle, armada) need a human at the wheel or the
+  // stick; they have their own dedicated verification (VEH-REPORT.md, WING-REPORT.md). This script
+  // verifies the STORY, so it takes flow.js's own degrade path for those three steps instead
+  // (radio lines, then a short timer) by hiding the parts from window.__game, exactly the way the
+  // story plays when a part is missing entirely. Nightwing and Interiors are left alone: 'crasher'
+  // / 'ally' / 'interior' steps complete quickly either way and are worth exercising for real.
+  G.vehicles = null;
+  G.batwing = null;
 });
 
 const state = () => page.evaluate(() => {
@@ -27,12 +35,17 @@ const state = () => page.evaluate(() => {
   return { id: s?.id ?? null, type: s?.type ?? null, mode: G.flow.mode, site: G.flow.target, phase: G.boss?.phase, joker: G.boss?.joker.state };
 });
 let shotN = 0;
-// Part S: skip radio dialogue instantly (a real player reads it at typewriter pace; the script
-// just needs the beat to finish so its async step, if any, can proceed or degrade).
-async function skipRadio() { await page.evaluate(() => { if (window.__game.radio?.playing) window.__game.radio.skip(); }); }
+// Part S: skip radio dialogue and any cinematic instantly (a real player reads/watches them at
+// their own pace; the script just needs each beat to finish so its step, if any, can proceed).
+async function skipTalk() {
+  await page.evaluate(() => {
+    if (window.__game.cinematic?.active) window.__game.cinematic.skip();
+    if (window.__game.radio?.playing) window.__game.radio.skip();
+  });
+}
 for (let guard = 0; guard < 600; guard++) {
   await page.waitForTimeout(400);
-  await skipRadio();
+  await skipTalk();
   const s = await state();
   if (process.env.DEBUG_TRACE) console.log(guard, JSON.stringify(s));
   if (!s.id) break;
