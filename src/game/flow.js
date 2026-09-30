@@ -178,15 +178,23 @@ export function createFlow(d) {
     events.emit('step', { step: s, index: objectives.index });
     if (s.type === 'fight') encounters.begin(s.fight);
     if (s.type === 'cutscene' && s.scene === 'finale') {
-      mode = 'finale';
-      document.exitPointerLock?.();
-      hud.setVisible(false);
       radio?.skip();
-      playCinematicFor(s).then(() => d.finale.play()).then(() => { hud.setVisible(true); mode = 'play'; advance({ type: 'cutsceneDone', scene: 'finale' }); });
+      // mode stays 'play' through any cinematic first (same reason as the general cutscene branch
+      // below): cinematic.update() only ticks under mode 'play'. Switch to 'finale' only once the
+      // cinematic (if any) has handed off to the fireworks sequence itself.
+      playCinematicFor(s).then(() => {
+        mode = 'finale';
+        document.exitPointerLock?.();
+        hud.setVisible(false);
+        return d.finale.play();
+      }).then(() => { hud.setVisible(true); mode = 'play'; advance({ type: 'cutsceneDone', scene: 'finale' }); });
     } else if (s.type === 'cutscene') {
       const REWARD = { presents: 'presents', party: 'party', cake: 'cake' };
       if (s.scene === 'party') d.neonParty?.show();
-      mode = 'cutscene'; // set now, even while a cinematic (if any) plays ahead of the comic itself
+      // mode stays 'play' while any cinematic plays first: cinematic.update() (src/game/game.js)
+      // only ticks under mode 'play', since it manages its own pause (hero.frozen) rather than
+      // needing flow's own cutscene mode. playScene() below still sets mode to 'cutscene' itself,
+      // once the comic actually starts.
       playCinematicFor(s).then(() => playScene(s.scene)).then(() => {
         if (REWARD[s.scene]) pickups.hide(REWARD[s.scene]);
         advance({ type: 'cutsceneDone', scene: s.scene });
