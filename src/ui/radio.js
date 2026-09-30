@@ -10,12 +10,15 @@ const ADVANCE_KEYS = new Set(['Space', 'Enter', 'NumpadEnter', 'KeyE']);
 export function createRadio(root, { onSound = () => {} } = {}) {
   const queue = createRadioQueue();
   const el = document.createElement('div');
-  el.className = 'radio-panel';
-  el.innerHTML = '<div class="radio-portrait"></div><div class="radio-body"><div class="radio-name"></div><div class="radio-text"></div></div>';
+  // 'dlg-' (dialogue), not 'radio-': src/ui/sideHud.js already owns the unrelated crime-dispatch
+  // radio toast under class "radio" / "radio-title" / "radio-text" (top-left, over the combo
+  // counter). Different names keep the two panels' CSS from colliding.
+  el.className = 'dlg-panel';
+  el.innerHTML = '<div class="dlg-portrait"></div><div class="dlg-body"><div class="dlg-name"></div><div class="dlg-text"></div></div>';
   root.appendChild(el);
-  const portraitEl = el.querySelector('.radio-portrait');
-  const nameEl = el.querySelector('.radio-name');
-  const textEl = el.querySelector('.radio-text');
+  const portraitEl = el.querySelector('.dlg-portrait');
+  const nameEl = el.querySelector('.dlg-name');
+  const textEl = el.querySelector('.dlg-text');
   let shownSpeaker = null;
   let lastLine = null;
 
