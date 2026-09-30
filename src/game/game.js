@@ -63,6 +63,7 @@ import { STEPS } from './story.js';
 import { migrateProgress } from './storyMigrate.js';
 import { wireAudio } from './sound.js';
 import { createBoss } from './boss.js';
+import { createVehicles } from '../vehicles/vehicles.js';
 import { tracker } from './progressTracker.js';
 import { goldStandardPages, fromKrishnPages } from './rewardPages.js';
 import { createFinale } from './finale.js';
@@ -279,6 +280,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       stealthHold: (action, target) => stealth?.hold(action, target) ?? false,
     });
     hero.combat = combat;
+    // ---- Part V1: ground vehicles (src/vehicles/vehicles.js) ----
+    const vehicles = createVehicles({ scene, collision: world.collision, hero, events, input, follow, combat, fx, hudRoot });
     // Predator stealth: room goons, perches, silent takedowns and perch drops (Part D).
     stealth = createStealth({ hero, combat, events, collision: world.collision, perches: world.grapplePoints.filter((p) => p.perch), rng });
     // Predator visuals (src/stealth/stealthFx.js): vision cones, laser sights, tracers and flashes.
@@ -666,6 +669,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         combat.update(dt, ctx);
         hero.update(dt, ctx);
         batwing.update(dt, real);
+        // ---- Part V1: ground vehicles hook (src/vehicles/vehicles.js) ----
+        vehicles.update(dt, real);
         side.update(dt, real, { toScreen });
         fx.update(dt, real);
         fxView.detective = !!state.detectiveOn;
@@ -740,7 +745,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
 
     const api = {
       hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, despawn, side,
-      batwing, nightwing, radio,
+      batwing, nightwing, radio, vehicles,
       // Impact frames test hook: pin(ms) samples `ms` into the sequence the next fire() starts.
       impact: {
         fire: (tier, target) => fireImpact(tier, target),

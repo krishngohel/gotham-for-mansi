@@ -12,6 +12,8 @@ const MODES = {
   hang: { dist: 4.2, height: 0.6, side: 0.35, fov: 4 },
   wallrun: { dist: 4.4, height: 1.4, side: 0.2, fov: 10 },
   dive: { dist: 5.5, height: 2.2, side: 0, fov: 14 },
+  // Ground vehicles (Part V1): behind and low, with its own speed FOV kick below.
+  drive: { dist: 7.2, height: 1.7, side: 0, fov: 4 },
   // Perch drop: the orbit numbers only matter for the hand-back; see DROP_UP below.
   drop: { dist: 5.5, height: 2.2, side: 0, fov: 8 },
   chain: { dist: 4.8, height: 1.6, side: 0.2, fov: 2 },
@@ -109,7 +111,7 @@ export function createFollowCamera(camera, collision) {
       s.dist += (m.dist - s.dist) * k;
       s.height += (m.height - s.height) * k;
       s.side += (m.side - s.side) * k;
-      const speedKick = mode === 'glide' ? Math.min(10, speed * 0.3) : mode === 'fly' ? Math.min(9, speed * 0.09) : 0;
+      const speedKick = mode === 'glide' ? Math.min(10, speed * 0.3) : mode === 'fly' ? Math.min(9, speed * 0.09) : mode === 'drive' ? Math.min(14, speed * 0.22) : 0;
       s.fovKick += (m.fov + speedKick - s.fovKick) * k;
       s.hitKick *= Math.exp(-dt * 14);
 

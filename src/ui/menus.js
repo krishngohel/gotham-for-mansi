@@ -15,6 +15,7 @@ const PAD_LAYOUT = [
   ['Chain takedowns', 'Hold Y, then D-pad left, up or right'], ['Chain takedown 4 (Bat Swarm)', 'Hold Y, then LB'],
   ['Gadget wheel', 'Hold RB, pick with the right stick'],
   ['Detective vision', 'View'], ['Photo mode', 'D-pad up'], ['Pause', 'Menu'],
+  ['Vehicle: summon, enter or exit', 'D-pad left'],
 ];
 
 // Some gadget prompts already open with "Name: ..." (see src/ui/prompts.js); the help list
