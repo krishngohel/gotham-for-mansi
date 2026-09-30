@@ -9,13 +9,20 @@ async function collectErrors(page) {
 async function boot(page, query) {
   await page.goto(`/?${query}`);
   await page.waitForFunction(() => window.__game?.gadgets && window.__game?.wayne, null, { timeout: 90000 });
+  // A query with no ?at= (this file's first test) lands on 'intro', which may play an optional
+  // cinematic (window.__game.cinematic) ahead of its comic; skip both, in order.
+  await page.evaluate(() => window.__game.cinematic?.skip());
+  await page.waitForFunction(() => !window.__game.cinematic?.active, null, { timeout: 10000 }).catch(() => {});
   await page.evaluate(() => window.__game.comic.playing && window.__game.comic.skip());
   await page.waitForTimeout(800);
 }
 
 test('the gadget wheel opens on Tab, 3 picks gel, and no chain fires', async ({ page }) => {
   const errors = await collectErrors(page);
-  await boot(page, 'fight=test&god=1&gadgets=all');
+  // at=signal: this test is about the gadget wheel over the GCPD-roof combat sandbox, not the
+  // story; skips the intro's comic (and its optional cinematic) so the awakened ?fight=test squad
+  // can't land a free hit on Mansi during that handoff before the assertions below run.
+  await boot(page, 'fight=test&god=1&gadgets=all&at=signal');
   await page.keyboard.down('Tab');
   await page.waitForTimeout(300);
   await expect(page.locator('.gwheel.show')).toBeVisible();

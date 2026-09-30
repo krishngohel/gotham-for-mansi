@@ -1,10 +1,104 @@
-# Part V2: The Batwing, plus the cinematic camera - Report
+# Part V2: The Batwing, the cinematic camera, and the finale party - Report
 
 Branch `wing`, on top of `main` (b13c946). Commits:
 - `9d84eb7` Batwing (Part V2): call it, fly it, pop the Joker balloon armada
 - `41ab0e2` Batwing: fix the silhouette read per review (coordinator feedback pass)
 - `5a31bc7` Add the Part V2 (Batwing) report
 - `14f5c06` In-engine cinematic camera: sliding letterbox, HUD fade, radio/subtitle lines
+- `74aced8` Fix radio.say call: takes a list of lines, not (text, line)
+- `10ce22d` Finale rooftop party: guests join in, celebrate() brings it to life
+- `502a154` Party fix: one cake, a clear helipad, guests arced around a dance floor
+- (merge) Merge night into wing (no conflicts): story, radio, vehicles, Nightwing, interiors
+- `3036558` Party: use the real Nightwing's actor/despawn contract correctly
+- `8c4c165` Wire the party to story progress
+
+## Part 4: wiring the party to story progress
+
+`src/game/partyStory.js` (pure, no three.js/DOM) maps the story step whose start confirms a
+guest's rescue to that guest:
+
+| Step id | Guest(s) | Why |
+|---|---|---|
+| `aceClueRadio` | `dj` | right after `party` (Act 1) recovers the DJ's rig |
+| `rewardCake` | `baker` | right after `cake` (Act 2) is saved |
+| `crasherReveal` | `nightwing` | the mask comes off |
+| `rescueGuestsRadio` | `band`, `kids` | Act 3: "found the band... the rest of the guest list" |
+| `finale` | `gordon`, `alfred` | plus `party.celebrate()`, the moment the finale cutscene starts |
+
+`guestsUpTo(stepIndex, STEPS)` and `celebrateAt(stepIndex, STEPS)` are both pure and reused for
+two cases: live, off `flow.js`'s own `'step'` event (`enterStep()` emits it for every step,
+including the finale cutscene itself, `s.type === 'cutscene' && s.scene === 'finale'`), and once
+at hook creation against `progress.step`, so a resumed (or already-finished) save catches up
+immediately instead of waiting for a `'step'` event that, past credits, never fires again. All of
+this lives in the party hook in `game.js`; `story.js` and `flow.js` were not touched.
+
+While merging in the real `window.__game.nightwing` (from `night`, no conflicts), fixed two bugs
+in the party's Nightwing guest builder: `spawn(p, mode)` returns the controller, not the
+character (`.actor` is the getter for that), and `reset()` now calls nightwing's own `despawn()`
+for that guest instead of pulling his root out of the scene directly, since he is externally owned.
+Note: his own combat AI (`updateAlly`, run every frame) keeps steering his animation, so
+`celebrate()`'s `Dance_Loop` may not visibly stick on the real actor, only the look-alike fallback
+used when Nightwing is not spawned as an ally elsewhere.
+
+### Verification
+
+`npx vitest run`: 988 passed. New: `tests/unit/partyStory.test.js` (every `STEP_GUESTS` entry is a
+real guest id, every guest id is covered by exactly one step, `guestsUpTo` accumulates correctly
+as the story advances and has everyone by the finale, `celebrateAt` flips at the right index).
+Browser: `?at=aceClueRadio&god=1&new=1` gave `party.guests === ['dj']` exactly, screenshotted (the
+GCPD roof shows only the DJ booth, no other guest or decoration, alongside Gordon's own "The DJ
+says thank you" radio line on screen). `?at=finale&god=1&new=1` gave `party.guests` with all seven
+ids and `flow.mode === 'finale'`; screenshotted mid-cutscene with fireworks, the HAPPY BIRTHDAY
+MANSI signal and banners, the cake and every guest all present at once.
+
+## Part 3: the finale rooftop party
+
+`createParty({ scene, assets, events, gfx, finale })` in `src/game/party.js`, exposed as
+`window.__game.party`:
+
+```js
+party.addGuest(id)  // 'dj' | 'baker' | 'band' | 'gordon' | 'alfred' | 'nightwing' | 'kids'
+party.celebrate()
+party.guests          // getter: ids added so far
+party.reset()
+```
+
+Each guest is a civilian body (`createGoon(assets, { type: 'civilian' })`) with code-painted
+primitive props on top (hats, a coat, an apron and toque, glasses, a tray, instruments) rather
+than a new outfit; positions are pure data in `src/game/partySlots.js`, unit tested for no
+overlaps, clearance from `finale.js`'s own furniture, and a 5 m keepout around `SITES.start`,
+`SITES.signal` (the Batsignal). `celebrate()` sets every guest dancing (`Dance_Loop`), reuses the
+party popper's own confetti burst and sky lettering (`gfx.confetti`, `src/gadgets/gadgetFx.js`)
+for HAPPY BIRTHDAY MANSI, and calls `finale.freeRoam()` for fireworks rather than building a
+second firework system.
+
+Reused instead of duplicated: `createPartyKit()` (speakers, crates, disco ball) for the DJ booth,
+and `finale.js`'s own cake prop for the baker, who now just stands beside it (see the coordinator
+feedback below) instead of bringing a second cake.
+
+**Coordinator review fix (`502a154`):** the first pass placed a second cake next to `finale.js`'s
+own, and put the DJ 4.47 m from `SITES.signal`, inside the 5 m Batman needs to land clear.
+Dropped the party's cake (the baker stands beside the existing one instead) and re-laid every
+guest slot in a loose arc around a dance floor between the DJ booth and the cake, all clearing a
+new 5 m keepout around `SITES.start`/`SITES.signal` in addition to the existing furniture check.
+
+String lights (small bulbs, merged into one geometry via `mergeGeometries`, matching
+`src/world/buckets.js`'s own approach) and two canvas-drawn "HAPPY BIRTHDAY MANSI" banners
+(`MANSI.finaleSignal`) are built once per run.
+
+### Verification
+
+`npx vitest run`: 916 passed. New: `tests/unit/partySlots.test.js` (every guest id has a slot,
+band/kids cluster correctly, no two guest spots overlap, every spot clears `finale.js`'s furniture
+and the 5 m keepout). Browser: built + previewed on port 5283, all seven guests added, `celebrate()`
+called, screenshotted with the cinematic camera (an easy way to hold a still frame) from the roof's
+edge looking in: the helipad and the Batsignal are clear, the cake and presents each appear once,
+and guests dance in a loose ring around the DJ booth and the cake, confetti falling, sky lettering
+and banners reading HAPPY BIRTHDAY MANSI. `ONLY=main` fps sweep: every steady scenario's p95 was
+comfortably under the 6.9 ms budget on a clean run (an earlier run showed some scenarios over
+budget, which cleared on retry and lines up with heavy concurrent load from the night's other
+worktrees, not a regression from this branch: party.js's `update()` is nearly free when no guest
+has been added, and none of the sweep's own scenarios add one).
 
 ## Part 2: the in-engine cinematic camera (added after the Batwing shipped)
 

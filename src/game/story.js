@@ -17,10 +17,28 @@
 import { HARLEY_FIGHT } from './fights.js';
 
 const g = (speaker, text) => ({ speaker, portrait: speaker, text });
+const c = (who, text) => ({ who, text });
+
+// Cinematic camera moments (window.__game.cinematic, from the 'night' integration branch): a
+// letterboxed in-engine shot layered before the matching comic/radio beat. Optional by design
+// (flow.js's playCinematicFor degrades to nothing when the part isn't there), so these four moments
+// still play their existing comic pages or dialogue either way.
+const CINEMATIC = {
+  // Prologue: a slow push toward the Batsignal as it turns into a cake.
+  intro: { shots: [{ from: { x: -26, y: 52, z: 8 }, to: { x: -7, y: 44.4, z: -7 }, look: { x: -12, y: 43.6, z: -12 }, dur: 5 }], lines: [c('joker', 'Good evening, Gotham. Do try to keep up.')] },
+  // Act openers: an establishing orbit over the act's district.
+  actOne: { orbit: { center: { x: -30, y: 24, z: 185 }, radius: 62, height: 26, dur: 6 }, lines: [c('alfred', 'The Docks, and Neon Row beyond them. Rather a lot of city for one birthday.')] },
+  actTwo: { orbit: { center: { x: 140, y: 20, z: -150 }, radius: 58, height: 28, dur: 6 }, lines: [c('gordon', 'Ace Chemicals. Whatever he is cooking up in there, it will not be subtle.')] },
+  actThree: { orbit: { center: { x: -95, y: 24, z: -155 }, radius: 68, height: 32, dur: 6 }, lines: [c('gordon', 'The clock plaza. Midnight is close, and so is he.')] },
+  // The Crasher's mask comes off: a push toward Nightwing by the Ace Chemicals gate.
+  crasherReveal: { shots: [{ from: { x: 194, y: 15, z: -102 }, to: { x: 183, y: 11, z: -113 }, look: { x: 184, y: 10.5, z: -112 }, dur: 5 }], lines: [c('nightwing', 'Surprise. Sort of.')] },
+  // The finale: a push over the GCPD roof party before the fireworks take it from here.
+  finale: { shots: [{ from: { x: -6, y: 50, z: 26 }, to: { x: 6, y: 43.5, z: 12 }, look: { x: 6, y: 42, z: 6 }, dur: 5 }], lines: [c('gordon', 'Happy birthday, Mansi. Gotham owes you one.')] },
+};
 
 export const STEPS = [
   // ---------------------------------------------------------------- Prologue: GCPD roof
-  { id: 'intro', type: 'cutscene', scene: 'intro' },
+  { id: 'intro', type: 'cutscene', scene: 'intro', cinematic: CINEMATIC.intro },
   { id: 'signal', text: 'Something is stuck to the Batsignal. Go and look.', site: 'signal', radius: 4.5, tutorial: ['move', 'look'], checkpoint: 'start' },
   { id: 'card', type: 'cutscene', scene: 'card' },
   {
@@ -36,7 +54,7 @@ export const STEPS = [
     id: 'crasherIntro', type: 'crasher', text: 'A masked figure is getting away with the first gift.', at: 'signal', to: 'wh3Roof',
     lines: [g('crasher', 'Nothing personal, birthday girl. Catch me if you can.')],
   },
-  { id: 'actOneTitle', type: 'cutscene', scene: 'actOne' },
+  { id: 'actOneTitle', type: 'cutscene', scene: 'actOne', cinematic: CINEMATIC.actOne },
 
   // ---------------------------------------------------------------- Act 1: Docks and Neon Row
   { id: 'toDocks', text: 'The presents are at the Docks. Glide there.', site: 'wh3Roof', radius: 16, tutorial: ['glide', 'dive', 'grapple'], checkpoint: 'signal' },
@@ -70,7 +88,7 @@ export const STEPS = [
   { id: 'toMonarch', text: 'The party is on the Monarch Theater roof.', site: 'monarchRoof', radius: 14, checkpoint: 'neonStreet' },
   { id: 'n3', type: 'fight', fight: 'monarch', text: 'Crash the party crashers.', tutorial: ['special'] },
   {
-    id: 'crasherRooftop', type: 'crasher', text: 'The masked man is right there.', at: 'monarchRoof', to: 'monarchBalconyEntry',
+    id: 'crasherRooftop', type: 'crasher', text: 'The masked man is right there.', at: 'monarchRoof', to: 'monarchBalconyEntry', checkpoint: 'monarchRoof',
     lines: [
       g('mansi', 'Nowhere left to run.'),
       g('crasher', 'Wrong again.'),
@@ -89,7 +107,7 @@ export const STEPS = [
   },
 
   // ---------------------------------------------------------------- Act 2: Ace Chemicals
-  { id: 'actTwoTitle', type: 'cutscene', scene: 'actTwo' },
+  { id: 'actTwoTitle', type: 'cutscene', scene: 'actTwo', cinematic: CINEMATIC.actTwo },
   { id: 'toAce', text: 'Something smells like frosting at Ace Chemicals. Go north.', site: 'aceYard', radius: 16, checkpoint: 'party' },
   {
     id: 'aceBattle', type: 'battle', text: 'Drone tanks are dug in across the yard. Use the cannon.', site: 'aceYard',
@@ -112,7 +130,7 @@ export const STEPS = [
   { id: 'cake', type: 'collect', item: 'cake', site: 'cake', radius: 3, text: "Save the baker's cake.", checkpoint: 'vatDeck' },
   { id: 'rewardCake', type: 'cutscene', scene: 'cake' },
   {
-    id: 'crasherReveal', type: 'radio', text: 'The masked man is waiting by the gate, mask in hand.', checkpoint: 'cake',
+    id: 'crasherReveal', type: 'radio', text: 'The masked man is waiting by the gate, mask in hand.', checkpoint: 'cake', cinematic: CINEMATIC.crasherReveal,
     lines: [
       g('crasher', 'Before you swing at me again, you should probably see who you have been chasing.'),
       g('nightwing', "Nightwing. Surprise. Well, it WAS supposed to be a surprise, before I kept grabbing your gifts on camera."),
@@ -123,16 +141,16 @@ export const STEPS = [
   },
 
   // ---------------------------------------------------------------- Act 3: The Clock Plaza
-  { id: 'actThreeTitle', type: 'cutscene', scene: 'actThree' },
+  { id: 'actThreeTitle', type: 'cutscene', scene: 'actThree', cinematic: CINEMATIC.actThree },
   {
-    id: 'armadaRun', type: 'armada', text: 'The Joker has balloons rigged over the clock plaza. Take the Batwing through them.', site: 'balcony', balloons: 14, checkpoint: 'balcony',
+    id: 'armadaRun', type: 'armada', text: 'The Joker has balloons rigged over the clock plaza. Take the Batwing through them.', site: 'balcony', balloons: 14, checkpoint: 'arena',
     lines: [
       g('nightwing', "Batwing's yours whenever you call it. I will meet you on the ground."),
       g('joker', 'Up, up and away! Try not to pop too many of my party balloons, party girl!'),
     ],
   },
   {
-    id: 'nightwingTagRadio', type: 'radio', text: 'Gordon and Nightwing are both on the line.', checkpoint: 'balcony',
+    id: 'nightwingTagRadio', type: 'radio', text: 'Gordon and Nightwing are both on the line.', checkpoint: 'arena',
     lines: [
       g('gordon', "GCPD is holding the plaza perimeter. Nobody else gets in or out until you're done."),
       g('nightwing', "And I am holding the middle of it. Let's finish this together."),
@@ -141,7 +159,7 @@ export const STEPS = [
   { id: 'nightwingAlly', type: 'ally', text: 'Nightwing has your back for this one.', at: 'balcony' },
   { id: 'plazaFight', type: 'fight', fight: 'plaza', text: 'Clear the plaza with Nightwing at your side.' },
   {
-    id: 'toFunhouse', type: 'interior', text: 'The last of the party is behind the funhouse door in the old cathedral.', site: 'funhouse', room: 'funhouse', radius: 12, checkpoint: 'balcony',
+    id: 'toFunhouse', type: 'interior', text: 'The last of the party is behind the funhouse door in the old cathedral.', site: 'funhouseDoor', room: 'funhouse', radius: 10, checkpoint: 'arena',
     lines: [g('nightwing', 'Funhouse door, dead ahead. This is exactly as safe as it sounds, which is to say, not very.')],
   },
   { id: 'funhouseFight', type: 'fight', fight: 'funhouseFight', text: "Fight through the Joker's funhouse floor." },
@@ -155,7 +173,7 @@ export const STEPS = [
   },
   { id: 'toTower', text: 'The Joker is waiting at the clock tower. End this.', site: 'arena', radius: 18, checkpoint: 'funhouse' },
   { id: 'boss', type: 'boss', text: 'Defeat the Joker.', checkpoint: 'arena' },
-  { id: 'finale', type: 'cutscene', scene: 'finale' },
+  { id: 'finale', type: 'cutscene', scene: 'finale', cinematic: CINEMATIC.finale },
   { id: 'credits', type: 'credits' },
 ];
 

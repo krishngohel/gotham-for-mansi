@@ -26,6 +26,9 @@ test('new game: suit select, intro comic, then play', async ({ page }) => {
   await page.waitForFunction(ready, null, { timeout: 90000 });
   await page.locator('.mbtn.primary').click();
   await page.locator('.suit-card.suit-m').click();
+  // The intro now plays an optional cinematic push-in (window.__game.cinematic) ahead of the comic
+  // pages; flow.mode stays 'play' for that (cinematic manages its own hero freeze) and only
+  // becomes 'cutscene' once the comic itself actually starts, so this still needs one Escape.
   await page.waitForFunction(() => window.__game.flow?.mode === 'cutscene', null, { timeout: 30000 });
   await expect(page.locator('.comic.show')).toBeVisible();
   await page.keyboard.press('Escape');

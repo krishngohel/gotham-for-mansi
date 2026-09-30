@@ -75,6 +75,9 @@ export function createFlow(d) {
         G.vehicles.startChase({ path: step.path ?? null, onDone: (r) => done(r?.ok !== false) });
         return true;
       case 'battle':
+        // startBattle summons (instant) and enters the Batmobile itself when Mansi isn't already
+        // driving it, so no manual summon/enter here (doing it first, as with chase, would only
+        // race its own internal check).
         if (!G.vehicles?.startBattle) return false;
         G.vehicles.startBattle({ site: siteOf(step), drones: step.drones ?? 6, onDone: (r) => done(r?.ok !== false) });
         return true;
@@ -101,24 +104,46 @@ export function createFlow(d) {
     }
   }
 
+  // A letterboxed in-engine camera moment (window.__game.cinematic, from the night branch) before
+  // a step's own comic or dialogue. `step.cinematic` is either { shots, lines } (played as-is) or
+  // { orbit: { center, radius, height, dur, opts }, lines } (an establishing arc). Degrades to an
+  // already-resolved promise when the step has none, or the part isn't there.
+  function playCinematicFor(step) {
+    const spec = step.cinematic;
+    if (!spec) return Promise.resolve();
+    return new Promise((resolve) => {
+      const C = theGame()?.cinematic;
+      if (!C) { resolve(); return; }
+      const opts = { lines: spec.lines ?? [], onDone: resolve };
+      const started = spec.orbit
+        ? C.orbit(spec.orbit.center, spec.orbit.radius, spec.orbit.height, spec.orbit.dur, { ...(spec.orbit.opts ?? {}), ...opts })
+        : C.play(spec.shots, opts);
+      if (!started) resolve();
+    });
+  }
+
   // Plays a step's radio lines (if any), then either lets the real part run or, when it (or the
   // whole module) is missing, completes on a short timer. A pure 'radio' beat is done as soon as
   // its lines finish: the dialogue was the whole mission.
   function startAsync(step) {
     const done = (ok = true) => finishAsync(step, ok);
-    const proceed = () => {
-      if (step.type === 'radio') { done(true); return; }
-      if (tryReal(step, done)) return;
-      setTimeout(() => done(true), DEGRADE_MS);
+    const afterCinematic = () => {
+      const proceed = () => {
+        if (step.type === 'radio') { done(true); return; }
+        if (tryReal(step, done)) return;
+        setTimeout(() => done(true), DEGRADE_MS);
+      };
+      if (step.lines?.length && radio) radio.say(step.lines).then(proceed);
+      else proceed();
     };
-    if (step.lines?.length && radio) radio.say(step.lines).then(proceed);
-    else proceed();
+    playCinematicFor(step).then(afterCinematic);
   }
 
   async function playScene(name) {
     mode = 'cutscene';
     document.exitPointerLock?.();
     hud.setVisible(false);
+    radio?.skip(); // a comic page takes the whole screen; any dialogue beat still up steps aside
     events.emit('cutscene', { name, on: true });
     const pages = SCENES[name] ? SCENES[name](stage) : [];
     if (pages.length) await comic.play(pages);
@@ -148,14 +173,24 @@ export function createFlow(d) {
     events.emit('step', { step: s, index: objectives.index });
     if (s.type === 'fight') encounters.begin(s.fight);
     if (s.type === 'cutscene' && s.scene === 'finale') {
-      mode = 'finale';
-      document.exitPointerLock?.();
-      hud.setVisible(false);
-      d.finale.play().then(() => { hud.setVisible(true); mode = 'play'; advance({ type: 'cutsceneDone', scene: 'finale' }); });
+      radio?.skip();
+      // mode stays 'play' through any cinematic first (same reason as the general cutscene branch
+      // below): cinematic.update() only ticks under mode 'play'. Switch to 'finale' only once the
+      // cinematic (if any) has handed off to the fireworks sequence itself.
+      playCinematicFor(s).then(() => {
+        mode = 'finale';
+        document.exitPointerLock?.();
+        hud.setVisible(false);
+        return d.finale.play();
+      }).then(() => { hud.setVisible(true); mode = 'play'; advance({ type: 'cutsceneDone', scene: 'finale' }); });
     } else if (s.type === 'cutscene') {
       const REWARD = { presents: 'presents', party: 'party', cake: 'cake' };
       if (s.scene === 'party') d.neonParty?.show();
-      playScene(s.scene).then(() => {
+      // mode stays 'play' while any cinematic plays first: cinematic.update() (src/game/game.js)
+      // only ticks under mode 'play', since it manages its own pause (hero.frozen) rather than
+      // needing flow's own cutscene mode. playScene() below still sets mode to 'cutscene' itself,
+      // once the comic actually starts.
+      playCinematicFor(s).then(() => playScene(s.scene)).then(() => {
         if (REWARD[s.scene]) pickups.hide(REWARD[s.scene]);
         advance({ type: 'cutsceneDone', scene: s.scene });
       });

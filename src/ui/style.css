@@ -395,7 +395,7 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0 6px; margin: 0 2px; bo
    of the health ring and gadget panel below it (bottom: 210px keeps it above both), the bottom
    centre tip card, the objective card (top right), and the action camera's framed shot (screen
    centre) during a fight. Play never pauses for it. */
-.dlg-panel { position: fixed; left: 24px; bottom: 210px; width: min(520px, 80vw); display: flex; gap: 14px;
+.dlg-panel { position: fixed; right: 24px; bottom: 140px; width: min(520px, 80vw); display: flex; gap: 14px;
   align-items: flex-start; opacity: 0; transform: translateY(14px); pointer-events: none;
   transition: opacity 0.2s, transform 0.2s; z-index: 6; }
 .dlg-panel.show { opacity: 1; transform: translateY(0); pointer-events: auto; cursor: pointer; }

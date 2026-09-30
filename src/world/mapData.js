@@ -146,4 +146,8 @@ export const SITES = {
   // finale fight) and the factory hall floor (a fight or stealth room, entered at the loading dock).
   funhouse: { x: -120, y: 0.15, z: -150 },
   aceHall: { x: 140, y: 0.15, z: -172 },
+  // The plaza doors' outside landing (src/world/interiors.js's INTERIOR_ROOMS.funhouse.outside):
+  // Part S's 'toFunhouse' step targets this, not the nave floor itself, so the travel waypoint
+  // leads Mansi up to the door instead of pointing through a solid wall from outside.
+  funhouseDoor: { x: -120, y: 0, z: -108 },
 };
