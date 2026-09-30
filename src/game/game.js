@@ -306,7 +306,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
 
     let nextId = 0;
     const spawn = (type, p) => {
-      const e = createEnemy({ id: `e${nextId++}`, type, assets, scene, collision: world.collision, rng });
+      const e = createEnemy({ id: `e${nextId++}`, type, assets, scene, collision: world.collision, rng, events });
       // Stealth clips get their mixer actions now, not on the first patrol step or choke.
       e.ch.animator.prime(type === 'rifle' ? ['Rifle_Idle', 'Rifle_Walk', 'Rifle_Aim', 'Rifle_Search', 'Choked'] : ['Choked']);
       readyObjects(e.ch.root);
@@ -607,6 +607,9 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     events.on('crasherTaunt', ({ text }) => hud.card('PARTY CRASHER', text, 2500));
     events.on('teamTakedown', ({ target }) => events.emit('word', { text: 'TEAM UP!', pos: target.ch.headWorld(new THREE.Vector3(), -0.3), big: true }));
     // ---- end Part N ----
+    // ---- Harley Quinn (src/actors/harleyChar.js, src/combat/harleyLogic.js): HUD taunt card ----
+    events.on('harleyTaunt', ({ text }) => hud.card('HARLEY QUINN', text, 2500));
+    // ---- end Harley Quinn ----
     let lastCombo = -1;
     let chainLabels = ['1', '2', '3'];
     let swarmLabel = '4';

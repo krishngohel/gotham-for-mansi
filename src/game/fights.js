@@ -1,9 +1,14 @@
 // Encounters. Positions are offsets (dx, dz) from the fight's site; y is found by collision.
 import { stealthFight } from '../stealth/stealthRooms.js';
+import { SITES } from '../world/mapData.js';
 
 const g = (dx, dz) => ({ type: 'grunt', dx, dz });
 const k = (dx, dz) => ({ type: 'knife', dx, dz });
 const b = (dx, dz) => ({ type: 'brute', dx, dz });
+const h = (dx, dz) => ({ type: 'harley', dx, dz });
+// The interiors builder (Part I) adds SITES.aceHall; fall back to the open Ace Chemicals yard
+// so this fight def works whether or not that part has landed yet.
+const HARLEY_SITE = SITES.aceHall ? 'aceHall' : 'aceYard';
 
 export const FIGHTS = {
   docksRoof: { site: 'wh3Roof', radius: 14, waves: [[g(-4, -5), g(5, -3)]] },
@@ -22,6 +27,8 @@ export const FIGHTS = {
   // funhouse floor itself (site is a placeholder until Part I lands the real interior).
   plaza: { site: 'balcony', radius: 16, waves: [[g(-6, -5), g(6, -5), k(0, 7)], [b(0, 6), g(-7, 0), g(7, 0)]] },
   funhouseFight: { site: 'funhouse', radius: 14, waves: [[g(-5, -4), g(5, -4), k(0, 6)], [b(-4, 5), b(4, 5)]] },
+  // Act 2's Harley Quinn mini-boss fight. Wave 1: Harley and 3 goons. Wave 2: 2 knives.
+  harleyHall: { site: HARLEY_SITE, radius: 16, waves: [[h(0, 0), g(-5, -4), g(5, -4), g(0, 6)], [k(-4, 4), k(4, 4)]] },
 };
 
 // Harley Quinn is being built in a parallel branch: a real 'harleyHall' fight (enemy type
