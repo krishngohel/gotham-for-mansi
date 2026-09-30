@@ -369,11 +369,16 @@ function buildFunhouse(ctx) {
 }
 
 function hallVat(ctx, x, z) {
-  solid(ctx, 'steel', cylinder(3.4, 3.6, 4, x, 2, z, 20));
+  solid(ctx, 'painted', cylinder(3.4, 3.6, 4, x, 2, z, 20), { color: 0x9aa0a6 });
+  // Emissive, bubbling top: the flat pool plus a scatter of brighter "bubble" discs on it.
   ctx.buckets.add('chem', new THREE.CircleGeometry(3.1, 20).rotateX(-Math.PI / 2).translate(x, 4.05, z));
-  ctx.halos.add(x, 4.4, z, PALETTE.chem, 10);
-  lightSpot(ctx, x, 5, z, PALETTE.chem, 40, 18);
-  ctx.buckets.add('steel', cylinder(3.65, 3.65, 0.2, x, 4.1, z, 20, true));
+  for (let k = 0; k < 5; k++) {
+    const a = (k / 5) * Math.PI * 2 + x, rr = 1.2 + (k % 2);
+    glow(ctx, new THREE.CircleGeometry(0.4, 10).rotateX(-Math.PI / 2).translate(x + Math.cos(a) * rr, 4.06, z + Math.sin(a) * rr), 0xd8ffb0);
+  }
+  ctx.halos.add(x, 4.4, z, PALETTE.chem, 16);
+  lightSpot(ctx, x, 5, z, PALETTE.chem, 55, 22);
+  ctx.buckets.add('painted', cylinder(3.65, 3.65, 0.2, x, 4.1, z, 20, true), 0x9aa0a6);
 }
 
 function hallPipe(ctx, x1, z1, x2, z2, y, r = 0.5, color = PALETTE.rust) {
@@ -425,8 +430,12 @@ function buildAceHall(ctx) {
   ctx.buckets.add('concrete', tiledBox(b.maxX - b.minX, 0.15, b.maxZ - b.minZ, FX, 0.08, FZ, { uvScale: [8, 8] }));
   // A real fill light over the vat floor: toxic green, so the hall reads bright at a glance
   // instead of relying only on baked halos. Distance-limited, never reaches the exterior city.
-  roomFill(ctx, FX, 9, FZ, PALETTE.chem, 2.2, 55);
-  roomFill(ctx, FX, 4, FZ - 12, PALETTE.chem, 1.4, 30);
+  roomFill(ctx, FX, 9, FZ, PALETTE.chem, 2.4, 55);
+  roomFill(ctx, FX, 4, FZ - 12, PALETTE.chem, 1.6, 32);
+  roomFill(ctx, FX, 4, FZ + 12, PALETTE.chem, 1.4, 28);
+  // A soft toxic pool under the centre catwalk, so straight down the aisle reads green too,
+  // without washing the whole floor flat.
+  ctx.buckets.add('pool', new THREE.CircleGeometry(3.6, 22).rotateX(-Math.PI / 2).translate(FX, 0.15, FZ), 0x6fef3a);
 
   // Three rows of glowing, bubbling vats (six total), all clearly in view from the hall centre.
   for (const [px, pz] of [[122, -184], [158, -184], [122, -176], [158, -168], [122, -160], [158, -160]]) hallVat(ctx, px, pz);

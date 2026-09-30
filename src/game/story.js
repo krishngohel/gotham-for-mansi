@@ -66,9 +66,12 @@ export const STEPS = [
     ],
   },
   {
-    id: 'batmobileChase', type: 'chase', text: 'Run down the Joker van before it reaches the warehouses.', site: 'wh3Roof',
-    // The dock road, ground level: vehicles.startChase needs at least two points.
-    path: [{ x: -60, y: 0.15, z: 140 }, { x: -40, y: 0.15, z: 170 }, { x: -20, y: 0.15, z: 200 }, { x: 0, y: 0.15, z: 220 }],
+    // The dock road running north along x = -90, from the yard up toward the warehouses at
+    // wh3Roof (x -60, z 180): a real street the city builder always leaves clear (see
+    // src/vehicles/vehicles.js's LINES). Ramming the van 3 times ends the chase before it gets in
+    // among the warehouses.
+    id: 'batmobileChase', type: 'chase', text: 'Run down the Joker van before it reaches the warehouses. Ram it 3 times.', site: 'wh3Roof',
+    path: [{ x: -90, z: 40 }, { x: -90, z: 100 }, { x: -90, z: 165 }, { x: -90, z: 100 }, { x: -90, z: 40 }],
     lines: [g('alfred', 'A van just peeled off the dock road with your gift wrap sticking out the back. After it.')],
   },
   { id: 'f1', type: 'fight', fight: 'docksRoof', text: 'Take down the goons on the warehouse roof.', tutorial: ['punch', 'kick', 'counter'] },
@@ -85,7 +88,7 @@ export const STEPS = [
   { id: 'toMonarch', text: 'The party is on the Monarch Theater roof.', site: 'monarchRoof', radius: 14, checkpoint: 'neonStreet' },
   { id: 'n3', type: 'fight', fight: 'monarch', text: 'Crash the party crashers.', tutorial: ['special'] },
   {
-    id: 'crasherRooftop', type: 'crasher', text: 'The masked man is right there.', at: 'monarchRoof', to: 'monarchBalconyEntry',
+    id: 'crasherRooftop', type: 'crasher', text: 'The masked man is right there.', at: 'monarchRoof', to: 'monarchBalconyEntry', checkpoint: 'monarchRoof',
     lines: [
       g('mansi', 'Nowhere left to run, and I would like my present back.'),
       g('crasher', 'Wrong again. Happy birthday, for what it is worth.'),
@@ -140,14 +143,14 @@ export const STEPS = [
   // ---------------------------------------------------------------- Act 3: The Clock Plaza
   { id: 'actThreeTitle', type: 'cutscene', scene: 'actThree', cinematic: CINEMATIC.actThree },
   {
-    id: 'armadaRun', type: 'armada', text: 'The Joker has balloons rigged over the clock plaza. Take the Batwing through them.', site: 'balcony', balloons: 14, checkpoint: 'balcony',
+    id: 'armadaRun', type: 'armada', text: 'The Joker has balloons rigged over the clock plaza. Take the Batwing through them.', site: 'balcony', balloons: 14, checkpoint: 'arena',
     lines: [
       g('nightwing', "Batwing's yours whenever you call it. I will meet you on the ground."),
       g('joker', 'Up, up and away! Try not to pop too many of my party balloons, party girl!'),
     ],
   },
   {
-    id: 'nightwingTagRadio', type: 'radio', text: 'Gordon and Nightwing are both on the line.', checkpoint: 'balcony',
+    id: 'nightwingTagRadio', type: 'radio', text: 'Gordon and Nightwing are both on the line.', checkpoint: 'arena',
     lines: [
       g('gordon', "GCPD is holding the plaza perimeter. Nobody else gets in or out until you're done."),
       g('nightwing', "And I am holding the middle of it. Let's finish this together."),
@@ -156,7 +159,7 @@ export const STEPS = [
   { id: 'nightwingAlly', type: 'ally', text: 'Nightwing has your back for this one.', at: 'balcony' },
   { id: 'plazaFight', type: 'fight', fight: 'plaza', text: 'Clear the plaza with Nightwing at your side.' },
   {
-    id: 'toFunhouse', type: 'interior', text: 'The last of the party is behind the funhouse door in the old cathedral.', site: 'funhouseDoor', room: 'funhouse', radius: 10, checkpoint: 'balcony',
+    id: 'toFunhouse', type: 'interior', text: 'The last of the party is behind the funhouse door in the old cathedral.', site: 'funhouseDoor', room: 'funhouse', radius: 10, checkpoint: 'arena',
     lines: [g('nightwing', 'Funhouse door, dead ahead. This is exactly as safe as it sounds, which is to say, not very.')],
   },
   { id: 'funhouseFight', type: 'fight', fight: 'funhouseFight', text: "Fight through the Joker's funhouse floor." },

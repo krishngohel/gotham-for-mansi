@@ -51,6 +51,7 @@ import { createFollowCamera } from './camera.js';
 import { createBatwing } from '../vehicles/batwing.js';
 import { createCinematic } from '../ui/cinematic.js';
 import { createParty } from './party.js';
+import { guestsUpTo, celebrateAt } from './partyStory.js';
 import { createFx } from './fx.js';
 import { createStealthFx } from '../stealth/stealthFx.js';
 import { createGadgetFx } from '../gadgets/gadgetFx.js';
@@ -72,7 +73,7 @@ import { goldStandardPages, fromKrishnPages } from './rewardPages.js';
 import { createFinale } from './finale.js';
 import { createSideContent } from './sideContent.js';
 import { createPhotoMode } from '../ui/photoMode.js';
-import { createWarmCast } from './warmCast.js';
+import { createWarmCast, createWarmCastLate } from './warmCast.js';
 import { drawEverything, uploadTextures, readyObjects } from '../render/prewarm.js';
 import { createDynamicRes, sanitizeResScale } from '../render/dynamicRes.js';
 import { createImpactTimeline } from '../render/impactTimeline.js';
@@ -343,8 +344,19 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const boss = createBoss({ assets, scene, rng, combat, events, hud, spawn, despawn, hero, time, getDifficulty: () => settings.difficulty, collision: world.collision, effects });
     boss.joker.health = 999;
     const finale = createFinale({ scene, world, hero, boss, camera, events, rng });
-    // ---- Finale rooftop party: src/game/party.js ----
+    // ---- Finale rooftop party: src/game/party.js, wired to story progress (partyStory.js) ----
     const party = createParty({ scene, assets, events, gfx, finale });
+    // A resumed save (or a completed one, past credits, which never re-fires 'step' below):
+    // every guest whose join step is already behind the current one joins immediately.
+    for (const id of guestsUpTo(progress.step ?? 0, STEPS)) party.addGuest(id);
+    if (celebrateAt(progress.step ?? 0, STEPS)) party.celebrate();
+    // Live progression: flow.js's enterStep() emits 'step' the moment each new step starts
+    // (including, on a fresh run, the very first one), which is also when the finale cutscene
+    // itself starts (s.type === 'cutscene' && s.scene === 'finale').
+    events.on('step', ({ index }) => {
+      for (const id of guestsUpTo(index, STEPS)) party.addGuest(id);
+      if (celebrateAt(index, STEPS)) party.celebrate();
+    });
 
     // Renders the live city from a posed camera into an image for comic panels.
     const stage = {
@@ -423,6 +435,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const side = createSideContent({
       scene, assets, hero, follow, combat, encounters, events, flow, prompts, progress, storage, rng,
       hudRoot: hudRoot.querySelector('.hud') ?? hudRoot, collision: world.collision, buildings: world.data.buildings,
+      // For the Gotham Grand Prix / Wing Walk challenges (src/game/vehicleChallenges.js).
+      vehicles, batwing,
     });
     Object.assign(sideHooks, side.flowHooks);
     const photo = createPhotoMode({
@@ -1007,6 +1021,21 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   mark('prewarm');
   requestAnimationFrame(frame);
   state.ready = true;
+  // Nightwing and Harley (see warmCast.js): warmed once, off-screen, on idle right after the
+  // first real frame instead of before it. Neither appears until minutes into a run (the Crasher
+  // in Act 1, Harley in Act 2), so this never risks a first-use hitch; it just keeps their shader
+  // and texture cost off the loading screen.
+  const warmLater = () => {
+    try {
+      const late = createWarmCastLate(assets);
+      scene.add(late);
+      uploadTextures(renderer, scene);
+      drawEverything(renderer, ink, scene, camera);
+      scene.remove(late);
+    } catch (err) { console.error(err); }
+  };
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(warmLater, { timeout: 2000 });
+  else setTimeout(warmLater, 300);
   // The Joker's lines download while the title screen is up.
   setTimeout(() => voice.warm(), 1500);
   // Dev and test shortcuts skip the title: ?at=<step>, ?play=1, ?fight=test.

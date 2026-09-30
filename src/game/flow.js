@@ -70,13 +70,8 @@ export function createFlow(d) {
     switch (step.type) {
       case 'chase':
         if (!G.vehicles?.startChase) return false;
-        // The mission needs Mansi in the Batmobile first (coordinator guidance, 2026-09-30).
-        // summon() alone does not make her active: it only becomes true once enter() succeeds, and
-        // a plain (sliding) summon leaves the car "arriving" for a moment, during which enter()
-        // itself refuses. { instant: true } (the same option startBattle uses internally below)
-        // skips the slide so enter(vehicles.batmobile) can succeed right away.
-        G.vehicles.summon?.('batmobile', { instant: true });
-        G.vehicles.enter?.(G.vehicles.batmobile);
+        // The mission needs Mansi in the Batmobile first: startChase summons and enters it
+        // itself (parked, no slide-in) when she isn't already driving it, the same as startBattle.
         G.vehicles.startChase({ path: step.path ?? null, onDone: (r) => done(r?.ok !== false) });
         return true;
       case 'battle':

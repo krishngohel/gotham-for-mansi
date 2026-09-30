@@ -76,6 +76,26 @@ export function bounceOffWall(vel, nx, nz, restitution = 0.35) {
   return vel;
 }
 
+// Summon fallback: when Batman is standing too far from any real street line (a big open yard or
+// plaza, mid-block), search a small grid of rings around him for a spot the Batmobile actually
+// fits. `isClear(x, y, z)` is the caller's own collision-aware test (real collision.groundBelow
+// plus a footprint check against the world) returning a placeable {x, y, z} or a falsy value; kept
+// as an injected function so this search itself stays pure and unit-testable without three.js or
+// a real collision world. Tries the spot dead on `near` first, then rings outward. Returns the
+// first clear spot `isClear` accepts, or null if every ring came up empty.
+export function findClearGroundSpot(near, isClear, radii = [0, 3, 5, 7, 10]) {
+  for (const r of radii) {
+    const steps = r === 0 ? 1 : 8;
+    for (let i = 0; i < steps; i++) {
+      const a = (i / steps) * Math.PI * 2;
+      const x = near.x + Math.cos(a) * r, z = near.z + Math.sin(a) * r;
+      const p = isClear(x, near.y, z);
+      if (p) return p;
+    }
+  }
+  return null;
+}
+
 // Chase mission: counts rams on a fleeing target with a short cooldown so one collision can't
 // register twice in the same graze.
 export function createRamCounter(hitsNeeded = 3, cooldown = 0.6) {

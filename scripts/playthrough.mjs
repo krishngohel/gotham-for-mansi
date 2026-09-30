@@ -20,14 +20,9 @@ await page.evaluate(() => {
   const G = window.__game;
   G.__unlocked = [];
   G.events.on('gadgetUnlocked', ({ id }) => G.__unlocked.push(id));
-  // The real Batmobile/Batwing minigames (chase, battle, armada) need a human at the wheel or the
-  // stick; they have their own dedicated verification (VEH-REPORT.md, WING-REPORT.md). This script
-  // verifies the STORY, so it takes flow.js's own degrade path for those three steps instead
-  // (radio lines, then a short timer) by hiding the parts from window.__game, exactly the way the
-  // story plays when a part is missing entirely. Nightwing and Interiors are left alone: 'crasher'
-  // / 'ally' / 'interior' steps complete quickly either way and are worth exercising for real.
-  G.vehicles = null;
-  G.batwing = null;
+  // The real Batmobile/Batwing minigames (chase, battle, armada) run for real: the loop below
+  // finishes each through vehicles.debugWin() / batwing.debugWin(), the same completion path a
+  // player's win takes, so the story's wiring to the real parts is exercised end to end.
 });
 
 const state = () => page.evaluate(() => {
@@ -47,6 +42,7 @@ for (let guard = 0; guard < 600; guard++) {
   await page.waitForTimeout(400);
   await skipTalk();
   const s = await state();
+  if (process.env.DEBUG_TRACE) console.log(guard, JSON.stringify(s));
   if (!s.id) break;
   if (s.mode === 'cutscene' || s.mode === 'dead') {
     // Read every page of the comic.
@@ -69,6 +65,15 @@ for (let guard = 0; guard < 600; guard++) {
       if (B.phase === 3 && ['approach', 'windup', 'backoff'].includes(B.joker.state)) { B.joker.state = 'staggered'; B.joker.finishable = true; B.joker.applyHit({ outcome: 'hit' }, window.__game.hero.pos); }
     });
     await page.waitForTimeout(1400);
+    continue;
+  }
+  if (s.type === 'chase' || s.type === 'battle' || s.type === 'armada') {
+    // These start async (after the beat's radio line, however far skipRadio has gotten it): try
+    // the dev fast path every pass. It's a no-op returning false until the real mission is
+    // actually running, then wins it once through the same onDone path a real finish would take.
+    // No generic teleport here: it would fight the vehicle's own position sync and clear the
+    // hero's drive/fly control state for no reason.
+    await page.evaluate(() => { window.__game.vehicles?.debugWin?.(); window.__game.batwing?.debugWin?.(); });
     continue;
   }
   if (s.site) await page.evaluate((p) => window.__game.teleport({ x: p.x, y: p.y, z: p.z }), s.site);

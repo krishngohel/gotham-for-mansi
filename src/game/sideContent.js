@@ -10,6 +10,7 @@ import { createSideHud } from '../ui/sideHud.js';
 import { CHALLENGES, pillarPos, formatResult } from './challenges.js';
 import { createChallengeRunner } from './challengeRunner.js';
 import { attachArena } from './arenaChallenge.js';
+import { attachVehicleChallenges } from './vehicleChallenges.js';
 import { CRIME_SPOTS, isCrimeId, crimeBlocked } from './crimes.js';
 import { createCrimeDirector } from './crimeDirector.js';
 import { BALLOONS } from '../config/balloonSpots.js';
@@ -23,7 +24,7 @@ export const MILESTONE_TEXT = {
 };
 
 export function createSideContent(deps) {
-  const { scene, hero, follow, combat, encounters, events, flow, hudRoot, prompts, progress, storage, assets, rng, collision, buildings } = deps;
+  const { scene, hero, follow, combat, encounters, events, flow, hudRoot, prompts, progress, storage, assets, rng, collision, buildings, vehicles, batwing } = deps;
   const save = () => saveProgress(storage, progress);
   const ui = createSideHud(hudRoot);
   const stats = createPlayStats(progress.stats);
@@ -41,6 +42,7 @@ export function createSideContent(deps) {
       && (ch.kind !== 'arena' || !encounters.id || isCrimeId(encounters.id)),
   });
   attachArena(challenges, { events, encounters, ui });
+  attachVehicleChallenges(challenges, { vehicles, batwing, hero });
   const crimes = createCrimeDirector({
     scene, assets, rng, events, encounters, ui, progress, save, collision,
     blocked: () => crimeBlocked({ mode: flow.mode, stepType: stepType(), challenge: challenges.active, fightId: encounters.id }),
