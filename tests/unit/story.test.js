@@ -8,7 +8,7 @@ import { BALLOONS } from '../../src/game/balloons.js';
 import MANSI from '../../src/mansi.config.js';
 
 const DASH = new RegExp(`[${String.fromCharCode(0x2013, 0x2014)}]`);
-const ASYNC_TYPES = ['radio', 'chase', 'battle', 'armada', 'crasher', 'ally'];
+const ASYNC_TYPES = ['radio', 'chase', 'battle', 'armada', 'crasher', 'ally', 'board'];
 
 const steps = [
   { id: 'a', type: 'cutscene', scene: 'intro' },
@@ -42,8 +42,8 @@ describe('objective runner', () => {
     expect(checkpointFor(steps, 2)).toBe('cp1');
     expect(checkpointFor(steps, 4)).toBe('cp2');
   });
-  it('radio, crasher and ally only complete their own id; chase, battle and armada have none to check', () => {
-    for (const type of ['radio', 'crasher', 'ally']) {
+  it('radio, crasher, ally and board only complete their own id; chase, battle and armada have none to check', () => {
+    for (const type of ['radio', 'crasher', 'ally', 'board']) {
       const o = createObjectives([{ id: 'this-one', type }]);
       expect(o.handle({ type: `${type}Done`, id: 'some-other-step', ok: true }), type).toBe(false);
       expect(o.handle({ type: `${type}Done`, id: 'this-one', ok: true }), type).toBe(true);

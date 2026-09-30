@@ -1,8 +1,12 @@
 // Ground vehicles: the Batmobile, street cars you can commandeer, a Joker chase van and drone
 // tanks for the Ace Chemicals battle. Contract (docs/superpowers/specs/2026-09-30-birthday-night
 // -design.md): createVehicles(deps) -> { summon, enter, exit, active, update, startChase,
-// startBattle }. Events: vehicleEnter{kind}, vehicleExit{kind}, chaseDone{ok}, battleDone{ok}.
+// startBattle, park }. Events: vehicleEnter{kind}, vehicleExit{kind}, chaseDone{ok}, battleDone{ok}.
 // The hero's control name while driving is 'drive'.
+// park(spot, opts): parks the Batmobile at an exact { x, y, z, yaw } (a story 'board' step's own
+// site, src/game/story.js), unlike summon() which always places it relative to wherever Batman is
+// currently standing. Added alongside the rest of this file's driving/physics work without
+// touching it (see the note on park() itself).
 import * as THREE from 'three';
 import { createRng } from '../core/rng.js';
 import { WORLD } from '../world/mapData.js';
@@ -294,6 +298,36 @@ export function createVehicles(deps) {
     }
   }
 
+  // Parks the Batmobile at an exact spot (a story 'board' step's own site, not wherever Batman
+  // happens to be standing): a small, self-contained addition next to summon() that reuses its
+  // slide-in (bm.arriving, updateSummonArrival above) rather than touching any driving/physics
+  // code. { slide: false } places it immediately (used by the dev fast path); the default slides
+  // it in from SUMMON_FAR back along its own facing, the same distance and duration summon() uses.
+  function park(spot, { slide = true } = {}) {
+    if (bm.arriving) return; // already on its way somewhere
+    const yaw = spot.yaw ?? 0;
+    if (!slide) {
+      const groundY = collision.groundBelow(spot.x, (spot.y ?? 0) + 4, spot.z, 0.3);
+      bm.v.speed = 0; bm.v.drift = 0; bm.v.yaw = yaw;
+      bm.group.rotation.y = yaw;
+      bm.group.position.set(spot.x, groundY > -Infinity ? groundY : (spot.y ?? 0), spot.z);
+      bm.group.visible = true;
+      bm.summoned = true;
+      events.emit('word', { text: 'SCREEECH!', pos: bm.group.position.clone().setY(bm.group.position.y + 1), big: true });
+      toast.show('The Batmobile screeches in.', 2200);
+      return;
+    }
+    const fromX = spot.x - Math.sin(yaw) * SUMMON_FAR, fromZ = spot.z - Math.cos(yaw) * SUMMON_FAR;
+    const groundY = collision.groundBelow(fromX, (spot.y ?? 0) + 4, fromZ, 0.3);
+    bm.v.speed = 0; bm.v.drift = 0; bm.v.yaw = yaw;
+    bm.group.rotation.y = yaw;
+    bm.group.visible = true;
+    bm.summoned = true;
+    bm.group.position.set(fromX, groundY > -Infinity ? groundY : (spot.y ?? 0), fromZ);
+    bm.arriving = { t: 0, dur: SUMMON_DUR, fromX, fromZ, toX: spot.x, toZ: spot.z, yaw };
+    toast.show('The Batmobile is on its way.', 2200);
+  }
+
   // A little code figure that hops out and dashes off: enter()'s carjack flourish. Only one ever
   // needed at a time in practice, but kept as a small pool-free list since it's an event (a
   // carjack), not a per-frame cost.
@@ -507,10 +541,10 @@ export function createVehicles(deps) {
       onDone?.({ ok: false });
       return;
     }
-    // The mission needs Mansi in the Batmobile: bring her down to street level at the start of
-    // the chase road (she may still be up on whatever rooftop the previous step left her on),
-    // summon it there (parked, no slide) and get her in it before the van starts moving, the same
-    // way startBattle does.
+    // Normal play: the story's 'board' step (flow.js) already had her walk up and get in the
+    // Batmobile herself before this ever runs, so this branch never fires. It stays only as a
+    // last-resort fallback for a state the board step couldn't have covered (an old save resumed
+    // mid-chase, say) so the mission is never unwinnable, not as the everyday path in.
     if (!active || active.kind !== 'batmobile') {
       const groundY = collision.groundBelow(path[0].x, path[0].y ?? 40, path[0].z, 0.3);
       hero.teleport({ x: path[0].x, y: groundY > -Infinity ? groundY : (path[0].y ?? 0), z: path[0].z });
@@ -574,8 +608,9 @@ export function createVehicles(deps) {
   function startBattle({ site, drones, onDone } = {}) {
     if (!site) { console.warn('startBattle: no site given; skipping the battle.'); onDone?.({ ok: false }); return; }
     if (!active || active.kind !== 'batmobile') {
-      // Always re-place her at the site first: the Batmobile may already be summoned, but parked
-      // wherever an earlier mission (the chase, or free roam) left it, possibly nowhere near here.
+      // Same fallback as startChase above: the 'board' step ahead of this one already parked the
+      // Batmobile at the Ace Chemicals gate and got her into it, so this never fires in normal
+      // play. Kept only so an old save resumed mid-battle still has somewhere to stand.
       hero.teleport(site);
       summon('batmobile', { instant: true });
       enter(bm);
@@ -845,7 +880,7 @@ export function createVehicles(deps) {
   }
 
   return {
-    summon, enter, exit, eject,
+    summon, enter, exit, eject, park,
     get active() { return active; },
     update,
     startChase, startBattle, debugWin,
