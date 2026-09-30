@@ -6,22 +6,25 @@
 // Default arcade tuning. A caller (the Batmobile, a borrowed street car) merges its own numbers
 // over these.
 export const DEFAULT_TUNING = {
-  accel: 16,          // m/s^2, throttle held
-  boostAccel: 26,      // m/s^2, throttle + boost held
-  brakeDecel: 22,      // m/s^2, brake held while still moving forward
+  accel: 14,          // m/s^2, throttle held
+  boostAccel: 22,      // m/s^2, throttle + boost held
+  brakeDecel: 24,      // m/s^2, brake held while still moving forward
   reverseAccel: 9,      // m/s^2, brake held from a stop or already reversing
   drag: 0.6,           // 1/s, speed bleed with no throttle or brake
-  maxSpeed: 32,         // m/s forward, no boost
-  maxBoostSpeed: 46,     // m/s forward, boosting
+  maxSpeed: 26,         // m/s forward, no boost (the streets are only about 15 m wide)
+  maxBoostSpeed: 38,     // m/s forward, boosting
   maxReverse: 11,       // m/s reverse
-  turnRate: 2.1,        // rad/s at full steer and turnRefSpeed
+  turnRate: 2.3,        // rad/s at full steer and turnRefSpeed
   turnRefSpeed: 9,       // m/s: steering ramps in below this, full above it
+  turnFalloff: 40,       // m/s: past turnRefSpeed the turn rate eases off, 1 / (1 + extra / this)
+  steerRate: 5.5,        // 1/s: a key press reaches full lock in about 0.18 s, not instantly
+  steerReturn: 9,        // 1/s: letting go (or reversing the wheel) recentres faster
   driftTurnMul: 1.5,     // steering multiplier while handbrake-drifting
   driftAmount: 0.85,     // target lateral slip at full steer + handbrake
   driftBuildRate: 4.5,   // 1/s, how fast drift approaches its target while handbraking
   driftDecayRate: 3.5,   // 1/s, how fast drift relaxes to 0 once handbrake is released
   driftLateralMul: 0.9,  // how much of (drift * |speed|) becomes sideways velocity
-  wallRestitution: 0.35, // 0 = stop dead on a wall, 1 = a perfectly bouncy wall
+  wallRestitution: 0.15, // 0 = stop dead on a wall, 1 = a perfectly bouncy wall (low: glance off, keep going)
 };
 
 export function mergeTuning(overrides = {}) {
@@ -30,6 +33,10 @@ export function mergeTuning(overrides = {}) {
 
 // Advances { speed, yaw, drift } by dt given this frame's input. Mutates and returns `v`.
 // input: { throttle: 0|1, brake: 0|1, steer: -1..1, handbrake: bool, boost: bool }
+// steer +1 raises yaw, which turns the car LEFT as seen from behind (forward is (sin, cos) and
+// right is (-cos, sin)): a caller maps a right-turn key to a negative steer.
+// Keyboard steering is all or nothing, so v.steer (created on first use) eases toward the input
+// instead of snapping; that eased value is what turns the car (and the front wheels).
 export function stepDrive(v, input, dt, tuning = DEFAULT_TUNING) {
   const t = tuning;
   const boosting = !!input.boost && input.throttle > 0;
@@ -41,12 +48,22 @@ export function stepDrive(v, input, dt, tuning = DEFAULT_TUNING) {
   const maxFwd = boosting ? t.maxBoostSpeed : t.maxSpeed;
   v.speed = Math.max(-t.maxReverse, Math.min(maxFwd, v.speed));
 
-  const speedFrac = Math.min(1, Math.abs(v.speed) / t.turnRefSpeed);
+  const want = input.steer;
+  const cur = v.steer ?? 0;
+  const returning = want === 0 || Math.sign(want) !== Math.sign(cur);
+  const step = (returning ? t.steerReturn : t.steerRate) * dt;
+  v.steer = cur + Math.max(-step, Math.min(step, want - cur));
+
+  const absSpeed = Math.abs(v.speed);
+  const speedFrac = Math.min(1, absSpeed / t.turnRefSpeed);
+  const highSpeed = 1 / (1 + Math.max(0, absSpeed - t.turnRefSpeed) / t.turnFalloff);
   const steerDir = v.speed < 0 ? -1 : 1;
   const turnMul = input.handbrake ? t.driftTurnMul : 1;
-  v.yaw += input.steer * steerDir * t.turnRate * turnMul * speedFrac * dt;
+  v.yaw += v.steer * steerDir * t.turnRate * turnMul * speedFrac * highSpeed * dt;
 
-  const targetDrift = input.handbrake ? -input.steer * t.driftAmount : 0;
+  // A handbrake slide carries the car wide, to the outside of the turn: turning left (steer > 0)
+  // it slips toward its right (positive drift, see driveVelocity).
+  const targetDrift = input.handbrake ? v.steer * t.driftAmount : 0;
   const driftRate = input.handbrake ? t.driftBuildRate : t.driftDecayRate;
   v.drift += (targetDrift - v.drift) * Math.min(1, dt * driftRate);
 

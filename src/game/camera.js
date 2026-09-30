@@ -12,9 +12,10 @@ const MODES = {
   hang: { dist: 4.2, height: 0.6, side: 0.35, fov: 4 },
   wallrun: { dist: 4.4, height: 1.4, side: 0.2, fov: 10 },
   dive: { dist: 5.5, height: 2.2, side: 0, fov: 14 },
-  // Ground vehicles (Part V1): pulled well back and up so the car reads as a whole (about a
-  // third of the screen width) with the road ahead visible, with its own speed FOV kick below.
-  drive: { dist: 11.5, height: 3.6, side: 0, fov: 2 },
+  // Ground vehicles (Part V1): pulled well back so the car reads as a whole (about a third of the
+  // screen width) with the road ahead visible, with its own speed FOV kick below. The aim point
+  // sits low enough that the car is framed mid-screen, clear of the hint card at the bottom.
+  drive: { dist: 11.5, height: 2.3, side: 0, fov: 2 },
   // Perch drop: the orbit numbers only matter for the hand-back; see DROP_UP below.
   drop: { dist: 5.5, height: 2.2, side: 0, fov: 8 },
   chain: { dist: 4.8, height: 1.6, side: 0.2, fov: 2 },
@@ -32,6 +33,12 @@ const MODES = {
 const DROP_SIDE = 5, DROP_UP = 1, DROP_BACK = 1.2;
 // The action camera's lowest point above the floor under it: where a shot is set up, and during it.
 const ACTION_CLEAR = 1.0, ACTION_FLOOR = 0.6;
+// Vehicle cameras. Driving: after DRIVE_LOOK_HOLD s without mouse look, the camera eases behind
+// the car at DRIVE_FOLLOW + speed * DRIVE_FOLLOW_SPEED (1/s) and settles to DRIVE_PITCH. Flying:
+// it follows the plane's heading at FLY_FOLLOW.
+const DRIVE_LOOK_HOLD = 0.8, DRIVE_FOLLOW = 1.6, DRIVE_FOLLOW_SPEED = 0.09, DRIVE_PITCH = 0.2;
+const FLY_FOLLOW = 4, FLY_PITCH = 0.18;
+export const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 
 export function createFollowCamera(camera, collision) {
   const s = {
@@ -63,6 +70,9 @@ export function createFollowCamera(camera, collision) {
     addShake(amount) { if (s.shakeEnabled) s.shake = Math.max(s.shake, amount); },
     // Batwing bank (radians); harmless when not flying, since update() zeroes the target itself.
     setBank(radians) { s.bankTarget = radians; },
+    // A vehicle's heading, set every frame while driving or flying: the camera swings in behind it
+    // (see update). Consumed by the next update, so it lapses by itself once she gets out.
+    setHeading(yaw, speed = 0) { s.heading = yaw; s.headingSpeed = speed; s.headingSet = true; },
     // A hit lands: a short FOV punch-in (narrower) that decays over about a tenth of a second.
     hitKick(amount = 3) { if (s.shakeEnabled) s.hitKick = Math.min(s.hitKick, -amount); },
     forward(out = new THREE.Vector3()) { return out.set(Math.sin(s.yaw), 0, Math.cos(s.yaw)); },
@@ -103,8 +113,25 @@ export function createFollowCamera(camera, collision) {
       // Only the Batwing drives a bank; any other mode relaxes it back to level on its own.
       if (mode !== 'fly') s.bankTarget = 0;
       s.bank += (s.bankTarget - s.bank) * Math.min(1, dt * 5);
-      s.yaw -= look.dx * 0.0022 * s.sensitivity;
-      s.pitch += look.dy * 0.0022 * s.sensitivity * (s.invertY ? -1 : 1);
+      const vehicle = s.headingSet && (mode === 'drive' || mode === 'fly');
+      s.headingSet = false;
+      const looking = look.dx !== 0 || look.dy !== 0;
+      s.lookIdle = looking ? 0 : (s.lookIdle ?? 0) + dt;
+      if (vehicle && mode === 'fly') {
+        // The mouse steers the Batwing itself, so the camera only rides behind the plane.
+        s.yaw += wrapAngle(s.heading - s.yaw) * (1 - Math.exp(-dt * FLY_FOLLOW));
+        s.pitch += (FLY_PITCH - s.pitch) * (1 - Math.exp(-dt * 2));
+      } else {
+        s.yaw -= look.dx * 0.0022 * s.sensitivity;
+        s.pitch += look.dy * 0.0022 * s.sensitivity * (s.invertY ? -1 : 1);
+        if (vehicle && s.lookIdle > DRIVE_LOOK_HOLD) {
+          // Chase camera: swings in behind the car, quicker the faster it goes. Looking around
+          // with the mouse holds it off for a moment, then it settles back behind.
+          const rate = DRIVE_FOLLOW + s.headingSpeed * DRIVE_FOLLOW_SPEED;
+          s.yaw += wrapAngle(s.heading - s.yaw) * (1 - Math.exp(-dt * rate));
+          s.pitch += (DRIVE_PITCH - s.pitch) * (1 - Math.exp(-dt * 2));
+        }
+      }
       s.pitch = THREE.MathUtils.clamp(s.pitch, -1.05, 1.25);
       // During a grapple zip the view levels out so the landing is framed.
       if (mode === 'zip') s.pitch += (0.35 - s.pitch) * Math.min(1, dt * 3);

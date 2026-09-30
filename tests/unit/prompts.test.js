@@ -178,6 +178,28 @@ describe('createPromptQueue: quiet during takedowns', () => {
     queue.update(0.1);
     expect(hud.calls.at(-1)).toEqual(['hint', promptText('perchDrop', DEFAULT_BINDINGS)]);
   });
+  it('lets a vehicle controls card jump the queue and show while only other cards must wait', () => {
+    const hud = makeHud();
+    const queue = createPromptQueue(hud, () => DEFAULT_BINDINGS, () => true, (id) => id !== 'fly');
+    queue.show(['zip', 'ladder']);
+    queue.show(['fly'], { first: true });
+    queue.update(0.1);
+    expect(hud.calls).toEqual([['hint', promptText('fly', DEFAULT_BINDINGS)]]);
+  });
+});
+
+describe('vehicle controls prompts', () => {
+  it('the drive card says the handbrake drifts and the vehicle key gets out or ejects', () => {
+    const t = promptText('drive', DEFAULT_BINDINGS);
+    expect(t).toMatch(/drift/);
+    expect(t).toMatch(/glide/);
+    expect(t).not.toMatch(/[–—]/);
+  });
+  it('the fly card names the mouse and the bail-out key', () => {
+    const t = promptText('fly', DEFAULT_BINDINGS);
+    expect(t).toMatch(/mouse/);
+    expect(t).not.toMatch(/[–—]/);
+  });
 });
 
 describe('promptText: stealth copy matches the rules', () => {

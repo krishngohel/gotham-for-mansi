@@ -775,7 +775,8 @@ export function createVehicles(deps) {
 
   // ---------------- per-frame driving key + input ----------------
   function handleVehicleKey() {
-    if (active) { exit(); return; }
+    // At speed the same key ejects Batman up into a glide (the Arkham exit); slower, she steps out.
+    if (active) { if (Math.abs(active.v.speed) >= EJECT_MIN_SPEED) eject(); else exit(); return; }
     let nearest = null, nearestD = ENTER_RANGE;
     for (const v of enterables()) {
       if (v.driven || v.arriving || !v.group.visible) continue;
@@ -787,23 +788,16 @@ export function createVehicles(deps) {
   }
 
   // ---------------- the frame update (called from game.js's vehicles hook) ----------------
-  const EJECT_MIN_SPEED = 14;  // m/s: below this, jump just handbrakes, it never ejects
-  const EJECT_TAP_WINDOW = 0.22; // seconds: jump held longer than this is a drift, not an eject tap
-  let jumpHeldT = 0;
+  // m/s: at or above this the vehicle key ejects into a glide instead of stepping out. Jump is only
+  // ever the handbrake: a tap of it to tighten a corner must never throw Batman out of the car.
+  const EJECT_MIN_SPEED = 14;
 
   function update(dt, real = dt) {
     if (input.pressed('vehicle')) handleVehicleKey();
     if (active) {
-      // Space (jump) does double duty while driving, same as it does gliding: held, it's the
-      // handbrake for a drift; a quick tap of it (released again inside EJECT_TAP_WINDOW) while
-      // already moving fast ejects Batman up into a glide instead. Checked against the timer
-      // BEFORE this frame updates it, so a held key (mid-drift) never fires the eject on release.
-      if (input.released('jump') && jumpHeldT > 0 && jumpHeldT <= EJECT_TAP_WINDOW && Math.abs(active.v.speed) >= EJECT_MIN_SPEED) eject();
-      jumpHeldT = input.down('jump') ? jumpHeldT + dt : 0;
-    } else jumpHeldT = 0;
-    if (active) {
-      const steer = input.move.x;
-      lastSteer = steer;
+      // Physics steer is +1 = yaw up = a LEFT turn (vehiclePhysics.js); the D key is move.x +1,
+      // a right turn, so it goes in negated.
+      const steer = -input.move.x;
       const driveInput = {
         throttle: Math.max(0, input.move.y),
         brake: Math.max(0, -input.move.y),
@@ -816,6 +810,9 @@ export function createVehicles(deps) {
       if (boosting && !wasBoosting) events.emit('vehicleBoost');
       wasBoosting = boosting;
       integrateVehicle(active, driveInput, dt);
+      lastSteer = active.v.steer ?? 0; // the eased steer (vehiclePhysics.js), for the front wheels
+      // The chase camera swings in behind the car's own heading (src/game/camera.js).
+      follow.setHeading?.(active.v.yaw, Math.abs(active.v.speed));
       hero.pos.copy(active.group.position);
       hero.speed = Math.abs(active.v.speed);
       // Engine loop: level stays 1 while driving (fade in/out lives in ambience.js's

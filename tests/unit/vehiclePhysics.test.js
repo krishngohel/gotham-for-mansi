@@ -236,3 +236,32 @@ describe('stepLane (traffic lane following)', () => {
     expect(stepLane(lane, 0.1, crossings)).toBe(lane);
   });
 });
+
+describe('stepDrive steering feel', () => {
+  const fresh = () => ({ speed: 20, yaw: 0, drift: 0 });
+  const hold = (v, input, secs, dt = 1 / 60) => { for (let t = 0; t < secs; t += dt) stepDrive(v, input, dt, DEFAULT_TUNING); return v; };
+  it('eases a key press in instead of snapping to full lock', () => {
+    const v = fresh();
+    stepDrive(v, { throttle: 0, brake: 0, steer: 1 }, 1 / 60, DEFAULT_TUNING);
+    expect(v.steer).toBeGreaterThan(0);
+    expect(v.steer).toBeLessThan(0.2);
+    hold(v, { throttle: 0, brake: 0, steer: 1 }, 0.3);
+    expect(v.steer).toBeCloseTo(1, 5);
+  });
+  it('recentres faster than it turns in', () => {
+    const v = hold(fresh(), { throttle: 0, brake: 0, steer: 1 }, 0.5);
+    hold(v, { throttle: 0, brake: 0, steer: 0 }, 0.12);
+    expect(v.steer).toBeLessThanOrEqual(0);
+  });
+  it('turns less sharply at top speed than around town', () => {
+    const rate = (speed) => {
+      const v = { speed, yaw: 0, drift: 0, steer: 1 };
+      stepDrive(v, { throttle: 1, brake: 0, steer: 1 }, 1 / 60, DEFAULT_TUNING);
+      return v.yaw * 60;
+    };
+    expect(rate(DEFAULT_TUNING.turnRefSpeed)).toBeCloseTo(DEFAULT_TUNING.turnRate, 1);
+    expect(rate(DEFAULT_TUNING.maxSpeed)).toBeLessThan(rate(DEFAULT_TUNING.turnRefSpeed) * 0.8);
+    // Still a usable turn at full boost: a city block's corner, not a motorway curve.
+    expect(DEFAULT_TUNING.maxBoostSpeed / rate(DEFAULT_TUNING.maxBoostSpeed)).toBeLessThan(35);
+  });
+});

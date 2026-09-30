@@ -339,7 +339,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const comic = createComic(document.body, { onSound: (n) => audio.play(n), onVoice: (id) => voice.say(id) });
     // Tip cards wait out a takedown, a chain, the Bat Swarm or an action shot instead of covering
     // it (QUIET_CONTROLS, src/ui/prompts.js).
-    const prompts = createPromptQueue(hud, () => settings.bindings, () => settings.hints, () => follow.actionActive || QUIET_CONTROLS.has(hero.control?.name), () => gadgets?.state.equipped ?? null);
+    const prompts = createPromptQueue(hud, () => settings.bindings, () => settings.hints, (id) => follow.actionActive || (QUIET_CONTROLS.has(hero.control?.name) && id !== hero.control?.name), () => gadgets?.state.equipped ?? null);
     const waypoint = createWaypoint(hudRoot.querySelector('.hud') ?? hudRoot);
     const beacon = createBeacon(scene);
     const boss = createBoss({ assets, scene, rng, combat, events, hud, spawn, despawn, hero, time, getDifficulty: () => settings.difficulty, collision: world.collision, effects });
@@ -648,7 +648,10 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     // so it must not run every frame), and each one stops checking once it has shown.
     let hintCheckT = 0;
     let glideHighT = 0;
-    const hintShown = { ladder: false, zip: false, divebomb: false };
+    const hintShown = { ladder: false, zip: false, divebomb: false, drive: false, fly: false };
+    // The controls for a vehicle, the first time she gets in one.
+    events.on('vehicleEnter', () => { if (!hintShown.drive) { prompts.show(['drive'], { first: true }); hintShown.drive = true; } });
+    events.on('wingEnter', () => { if (!hintShown.fly) { prompts.show(['fly'], { first: true }); hintShown.fly = true; } });
 
     // stealthFx.update's options, filled in place every frame.
     const fxView = { detective: false, hero };

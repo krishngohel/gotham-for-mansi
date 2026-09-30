@@ -102,7 +102,10 @@ export function createBatwing({ scene, camera, hero, follow, collision, events, 
         const { input } = ctx;
         const invert = ctx.cam?.state?.invertY ? -1 : 1;
         const pitchIn = input.move.y * invert + (-input.look.dy * 0.0007 * invert);
-        const rollIn = input.move.x + input.look.dx * 0.001;
+        // Roll +1 banks and turns LEFT (wingFlight.js: yaw += roll * turnRate, and yaw up is a left
+        // turn); D and mouse-right mean a right turn, so both go in negated. Measured in the
+        // plane's own frame (scripts/steer-check.mjs), not the camera's.
+        const rollIn = -(input.move.x + input.look.dx * 0.001);
         const boost = input.down('sprint'), brake = input.down('jump');
         stepWing(state, { pitchIn, rollIn, boost, brake }, dt);
         clampToWorld(state, WORLD, dt);
@@ -125,6 +128,7 @@ export function createBatwing({ scene, camera, hero, follow, collision, events, 
         mesh.rotation.x = -state.pitch;
         mesh.rotation.z = -state.roll;
         follow.setBank?.(-state.roll * 0.55);
+        follow.setHeading?.(state.yaw, state.speed); // the camera stays behind the plane
         hero.pos.copy(mesh.position);
 
         if (input.pressed('punch')) fireDart();
