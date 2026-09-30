@@ -85,7 +85,7 @@ export const STEPS = [
   { id: 'toMonarch', text: 'The party is on the Monarch Theater roof.', site: 'monarchRoof', radius: 14, checkpoint: 'neonStreet' },
   { id: 'n3', type: 'fight', fight: 'monarch', text: 'Crash the party crashers.', tutorial: ['special'] },
   {
-    id: 'crasherRooftop', type: 'crasher', text: 'The masked man is right there.', at: 'monarchRoof', to: 'monarchBalconyEntry',
+    id: 'crasherRooftop', type: 'crasher', text: 'The masked man is right there.', at: 'monarchRoof', to: 'monarchBalconyEntry', checkpoint: 'monarchRoof',
     lines: [
       g('mansi', 'Nowhere left to run.'),
       g('crasher', 'Wrong again.'),
