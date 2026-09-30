@@ -1,5 +1,9 @@
 // Walks the story step list. Pure: the game reports events, the runner decides when a step is done.
 
+// Part S mission types (see flow.js): each async one completes on its own synthetic event, fired
+// by flow.js itself whether the real system (vehicles, batwing, nightwing) finished it or it
+// degraded to a timer. 'interior' is a plain reach step (falls to the default case below); flow.js
+// just also tries to enter the room when the hero arrives.
 function matches(step, ev) {
   switch (step.type) {
     case 'cutscene': return ev.type === 'cutsceneDone' && ev.scene === step.scene;
@@ -7,6 +11,12 @@ function matches(step, ev) {
     case 'collect': return ev.type === 'collected' && ev.item === step.item;
     case 'boss': return ev.type === 'bossDone';
     case 'credits': return false;
+    case 'radio': return ev.type === 'radioDone' && ev.id === step.id;
+    case 'chase': return ev.type === 'chaseDone';
+    case 'battle': return ev.type === 'battleDone';
+    case 'armada': return ev.type === 'armadaDone';
+    case 'crasher': return ev.type === 'crasherDone' && ev.id === step.id;
+    case 'ally': return ev.type === 'allyDone' && ev.id === step.id;
     default: return ev.type === 'reached' && ev.step === step.id;
   }
 }
