@@ -28,7 +28,10 @@ const STREET_CAR_TUNING = mergeTuning({
 const JOKER_TUNING = mergeTuning({ maxSpeed: 15, accel: 7 });
 
 const RAM_MIN_SPEED = 4.5;    // m/s: below this, touching a goon or a car is just a nudge
-const ENTER_RANGE = 4;        // meters
+const ENTER_RANGE = 6;        // meters, from the car's centre (a car is about 4.5 m long)
+// Her own car answers from farther: T near the parked Batmobile should always mean "get in",
+// never "call it again" (which slid it over to her and made her press T twice).
+const BATMOBILE_ENTER_RANGE = 10;
 const CANNON_RANGE = 34;
 const CANNON_HALF_WIDTH = 2.2;
 const WHEEL_RADIUS = 0.46;
@@ -812,11 +815,11 @@ export function createVehicles(deps) {
   function handleVehicleKey() {
     // At speed the same key ejects Batman up into a glide (the Arkham exit); slower, she steps out.
     if (active) { if (Math.abs(active.v.speed) >= EJECT_MIN_SPEED) eject(); else exit(); return; }
-    let nearest = null, nearestD = ENTER_RANGE;
+    let nearest = null, nearestD = Infinity;
     for (const v of enterables()) {
       if (v.driven || v.arriving || !v.group.visible) continue;
       const d = Math.hypot(hero.pos.x - v.group.position.x, hero.pos.z - v.group.position.z);
-      if (d < nearestD) { nearestD = d; nearest = v; }
+      if (d < (v === bm ? BATMOBILE_ENTER_RANGE : ENTER_RANGE) && d < nearestD) { nearestD = d; nearest = v; }
     }
     if (nearest) enter(nearest);
     else summon('batmobile');
