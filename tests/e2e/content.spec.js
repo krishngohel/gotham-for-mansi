@@ -86,6 +86,6 @@ test('the progress page shows the percentage, every part and the map', async ({ 
   await expect(page.locator('.progress-menu canvas.pg-map')).toBeVisible();
   await page.locator('.progress-menu .mbtn', { hasText: 'Back' }).click();
   await pauseButton(page, 'Challenges').click();
-  expect(await page.locator('.challenges-menu .cr-row').count()).toBe(5);
+  expect(await page.locator('.challenges-menu .cr-row').count()).toBe(7); // 5 original plus the Gotham Grand Prix and Wing Walk vehicle challenges
   expect(errors).toEqual([]);
 });

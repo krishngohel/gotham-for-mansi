@@ -3,6 +3,7 @@ import { ACTIONS, DEFAULT_BINDINGS, keyLabel, rebind } from '../core/bindings.js
 import { saveSettings } from '../core/settings.js';
 import { promptText } from './prompts.js';
 import { drawProgressMap } from './progressMap.js';
+import { whatsNewItems, whatsNewHeadline } from './whatsNew.js';
 import MANSI from '../mansi.config.js';
 
 const MOVING_AROUND = ['ladder', 'ledge', 'zip', 'wallrun', 'divebomb', 'takedown'];
@@ -65,9 +66,13 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
     const again = () => title(opts);
     const node = el('div', 'menu title-menu');
     node.appendChild(el('div', 'logo', `<span class="kicker">A birthday special</span><span class="l1">Gotham needs you,</span><span class="l2">${MANSI.name}</span>`));
+    // The save reset (a new story key, see src/core/save.js): a comic burst so a returning player
+    // knows straight away that this is not the same game they left off in.
+    node.appendChild(el('div', 'new-burst', `<span>NEW!</span><i>Mansi's Birthday Night:<br>a brand new story</i>`));
     const list = el('div', 'mlist');
     if (canContinue) list.appendChild(button(percent == null ? 'Continue' : `Continue, ${percent}%`, onContinue, 'primary'));
     list.appendChild(button(canContinue ? 'New game' : 'Start', onNew, canContinue ? '' : 'primary'));
+    list.appendChild(button("What's new", () => whatsNew(again)));
     list.appendChild(button('Settings', () => openSettings(again)));
     list.appendChild(button('Controls', () => help(again)));
     list.appendChild(button('Credits', () => credits({ onClose: again })));
@@ -362,6 +367,19 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
     show(node);
   }
 
+  // ---------- what's new ----------
+  function whatsNew(onBack) {
+    const node = el('div', 'menu whatsnew-menu');
+    node.appendChild(el('h2', '', "What's new"));
+    node.appendChild(el('p', 'wn-lead', whatsNewHeadline()));
+    const list = el('div', 'wn-list');
+    for (const line of whatsNewItems(settings.bindings)) list.appendChild(el('p', 'wn-row', line));
+    node.appendChild(list);
+    node.appendChild(el('p', 'note', 'Every save from before tonight starts this story over, completely fresh: new balloons to find, new medals to win, same birthday girl.'));
+    node.appendChild(button('Back', onBack, 'small'));
+    show(node);
+  }
+
   // ---------- credits ----------
   function credits({ onClose, final = false }) {
     const node = el('div', `menu credits-menu ${final ? 'final' : ''}`);
@@ -370,6 +388,7 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
       ${final ? `<h1>Happy birthday, ${MANSI.name}!</h1><p class="final-msg">${MANSI.finalMessage}</p><p class="from">From ${MANSI.fromName}</p>` : '<h2>Credits</h2>'}
       <h3>Made for</h3><p>${MANSI.name}</p>
       <h3>Made by</h3><p>${MANSI.fromName}</p>
+      <h3>New tonight</h3><p>A brand new three act story, the Batmobile and every street car, the Batwing, Nightwing, Harley Quinn, walk in interiors at Ace Chemicals and the Joker funhouse, in engine cinematics, the birthday party finale, and the Gotham Grand Prix and Wing Walk challenges.</p>
       <h3>Characters and animation</h3><p>Universal Base Characters and Universal Animation Library 1 and 2 by Quaternius (CC0)</p>
       <h3>Type</h3><p>Bangers, Patrick Hand SC and Barlow Condensed via Google Fonts (SIL Open Font License)</p>
       <h3>Music and voice</h3><p>Finale: "Happy Birthday To You" (orchestral) by Tom Kincaid / VOLE.wtf (CC0). The Joker's voice: Seed Audio 1.0 on Higgsfield.</p>
@@ -381,7 +400,7 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
   }
 
   return {
-    title, suitSelect, pause, challengesPage, progressPage, wayneTechPage, help, openSettings, credits, hide,
+    title, suitSelect, pause, challengesPage, progressPage, wayneTechPage, help, whatsNew, openSettings, credits, hide,
     setGadgetHelp(fn) { gadgetHelp = fn; },
     get open() { return !!current; },
   };
