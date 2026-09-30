@@ -49,6 +49,7 @@ import { createVoice } from '../audio/voice.js';
 import { createWorld } from './world.js';
 import { createFollowCamera } from './camera.js';
 import { createBatwing } from '../vehicles/batwing.js';
+import { createCinematic } from '../ui/cinematic.js';
 import { createFx } from './fx.js';
 import { createStealthFx } from '../stealth/stealthFx.js';
 import { createGadgetFx } from '../gadgets/gadgetFx.js';
@@ -253,6 +254,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     // never pauses play; flow.js drives it for the new 'radio' step type and the async missions'
     // flavor lines.
     const radio = createRadio(hudRoot, { onSound: (n) => audio.play(n) });
+    // ---- Cinematic camera: src/ui/cinematic.js ----
+    const cinematic = createCinematic({ camera, hero, hudRoot: hudRoot.querySelector('.hud') ?? hudRoot });
     const comicFx = createComicFx(document.body);
     const fx = createFx(scene);
     const stealthFx = createStealthFx(scene);
@@ -684,6 +687,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         breakables.update(state.t, hero.pos);
         if (hero.pos.y < -0.8) { hero.teleport(hero.lastSafe); events.emit('splash'); }
         follow.update(real, gadgets.cameraFocus ?? hero.pos, gadgets.wheelOpen ? NO_LOOK : input.look, gadgets.cameraMode ?? combat.cameraMode ?? hero.cameraMode(), hero.speed);
+        // Cinematic camera: overrides whatever follow.update() just set, after it ran.
+        cinematic.update(dt);
         // After follow.update, so the rope ribbon billboards toward this frame's camera, not
         // last frame's. It reads only goon and hand positions, which are already final.
         chainFx.update(dt);
@@ -748,7 +753,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
 
     const api = {
       hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, despawn, side,
-      batwing, nightwing, radio, vehicles,
+      batwing, nightwing, radio, vehicles, cinematic,
       // Impact frames test hook: pin(ms) samples `ms` into the sequence the next fire() starts.
       impact: {
         fire: (tier, target) => fireImpact(tier, target),
@@ -886,7 +891,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       return;
     }
     const pauseKeys = settings.bindings.pause, helpKeys = settings.bindings.help;
-    if (pauseKeys.includes(e.code) && !input.capturing && !game.comic.playing) { e.preventDefault(); state.paused ? (menus.open ? resume() : null) : pause(); }
+    if (pauseKeys.includes(e.code) && !input.capturing && !game.comic.playing && !game.cinematic.active) { e.preventDefault(); state.paused ? (menus.open ? resume() : null) : pause(); }
     else if (helpKeys.includes(e.code) && !state.paused && game.flow.mode === 'play') {
       game.gadgets.halt();
       state.paused = true;
