@@ -16,6 +16,7 @@ import { LAYER_FX, LAYER_XRAY } from '../render/layers.js';
 import { PALETTE } from '../config/palette.js';
 import { STEALTH } from './vision.js';
 import { stateColor } from './brain.js';
+import { xrayMaterial } from '../render/toon.js';
 
 export const STEALTH_FX_MAX = 8;
 export const STATE_COLORS = [0xe8f0ff, 0xffd23a, 0xff3b3b]; // patrolling, searching, hostile
@@ -67,6 +68,24 @@ export function stealthMaterials() {
   return shared;
 }
 
+// A throwaway one-bone SkinnedMesh so a shared xrayMaterial(color) (toon.js/addXray) gets its
+// program compiled here, under the loading screen, as the same kind of object (SkinnedMesh, on
+// LAYER_XRAY) drawEverything() (render/prewarm.js) will later draw a goon's x-ray silhouette as -
+// isSkinnedMesh is part of a material's program cache key, so warming with a plain Mesh wouldn't
+// cover it.
+function xraySkinWarm(color) {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0.1, 0, 0, 0, 0.1, 0], 3));
+  geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 4));
+  geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute([1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0], 4));
+  const bone = new THREE.Bone();
+  const mesh = new THREE.SkinnedMesh(geo, xrayMaterial(color));
+  mesh.add(bone);
+  mesh.bind(new THREE.Skeleton([bone]));
+  mesh.layers.set(LAYER_XRAY);
+  return mesh;
+}
+
 // One of each, below the city, drawn once under the loading screen.
 export function createStealthWarm() {
   const m = stealthMaterials();
@@ -83,6 +102,15 @@ export function createStealthWarm() {
   const flash = new THREE.Mesh(new THREE.OctahedronGeometry(0.18), m.flash);
   flash.position.set(32, -50, 0);
   group.add(flash);
+  // Every shared x-ray silhouette colour a goon or the Joker can wear (toon.js's xrayMaterial
+  // cache): PALETTE.sodium at rest, the three STEALTH_FX state colours, and the Joker's green.
+  let wx = 34;
+  for (const color of [PALETTE.sodium, ...STATE_COLORS, PALETTE.jokerGreen]) {
+    const x = xraySkinWarm(color);
+    x.position.set(wx, -50, 0);
+    wx += 1;
+    group.add(x);
+  }
   return group;
 }
 
@@ -130,7 +158,10 @@ export function createStealthFx(scene) {
   const life = new Float32Array(SHOTS);
   const tmp = new THREE.Vector3();
   let next = 0;
-  const tint = (e, hex) => { for (const x of e.ch.xrays ?? []) x.material.color.setHex(hex); };
+  // Swaps each mesh onto the shared material for that colour (addXray/xrayMaterial in toon.js):
+  // never mutates a material's own .color, which would recolor every other character currently
+  // sharing that same instance.
+  const tint = (e, hex) => { for (const x of e.ch.xrays ?? []) x.material = xrayMaterial(hex); };
   // Which goon (its enemy record `e`) each cone slot last tinted, so clear() can restore x-ray
   // colours even when it's called with no goons (the real wiring: stealthSystem.end() empties its
   // own goons array and emits `stealthEnd` with no payload before game.js's

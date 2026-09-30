@@ -78,10 +78,30 @@ export function addHullOutline(mesh, width = 0.011, color = PALETTE.ink) {
   return hull;
 }
 
-// Flat silhouette that shows through walls in detective vision.
-export function addXray(mesh, color = PALETTE.sodium) {
-  const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.6, depthTest: false, depthWrite: false });
-  const xray = new THREE.SkinnedMesh(mesh.geometry, mat);
+// One flat MeshBasicMaterial per colour, shared by every x-ray mesh that wants it (every goon's
+// body and clothing pieces, the Joker's, a room's worth at a time): only a handful of colours
+// ever show up (PALETTE.sodium at rest, the three STEALTH_FX state colours, jokerGreen), so this
+// turns what used to be a brand-new material per body part per character (dozens, each forcing
+// three.js to revalidate its own program/uniform state on every draw) into a handful of shared
+// ones the renderer already has warm. stealthFx.js's tint() swaps a mesh onto a different shared
+// material by colour instead of mutating a material's own .color, so two goons in different
+// states never fight over the same instance.
+const xrayMats = new Map();
+export function xrayMaterial(color) {
+  let mat = xrayMats.get(color);
+  if (!mat) {
+    mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.6, depthTest: false, depthWrite: false });
+    xrayMats.set(color, mat);
+  }
+  return mat;
+}
+
+// Flat silhouette that shows through walls in detective vision. `geometry` defaults to the
+// source mesh's own, but callers building a full-body silhouette (see createGoon/createJoker)
+// pass the uncut body geometry instead so one x-ray draw covers the whole figure, rather than one
+// per clothing piece stacked (and alpha-blended, depthTest off) on top of each other.
+export function addXray(mesh, color = PALETTE.sodium, geometry = mesh.geometry) {
+  const xray = new THREE.SkinnedMesh(geometry, xrayMaterial(color));
   xray.bind(mesh.skeleton, mesh.bindMatrix);
   xray.layers.set(LAYER_XRAY);
   xray.frustumCulled = false;
