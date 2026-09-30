@@ -3,7 +3,7 @@
 const INK = '#0b0b12';
 const PAPER = '#efe6cf';
 
-const wrap = (fill, inner) => `<svg viewBox="0 0 72 72"><rect x="1" y="1" width="70" height="70" rx="6" fill="${fill}" stroke="${INK}" stroke-width="3"/>${inner}</svg>`;
+const wrap = (fill, inner) => `<svg viewBox="0 0 72 72"><rect x="1.5" y="1.5" width="69" height="69" rx="6" fill="${fill}" stroke="${INK}" stroke-width="4.5"/>${inner}</svg>`;
 
 const PORTRAITS = {
   gordon: wrap('#5b6474', `
