@@ -117,10 +117,34 @@ export function wireAudio({ audio, events, hero, combat, flow, voice = null, set
   on('upgradeBought', () => audio.play('upgrade'));
   on('swarmStart', () => audio.play('swarm'));
 
+  // ---- vehicles (src/vehicles/vehicles.js, src/vehicles/batwing.js) ----
+  // Continuous engine loops live in ambience.js (setEngine), called every frame from the vehicle
+  // code itself; everything here is one-shots.
+  on('vehicleEnter', ({ kind }) => { audio.play('carDoor'); audio.play('ignition', { pitch: kind === 'batmobile' ? 0.85 : 1.15 }); });
+  on('vehicleExit', ({ kind }) => audio.play('carDoor', { pitch: kind === 'batmobile' ? 0.9 : 1.1 }));
+  on('vehicleBoost', () => audio.play('boostRoar'));
+  // Ram/crash impact, scaled by impact speed: quiet nudge around the ram threshold, full gain by
+  // a hard highway-speed hit.
+  on('vehicleImpact', ({ speed }) => audio.play('crash', { gain: Math.min(1.1, 0.5 + speed / 22), pitch: Math.min(1.15, 0.85 + speed / 70) }));
+  on('cannonFire', () => audio.play('cannonFire'));
+  on('droneShot', () => audio.play('droneShot', { pitch: vary(0.08) }));
+  on('shellHit', () => audio.play('shellBlast'));
+  on('armorHit', () => audio.play('armorHit'));
+  on('droneDestroyed', () => audio.play('droneBoom', { pitch: vary(0.1) }));
+  // The Batwing's balloon armada: reuses the existing 'pop' + 'balloon' pair (same sequence as
+  // the birthday balloons above), scaled a little by how many popped in one hit.
+  on('armadaPop', ({ count }) => {
+    audio.play('pop', { gain: Math.min(1.3, 0.8 + 0.12 * count) });
+    setTimeout(() => audio.play('balloon', { gain: Math.min(1.1, 0.7 + 0.08 * count) }), 120);
+  });
+
   audio.setRain(0.8);
 
   return {
-    update() {
+    // hush: gameplay is stopped (pause menu, a comic, photo mode). The vehicle code only sets the
+    // engine while it runs, so silence the loops here; it sets them again on the next played frame.
+    update(real, { hush = false } = {}) {
+      if (hush) { audio.setEngine(null); audio.setGlide(0); }
       const step = flow.objectives.step;
       const want = trackPlaying ? 'none'
         : step?.type === 'boss' ? 'boss'
@@ -128,7 +152,7 @@ export function wireAudio({ audio, events, hero, combat, flow, voice = null, set
         : flow.mode === 'cutscene' ? 'title'
         : (fighting || combat.active) && !(stealth?.active && !stealth.alarm) ? 'combat' : 'explore';
       if (want !== mode) { mode = want; audio.music(want); }
-      audio.setGlide(hero.state === 'glide' ? Math.min(1, 0.35 + hero.speed / 40) : 0);
+      if (!hush) audio.setGlide(hero.state === 'glide' ? Math.min(1, 0.35 + hero.speed / 40) : 0);
       const heat = combat.active ? Math.min(1, combat.enemies.filter((e) => e.alive && e.aware).length / 6 + combat.combo.value / 16) : 0;
       audio.setCombatIntensity(heat);
     },

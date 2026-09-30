@@ -448,11 +448,15 @@ export const SFX = {
     return h + dur + 0.05;
   } },
 
-  // A rifle crack: a sharp transient, a low body and a short echo off the walls.
+  // A rifle crack: a sharp transient, a low body and a short echo off the walls. Gains trimmed
+  // (fix round 2): the highpass crack and the low thump peak at the same instant t, and their
+  // sum cleared 1.0 (measured peak 1.30 with the limiter off). Both trimmed and the thump
+  // nudged a few ms later so the two transients don't stack exactly in phase; still reads as one
+  // sharp crack.
   rifleShot: { wet: 0.35, max: 3, fn(ctx, out, t, p) {
-    noise(ctx, out, t, { type: 'highpass', freq: 1800 * p, d: 0.05, gain: 0.9 });
-    thump(ctx, out, t, p, { from: 220, to: 60, d: 0.18, gain: 0.8 });
-    noise(ctx, out, t + 0.01, { type: 'bandpass', freq: 900 * p, Q: 0.8, d: 0.35, gain: 0.25 });
+    noise(ctx, out, t, { type: 'highpass', freq: 1800 * p, d: 0.05, gain: 0.58 });
+    thump(ctx, out, t + 0.004, p, { from: 220, to: 60, d: 0.18, gain: 0.55 });
+    noise(ctx, out, t + 0.01, { type: 'bandpass', freq: 900 * p, Q: 0.8, d: 0.35, gain: 0.22 });
     return t + 0.4;
   } },
 
@@ -513,9 +517,12 @@ export const SFX = {
     return f + 0.6;
   } },
 
-  // Remote batarang: a fast whirring spin, re-triggered every 1.1 s while it flies.
+  // Remote batarang: a fast whirring spin, re-triggered every 1.1 s while it flies. Gain raised
+  // (fix round 2): measured 13.5 dB quieter than the typical one-shot, well below anything else
+  // in the set; now within ~6 dB of the median (still the thinnest effect in the game, on
+  // purpose, since it's a constant background whirr rather than an impact).
   remote: { wet: 0.1, max: 2, fn(ctx, out, t, p) {
-    flutter(ctx, out, t, p, { dur: 1.1, rate: 46, freq: 2600, to: 2200, gain: 0.2, Q: 2.2, a: 0.04 });
+    flutter(ctx, out, t, p, { dur: 1.1, rate: 46, freq: 2600, to: 2200, gain: 0.6, Q: 2.2, a: 0.04 });
     return t + 1.15;
   } },
 
@@ -638,6 +645,101 @@ export const SFX = {
     crackle(ctx, out, t, { dur: 0.22, count: 16, freq: 3200 * p, gain: 0.22 });
     noise(ctx, out, t, { type: 'bandpass', freq: 1100 * p, Q: 0.7, d: 0.07, gain: 0.15 });
     return t + 0.25;
+  } },
+
+  // ---- vehicles (src/vehicles/vehicles.js, src/vehicles/batwing.js) ----
+
+  // A car door thunking shut: used on both vehicleEnter and vehicleExit.
+  carDoor: { wet: 0.12, max: 2, fn(ctx, out, t, p) {
+    thump(ctx, out, t, p, { from: 160, to: 55, d: 0.1, gain: 0.5 });
+    metal(ctx, out, t + 0.02, { base: 500 * p, ratios: [1, 1.8], d: 0.12, gain: 0.14 });
+    noise(ctx, out, t, { type: 'lowpass', freq: 500 * p, d: 0.06, gain: 0.3 });
+    return t + 0.16;
+  } },
+
+  // The engine catching: a starter whirr, then it turns over.
+  ignition: { wet: 0.1, max: 2, fn(ctx, out, t, p) {
+    flutter(ctx, out, t, p, { dur: 0.22, rate: 60, freq: 500, to: 260, gain: 0.35, Q: 1.4, a: 0.02 });
+    const h = t + 0.2;
+    tone(ctx, out, h, { type: 'sawtooth', freq: 90 * p, to: 55 * p, d: 0.22, gain: 0.35 });
+    noise(ctx, out, h, { type: 'lowpass', freq: 500 * p, d: 0.2, gain: 0.3 });
+    return h + 0.26;
+  } },
+
+  // Boost kicking in: a quick overdriven roar layered over the continuous engine loop.
+  boostRoar: { wet: 0.2, max: 1, fn(ctx, out, t, p) {
+    const post = ctx.createGain();
+    post.gain.value = 0.55;
+    post.connect(out);
+    const crunch = drive(ctx, post, 6);
+    const pre = ctx.createGain();
+    pre.gain.value = 1;
+    pre.connect(crunch);
+    tone(ctx, pre, t, { type: 'sawtooth', freq: 65 * p, to: 230 * p, glide: 0.4, a: 0.03, d: 0.4, gain: 0.9 });
+    noise(ctx, out, t, { type: 'bandpass', freq: 1200 * p, Q: 1, d: 0.12, gain: 0.3 });
+    return t + 0.45;
+  } },
+
+  // A ram or wall crash: built the same way as `heavy` (drive stage, trimmed post gain) with a
+  // metal rattle layered in for the car-on-car flavor. Played with gain/pitch scaled by impact
+  // speed (see sound.js), so it needs headroom above its own peak at gain 1.
+  crash: { wet: 0.25, max: 2, fn(ctx, out, t, p) {
+    const post = ctx.createGain();
+    post.gain.value = 0.5;
+    post.connect(out);
+    const crunch = drive(ctx, post, 5);
+    const pre = ctx.createGain();
+    pre.gain.value = 0.9;
+    pre.connect(crunch);
+    thump(ctx, pre, t, p, { from: 130, to: 30, d: 0.5, gain: 0.55 });
+    noise(ctx, pre, t, { type: 'lowpass', freq: 650 * p, to: 140, d: 0.42, gain: 0.45 });
+    metal(ctx, out, t + 0.02, { base: 900 * p, ratios: [1, 1.7, 2.6], d: 0.3, gain: 0.16 });
+    noise(ctx, out, t, { type: 'bandpass', freq: 2200 * p, Q: 0.9, d: 0.08, gain: 0.35 });
+    return t + 0.65;
+  } },
+
+  // The Batmobile's shock cannon.
+  cannonFire: { wet: 0.2, max: 2, fn(ctx, out, t, p) {
+    thump(ctx, out, t, p, { from: 200, to: 70, d: 0.1, gain: 0.5 });
+    noise(ctx, out, t, { type: 'bandpass', freq: 2600 * p, to: 800 * p, Q: 2, d: 0.14, gain: 0.45 });
+    tone(ctx, out, t, { type: 'square', freq: 1400 * p, to: 300 * p, d: 0.08, gain: 0.22 });
+    noise(ctx, out, t + 0.01, { type: 'highpass', freq: 5000, d: 0.02, gain: 0.3 });
+    return t + 0.22;
+  } },
+
+  // A drone tank's shell launching: a heavier, more mechanical thump than rifleShot.
+  droneShot: { wet: 0.2, max: 2, fn(ctx, out, t, p) {
+    thump(ctx, out, t, p, { from: 180, to: 50, d: 0.14, gain: 0.55 });
+    noise(ctx, out, t, { type: 'bandpass', freq: 1200 * p, Q: 1.2, d: 0.18, gain: 0.4 });
+    tone(ctx, out, t, { type: 'sawtooth', freq: 240 * p, to: 90 * p, d: 0.12, gain: 0.2 });
+    return t + 0.24;
+  } },
+
+  // A drone shell exploding on or near the Batmobile.
+  shellBlast: { wet: 0.3, max: 2, fn(ctx, out, t, p) {
+    thump(ctx, out, t, p, { from: 110, to: 30, d: 0.5, gain: 0.6 });
+    noise(ctx, out, t, { type: 'lowpass', freq: 650 * p, d: 0.55, gain: 0.55 });
+    crackle(ctx, out, t + 0.04, { dur: 0.45, count: 26, freq: 5500, gain: 0.3 });
+    noise(ctx, out, t, { type: 'bandpass', freq: 2000 * p, Q: 1, d: 0.07, gain: 0.3 });
+    return t + 0.65;
+  } },
+
+  // The Batmobile's armour deflecting a hit: a harder metal clang than shellBlast, layered on
+  // top of it at the moment a shell actually damages the armour.
+  armorHit: { wet: 0.2, max: 2, fn(ctx, out, t, p) {
+    metal(ctx, out, t, { base: 380 * p, ratios: [1, 1.6, 2.4, 3.3], d: 0.35, gain: 0.21 });
+    thump(ctx, out, t, p, { from: 160, to: 60, d: 0.16, gain: 0.4 });
+    noise(ctx, out, t, { type: 'highpass', freq: 3000, d: 0.03, gain: 0.25 });
+    return t + 0.38;
+  } },
+
+  // A drone tank destroyed: the biggest of the vehicle explosions, in line with gelBoom.
+  droneBoom: { wet: 0.32, max: 2, fn(ctx, out, t, p) {
+    thump(ctx, out, t, p, { from: 120, to: 28, d: 0.55, gain: 0.65 });
+    noise(ctx, out, t, { type: 'lowpass', freq: 700 * p, d: 0.6, gain: 0.58 });
+    crackle(ctx, out, t + 0.05, { dur: 0.55, count: 30, freq: 6000, gain: 0.32 });
+    metal(ctx, out, t + 0.06, { base: 700 * p, ratios: [1, 1.9], d: 0.25, gain: 0.12 });
+    return t + 0.75;
   } },
 };
 

@@ -1,12 +1,15 @@
 // Automated run through every story step: teleports to each objective, wins each fight,
 // grabs each item, reads each comic. Screenshots of every comic page go to $OUT.
-import { chromium } from 'playwright-core';
+import { chromium, firefox } from 'playwright-core';
 import { mkdirSync } from 'node:fs';
 
 const base = process.env.BASE ?? 'http://localhost:5200/';
 const out = process.env.OUT ?? 'playthrough';
 mkdirSync(out, { recursive: true });
-const browser = await chromium.launch({ args: ['--mute-audio', '--ignore-gpu-blocklist', '--use-angle=d3d11'] });
+// ENGINE=firefox plays the story in Firefox instead (muted through its volume pref).
+const browser = process.env.ENGINE === 'firefox'
+  ? await firefox.launch({ firefoxUserPrefs: { 'webgl.force-enabled': true, 'media.volume_scale': '0.0' } })
+  : await chromium.launch({ args: ['--mute-audio', '--ignore-gpu-blocklist', '--use-angle=d3d11'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 const errors = [];
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
@@ -76,6 +79,20 @@ for (let guard = 0; guard < 600; guard++) {
     await page.evaluate(() => { window.__game.vehicles?.debugWin?.(); window.__game.batwing?.debugWin?.(); });
     continue;
   }
+  if (s.type === 'board') {
+    // The Batmobile parks itself (src/vehicles/vehicles.js's park(), called from the 'board' step
+    // in flow.js); wait for its slide-in to finish, then press the same enter-vehicle key a real
+    // player would (vehicles.enter has no distance check of its own, so no teleport is needed).
+    await page.waitForFunction(() => !window.__game.vehicles?.batmobile?.arriving, null, { timeout: 5000 }).catch(() => {});
+    await page.evaluate(() => { const v = window.__game.vehicles; if (v && !v.active) v.enter(v.batmobile); });
+    continue;
+  }
+  // A plain travel step may still be reachable while driving or flying (that's the point of some
+  // of them), but a few (back up onto a roof after a chase or a battle, say) sit somewhere a
+  // vehicle simply cannot go. A real player gets out to climb or glide there; do the same before
+  // the teleport cheat below, or the vehicle's own per-frame position sync would just snap the
+  // teleport straight back to wherever the car or the Batwing still is.
+  await page.evaluate(() => { const v = window.__game.vehicles, w = window.__game.batwing; if (v?.active) v.exit(); if (w?.active) w.exit(); });
   if (s.site) await page.evaluate((p) => window.__game.teleport({ x: p.x, y: p.y, z: p.z }), s.site);
   if (s.type === 'fight') { await page.waitForTimeout(600); await page.evaluate(() => window.__game.winFight()); await page.waitForTimeout(1800); await page.evaluate(() => window.__game.winFight()); await page.waitForTimeout(1800); await page.evaluate(() => window.__game.winFight()); }
 }

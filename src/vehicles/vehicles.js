@@ -1,8 +1,12 @@
 // Ground vehicles: the Batmobile, street cars you can commandeer, a Joker chase van and drone
 // tanks for the Ace Chemicals battle. Contract (docs/superpowers/specs/2026-09-30-birthday-night
 // -design.md): createVehicles(deps) -> { summon, enter, exit, active, update, startChase,
-// startBattle }. Events: vehicleEnter{kind}, vehicleExit{kind}, chaseDone{ok}, battleDone{ok}.
+// startBattle, park }. Events: vehicleEnter{kind}, vehicleExit{kind}, chaseDone{ok}, battleDone{ok}.
 // The hero's control name while driving is 'drive'.
+// park(spot, opts): parks the Batmobile at an exact { x, y, z, yaw } (a story 'board' step's own
+// site, src/game/story.js), unlike summon() which always places it relative to wherever Batman is
+// currently standing. Added alongside the rest of this file's driving/physics work without
+// touching it (see the note on park() itself).
 import * as THREE from 'three';
 import { createRng } from '../core/rng.js';
 import { WORLD } from '../world/mapData.js';
@@ -24,7 +28,10 @@ const STREET_CAR_TUNING = mergeTuning({
 const JOKER_TUNING = mergeTuning({ maxSpeed: 15, accel: 7 });
 
 const RAM_MIN_SPEED = 4.5;    // m/s: below this, touching a goon or a car is just a nudge
-const ENTER_RANGE = 4;        // meters
+const ENTER_RANGE = 6;        // meters, from the car's centre (a car is about 4.5 m long)
+// Her own car answers from farther: T near the parked Batmobile should always mean "get in",
+// never "call it again" (which slid it over to her and made her press T twice).
+const BATMOBILE_ENTER_RANGE = 10;
 const CANNON_RANGE = 34;
 const CANNON_HALF_WIDTH = 2.2;
 const WHEEL_RADIUS = 0.46;
@@ -89,7 +96,7 @@ function armorBar(hudRoot) {
 function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
 
 export function createVehicles(deps) {
-  const { scene, collision, hero, events, input, follow, combat, fx, hudRoot } = deps;
+  const { scene, collision, hero, events, input, follow, combat, fx, hudRoot, audio } = deps;
   const rng = createRng(7331); // own rng: never draws from ctx.rng (the city's seed)
 
   const toast = tinyToast(hudRoot);
@@ -103,6 +110,7 @@ export function createVehicles(deps) {
 
   let active = null;      // the instance currently being driven, or null
   let lastSteer = 0;      // this frame's steer input, for the driven car's front-wheel visual
+  let wasBoosting = false; // last frame's boost state, so 'vehicleBoost' fires once per press
 
   // ---------------- the Batmobile ----------------
   const bm = createBatmobile();
@@ -293,6 +301,36 @@ export function createVehicles(deps) {
     }
   }
 
+  // Parks the Batmobile at an exact spot (a story 'board' step's own site, not wherever Batman
+  // happens to be standing): a small, self-contained addition next to summon() that reuses its
+  // slide-in (bm.arriving, updateSummonArrival above) rather than touching any driving/physics
+  // code. { slide: false } places it immediately (used by the dev fast path); the default slides
+  // it in from SUMMON_FAR back along its own facing, the same distance and duration summon() uses.
+  function park(spot, { slide = true } = {}) {
+    if (bm.arriving) return; // already on its way somewhere
+    const yaw = spot.yaw ?? 0;
+    if (!slide) {
+      const groundY = collision.groundBelow(spot.x, (spot.y ?? 0) + 4, spot.z, 0.3);
+      bm.v.speed = 0; bm.v.drift = 0; bm.v.yaw = yaw;
+      bm.group.rotation.y = yaw;
+      bm.group.position.set(spot.x, groundY > -Infinity ? groundY : (spot.y ?? 0), spot.z);
+      bm.group.visible = true;
+      bm.summoned = true;
+      events.emit('word', { text: 'SCREEECH!', pos: bm.group.position.clone().setY(bm.group.position.y + 1), big: true });
+      toast.show('The Batmobile screeches in.', 2200);
+      return;
+    }
+    const fromX = spot.x - Math.sin(yaw) * SUMMON_FAR, fromZ = spot.z - Math.cos(yaw) * SUMMON_FAR;
+    const groundY = collision.groundBelow(fromX, (spot.y ?? 0) + 4, fromZ, 0.3);
+    bm.v.speed = 0; bm.v.drift = 0; bm.v.yaw = yaw;
+    bm.group.rotation.y = yaw;
+    bm.group.visible = true;
+    bm.summoned = true;
+    bm.group.position.set(fromX, groundY > -Infinity ? groundY : (spot.y ?? 0), fromZ);
+    bm.arriving = { t: 0, dur: SUMMON_DUR, fromX, fromZ, toX: spot.x, toZ: spot.z, yaw };
+    toast.show('The Batmobile is on its way.', 2200);
+  }
+
   // A little code figure that hops out and dashes off: enter()'s carjack flourish. Only one ever
   // needed at a time in practice, but kept as a small pool-free list since it's an event (a
   // carjack), not a per-frame cost.
@@ -362,6 +400,8 @@ export function createVehicles(deps) {
     if (v.traffic) v.traffic = false;
     if (v.kind === 'car') v.borrowed = true;
     events.emit('vehicleExit', { kind: v.kind });
+    audio?.setEngine(null);
+    wasBoosting = false;
     active = null;
   }
 
@@ -388,11 +428,14 @@ export function createVehicles(deps) {
     if (v.traffic) v.traffic = false; // see the same note in exit()
     if (v.kind === 'car') v.borrowed = true;
     events.emit('vehicleExit', { kind: v.kind });
+    audio?.setEngine(null);
+    wasBoosting = false;
     active = null;
   }
 
   // ---------------- one vehicle's physics step ----------------
   function integrateVehicle(inst, input2, dt) {
+    inst.wallCd = Math.max(0, (inst.wallCd ?? 0) - dt); // cooldown: see the crash event below
     stepDrive(inst.v, input2, dt, inst.tuning);
     driveVelocity(inst.v, inst.tuning, velScratch);
     const pos = inst.group.position;
@@ -405,6 +448,12 @@ export function createVehicles(deps) {
       const pl = Math.hypot(pushX, pushZ);
       if (pl > 1e-5) {
         const nx = pushX / pl, nz = pushZ / pl;
+        // A fresh, fast hit on the player's own car: a crash sound (cooldown so being pinned
+        // against a wall doesn't retrigger it every frame).
+        if (inst === active && inst.wallCd <= 0) {
+          const impactSpeed = Math.hypot(velScratch.x, velScratch.z);
+          if (impactSpeed > 6) { events.emit('vehicleImpact', { speed: impactSpeed }); inst.wallCd = 0.5; }
+        }
         wallVel.x = velScratch.x; wallVel.z = velScratch.z;
         bounceOffWall(wallVel, nx, nz, inst.tuning.wallRestitution);
         const fxh = Math.sin(inst.v.yaw), fzh = Math.cos(inst.v.yaw), rxh = -Math.cos(inst.v.yaw), rzh = Math.sin(inst.v.yaw);
@@ -457,6 +506,7 @@ export function createVehicles(deps) {
     const dx = other.group.position.x - pos.x, dz = other.group.position.z - pos.z;
     const d = Math.hypot(dx, dz);
     if (d < inst.radius + other.radius + 0.3 && other.ramCd <= 0) {
+      events.emit('vehicleImpact', { speed: Math.abs(inst.v.speed) });
       const isChaseVan = chase?.active && other === chase.van;
       // A parked or borrowed car spins off however it was hit: fun, arcade, doesn't matter where
       // it ends up. The chase van keeps its own path-following yaw instead: a full contact-normal
@@ -494,10 +544,10 @@ export function createVehicles(deps) {
       onDone?.({ ok: false });
       return;
     }
-    // The mission needs Mansi in the Batmobile: bring her down to street level at the start of
-    // the chase road (she may still be up on whatever rooftop the previous step left her on),
-    // summon it there (parked, no slide) and get her in it before the van starts moving, the same
-    // way startBattle does.
+    // Normal play: the story's 'board' step (flow.js) already had her walk up and get in the
+    // Batmobile herself before this ever runs, so this branch never fires. It stays only as a
+    // last-resort fallback for a state the board step couldn't have covered (an old save resumed
+    // mid-chase, say) so the mission is never unwinnable, not as the everyday path in.
     if (!active || active.kind !== 'batmobile') {
       const groundY = collision.groundBelow(path[0].x, path[0].y ?? 40, path[0].z, 0.3);
       hero.teleport({ x: path[0].x, y: groundY > -Infinity ? groundY : (path[0].y ?? 0), z: path[0].z });
@@ -561,8 +611,9 @@ export function createVehicles(deps) {
   function startBattle({ site, drones, onDone } = {}) {
     if (!site) { console.warn('startBattle: no site given; skipping the battle.'); onDone?.({ ok: false }); return; }
     if (!active || active.kind !== 'batmobile') {
-      // Always re-place her at the site first: the Batmobile may already be summoned, but parked
-      // wherever an earlier mission (the chase, or free roam) left it, possibly nowhere near here.
+      // Same fallback as startChase above: the 'board' step ahead of this one already parked the
+      // Batmobile at the Ace Chemicals gate and got her into it, so this never fires in normal
+      // play. Kept only so an old save resumed mid-battle still has somewhere to stand.
       hero.teleport(site);
       summon('batmobile', { instant: true });
       enter(bm);
@@ -644,6 +695,7 @@ export function createVehicles(deps) {
   function fireCannon() {
     if (!battle?.active || active !== bm || battle.cannonCdT > 0) return;
     battle.cannonCdT = 0.35;
+    events.emit('cannonFire');
     const yaw = bm.v.yaw;
     const fxh = Math.sin(yaw), fzh = Math.cos(yaw);
     const ox = bm.group.position.x + fxh * 2.6, oz = bm.group.position.z + fzh * 2.6;
@@ -680,6 +732,7 @@ export function createVehicles(deps) {
         hitDrone.group.visible = false;
         fx?.impact(hitDrone.group.position.clone().setY(hitDrone.group.position.y + 0.9), 1.8);
         events.emit('word', { text: 'KRAKOOM!', pos: hitDrone.group.position.clone().setY(hitDrone.group.position.y + 1.7), big: true });
+        events.emit('droneDestroyed');
         spawnDebris(hitDrone.group.position);
         const remaining = battle.drones.filter((d) => !d.dead).length;
         meter.set(`DRONES  ${remaining}`);
@@ -722,6 +775,7 @@ export function createVehicles(deps) {
       d.fireT -= dt;
       if (d.fireT <= 0) {
         d.fireT = 2.6 + rng.range(0, 2.2);
+        events.emit('droneShot');
         const shell = createShell(0x8a2fbf);
         shell.position.set(d.group.position.x, d.group.position.y + 0.95, d.group.position.z);
         const dist = Math.hypot(dx, dz) || 1;
@@ -741,10 +795,12 @@ export function createVehicles(deps) {
         const hit = Math.hypot(hitDx, hitDz) < SHELL_HIT_RADIUS;
         if (hit || s.userData.life <= 0) {
           if (hit) {
+            events.emit('shellHit');
             follow.addShake?.(4);
             if (active === bm) {
               damageArmor(bm.armor, SHELL_DAMAGE);
               armorHud.set(bm.armor.hp / bm.maxArmor);
+              events.emit('armorHit');
               if (bm.armor.hp <= 0) { scene.remove(s); d.shells.splice(i, 1); disableBatmobile(); return; }
             }
           }
@@ -757,35 +813,29 @@ export function createVehicles(deps) {
 
   // ---------------- per-frame driving key + input ----------------
   function handleVehicleKey() {
-    if (active) { exit(); return; }
-    let nearest = null, nearestD = ENTER_RANGE;
+    // At speed the same key ejects Batman up into a glide (the Arkham exit); slower, she steps out.
+    if (active) { if (Math.abs(active.v.speed) >= EJECT_MIN_SPEED) eject(); else exit(); return; }
+    let nearest = null, nearestD = Infinity;
     for (const v of enterables()) {
       if (v.driven || v.arriving || !v.group.visible) continue;
       const d = Math.hypot(hero.pos.x - v.group.position.x, hero.pos.z - v.group.position.z);
-      if (d < nearestD) { nearestD = d; nearest = v; }
+      if (d < (v === bm ? BATMOBILE_ENTER_RANGE : ENTER_RANGE) && d < nearestD) { nearestD = d; nearest = v; }
     }
     if (nearest) enter(nearest);
     else summon('batmobile');
   }
 
   // ---------------- the frame update (called from game.js's vehicles hook) ----------------
-  const EJECT_MIN_SPEED = 14;  // m/s: below this, jump just handbrakes, it never ejects
-  const EJECT_TAP_WINDOW = 0.22; // seconds: jump held longer than this is a drift, not an eject tap
-  let jumpHeldT = 0;
+  // m/s: at or above this the vehicle key ejects into a glide instead of stepping out. Jump is only
+  // ever the handbrake: a tap of it to tighten a corner must never throw Batman out of the car.
+  const EJECT_MIN_SPEED = 14;
 
   function update(dt, real = dt) {
     if (input.pressed('vehicle')) handleVehicleKey();
     if (active) {
-      // Space (jump) does double duty while driving, same as it does gliding: held, it's the
-      // handbrake for a drift; a quick tap of it (released again inside EJECT_TAP_WINDOW) while
-      // already moving fast ejects Batman up into a glide instead. Checked against the timer
-      // BEFORE this frame updates it, so a held key (mid-drift) never fires the eject on release.
-      if (input.released('jump') && jumpHeldT > 0 && jumpHeldT <= EJECT_TAP_WINDOW && Math.abs(active.v.speed) >= EJECT_MIN_SPEED) eject();
-      jumpHeldT = input.down('jump') ? jumpHeldT + dt : 0;
-    } else jumpHeldT = 0;
-    if (active) {
-      const steer = input.move.x;
-      lastSteer = steer;
+      // Physics steer is +1 = yaw up = a LEFT turn (vehiclePhysics.js); the D key is move.x +1,
+      // a right turn, so it goes in negated.
+      const steer = -input.move.x;
       const driveInput = {
         throttle: Math.max(0, input.move.y),
         brake: Math.max(0, -input.move.y),
@@ -793,10 +843,20 @@ export function createVehicles(deps) {
         handbrake: input.down('jump'),
         boost: input.down('sprint'),
       };
-      if (active.kind === 'batmobile') bm.setBoost(driveInput.boost && driveInput.throttle > 0);
+      const boosting = active.kind === 'batmobile' && driveInput.boost && driveInput.throttle > 0;
+      if (active.kind === 'batmobile') bm.setBoost(boosting);
+      if (boosting && !wasBoosting) events.emit('vehicleBoost');
+      wasBoosting = boosting;
       integrateVehicle(active, driveInput, dt);
+      lastSteer = active.v.steer ?? 0; // the eased steer (vehiclePhysics.js), for the front wheels
+      // The chase camera swings in behind the car's own heading (src/game/camera.js).
+      follow.setHeading?.(active.v.yaw, Math.abs(active.v.speed));
       hero.pos.copy(active.group.position);
       hero.speed = Math.abs(active.v.speed);
+      // Engine loop: level stays 1 while driving (fade in/out lives in ambience.js's
+      // setTargetAtTime ramps, not here), speed normalized 0..1 by this vehicle's own top speed.
+      const engineMax = (boosting ? active.tuning.maxBoostSpeed : active.tuning.maxSpeed) || 1;
+      audio?.setEngine(active.kind === 'batmobile' ? 'batmobile' : 'car', 1, Math.abs(active.v.speed) / engineMax, { boost: boosting });
       ramGoons(active);
       ramVehicles(active, dt);
       if (battle?.active && active === bm && input.pressed('punch')) fireCannon();
@@ -823,7 +883,7 @@ export function createVehicles(deps) {
   }
 
   return {
-    summon, enter, exit, eject,
+    summon, enter, exit, eject, park,
     get active() { return active; },
     update,
     startChase, startBattle, debugWin,

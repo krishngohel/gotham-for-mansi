@@ -17,6 +17,7 @@ function matches(step, ev) {
     case 'armada': return ev.type === 'armadaDone';
     case 'crasher': return ev.type === 'crasherDone' && ev.id === step.id;
     case 'ally': return ev.type === 'allyDone' && ev.id === step.id;
+    case 'board': return ev.type === 'boardDone' && ev.id === step.id;
     default: return ev.type === 'reached' && ev.step === step.id;
   }
 }

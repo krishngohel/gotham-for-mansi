@@ -21,7 +21,10 @@ export function createAudio() {
   let amb = null;
   let timer = 0;
   let disposed = false;
-  const state = { volumes: { master: 0.9, music: 0.7, sfx: 0.9 }, mode: 'none', rain: 0, glide: 0, intensity: 0 };
+  const state = {
+    volumes: { master: 0.9, music: 0.7, sfx: 0.9 }, mode: 'none', rain: 0, glide: 0, intensity: 0,
+    engine: { kind: null, level: 0, speed: 0, boost: false },
+  };
   const warned = new Set();
   let voices = [];
   let spent = [];
@@ -69,6 +72,7 @@ export function createAudio() {
         music.setIntensity(state.intensity);
         if (state.rain > 0) amb.setRain(state.rain);
         if (state.glide > 0) amb.setGlide(state.glide);
+        if (state.engine.kind) amb.setEngine(state.engine.kind, state.engine.level, state.engine.speed, { boost: state.engine.boost });
         if (state.mode !== 'none') music.setMode(state.mode);
         timer = setInterval(guard(tick), TICK_MS);
       }
@@ -113,6 +117,13 @@ export function createAudio() {
 
     setRain: guard((x) => { state.rain = clamp01(x); if (amb) amb.setRain(state.rain); }),
     setGlide: guard((x) => { state.glide = clamp01(x); if (amb) amb.setGlide(state.glide); }),
+    // kind: 'batmobile' | 'car' | 'wing' | null (falsy fades out whichever engine is playing).
+    // level: 0..1 overall presence. speed: 0..1 fraction of that vehicle's own top speed.
+    setEngine: guard((kind, level = 1, speed = 0, opts = {}) => {
+      const e = state.engine; // mutated in place: this is called every frame while driving
+      e.kind = kind || null; e.level = clamp01(level); e.speed = clamp01(speed); e.boost = !!opts.boost;
+      if (amb) amb.setEngine(state.engine.kind, state.engine.level, state.engine.speed, { boost: state.engine.boost });
+    }),
     setCombatIntensity: guard((x) => { state.intensity = clamp01(x); if (music) music.setIntensity(state.intensity); }),
 
     // Scheduling runs on its own timer, so there is nothing to do per frame.

@@ -39,7 +39,7 @@ function createArmadaHud(hudRoot) {
   };
 }
 
-export function createBatwing({ scene, camera, hero, follow, collision, events, hudRoot }) {
+export function createBatwing({ scene, camera, hero, follow, collision, events, hudRoot, audio }) {
   const rng = createRng(747711);
   const { mesh, engines } = buildBatwingMesh();
   scene.add(mesh);
@@ -102,7 +102,10 @@ export function createBatwing({ scene, camera, hero, follow, collision, events, 
         const { input } = ctx;
         const invert = ctx.cam?.state?.invertY ? -1 : 1;
         const pitchIn = input.move.y * invert + (-input.look.dy * 0.0007 * invert);
-        const rollIn = input.move.x + input.look.dx * 0.001;
+        // Roll +1 banks and turns LEFT (wingFlight.js: yaw += roll * turnRate, and yaw up is a left
+        // turn); D and mouse-right mean a right turn, so both go in negated. Measured in the
+        // plane's own frame (scripts/steer-check.mjs), not the camera's.
+        const rollIn = -(input.move.x + input.look.dx * 0.001);
         const boost = input.down('sprint'), brake = input.down('jump');
         stepWing(state, { pitchIn, rollIn, boost, brake }, dt);
         clampToWorld(state, WORLD, dt);
@@ -125,11 +128,16 @@ export function createBatwing({ scene, camera, hero, follow, collision, events, 
         mesh.rotation.x = -state.pitch;
         mesh.rotation.z = -state.roll;
         follow.setBank?.(-state.roll * 0.55);
+        follow.setHeading?.(state.yaw, state.speed); // the camera stays behind the plane
         hero.pos.copy(mesh.position);
 
         if (input.pressed('punch')) fireDart();
         updateDarts(dt);
         if (armada.active) updateArmada(dt);
+        // Jet whine: normalized by the cruise-to-boost range rather than 0..minSpeed, since the
+        // plane never actually flies below minSpeed (the stall floor).
+        const engineFrac = (state.speed - WING_TUNING.minSpeed) / (WING_TUNING.boostSpeed - WING_TUNING.minSpeed);
+        audio?.setEngine('wing', 1, engineFrac);
 
         const gp = SITES.signal;
         if (r.grounded && Math.hypot(state.x - gp.x, state.z - gp.z) < LAND_RADIUS) { doExit(); return true; }
@@ -156,14 +164,16 @@ export function createBatwing({ scene, camera, hero, follow, collision, events, 
       d.t += dt;
       d.x += d.vx * dt; d.y += d.vy * dt; d.z += d.vz * dt;
       d.mesh.position.set(d.x, d.y, d.z);
-      const hit = armada.active && popArmadaNear(armada.balloons, d.x, d.y, d.z, DART_POP_RADIUS) > 0;
-      if (hit || d.t > DART_LIFE) { d.live = false; d.mesh.visible = false; }
+      const popped = armada.active ? popArmadaNear(armada.balloons, d.x, d.y, d.z, DART_POP_RADIUS) : 0;
+      if (popped > 0) events.emit('armadaPop', { count: popped });
+      if (popped > 0 || d.t > DART_LIFE) { d.live = false; d.mesh.visible = false; }
     }
   }
 
   function updateArmada(dt) {
     driftArmada(armada.balloons, dt, armada.region);
-    popArmadaNear(armada.balloons, state.x, state.y, state.z, PLANE_POP_RADIUS);
+    const popped = popArmadaNear(armada.balloons, state.x, state.y, state.z, PLANE_POP_RADIUS);
+    if (popped > 0) events.emit('armadaPop', { count: popped });
     for (const b of armada.balloons) {
       const vm = armada.meshes[b.id];
       if (!vm) continue;
@@ -181,6 +191,7 @@ export function createBatwing({ scene, camera, hero, follow, collision, events, 
 
   function doExit() {
     events.emit('wingExit');
+    audio?.setEngine(null);
     hero.pos.copy(mesh.position);
     hero.bat.root.visible = true;
     hero.cape.mesh.visible = true;

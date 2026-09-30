@@ -124,7 +124,7 @@ async function open(query) {
   await page.waitForTimeout(500);
 }
 
-const heroClips = ['Idle_Loop', 'Walk_Loop', 'Jog_Fwd_Loop', 'Sprint_Loop', 'Idle_Shield_Loop', 'Crouch_Idle_Loop', 'Punch_Jab', 'Punch_Cross', 'Melee_Hook', 'Kick_Front', 'Kick_Round', 'Kick_Flying', 'Jump_Land', 'Roll', 'ClimbUp_1m', 'Ladder_Idle', 'Ladder_Climb', 'Hang_Idle', 'Shimmy', 'NinjaJump_Land', 'Spell_Simple_Shoot', 'OverhandThrow'];
+const heroClips = ['Idle_Loop', 'Walk_Loop', 'Jog_Fwd_Loop', 'Sprint_Loop', 'Idle_Shield_Loop', 'Crouch_Idle_Loop', 'Punch_Jab', 'Punch_Cross', 'Melee_Hook', 'Kick_Front', 'Kick_Round', 'Kick_Flying', 'Jump_Land', 'Roll', 'ClimbUp_1m', 'Ladder_Hold', 'Hang_Idle', 'Shimmy', 'NinjaJump_Land', 'Spell_Simple_Shoot', 'OverhandThrow'];
 const goonClips = ['Idle_Loop', 'Idle_Talking_Loop', 'Idle_TalkingPhone_Loop', 'Idle_FoldArms_Loop', 'Walk_Loop', 'Zombie_Walk_Fwd_Loop', 'Jog_Fwd_Loop', 'Punch_Jab', 'Punch_Cross', 'Melee_Hook', 'Sword_Idle', 'Sword_Regular_A', 'Sword_Heavy_Combo', 'Shield_Dash', 'Hit_Chest', 'Hit_Head', 'Idle_Shield_Break', 'Yes', 'Idle_No_Loop', 'LayToIdle'];
 const results = [];
 

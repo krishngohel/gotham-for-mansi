@@ -32,6 +32,8 @@ const ENTRIES = [
   ['brute', (k) => `Brutes can't be countered: their bolt is red. Dodge with ${k('dodge')}, stun with ${k('cape')}, then pile on.`],
   ['detective', (k) => `Press ${k('detective')} for detective vision. It reveals goons, your objective and hidden balloons.`],
   ['balloons', () => `Twelve birthday balloons are hidden around Gotham. Each one holds a message.`],
+  ['drive', (k) => `Driving: ${k('forward')} gas, ${k('back')} brake and reverse, ${k('left')} ${k('right')} steer. Hold ${k('jump')} to drift round corners, ${k('sprint')} to boost. ${k('vehicle')} gets out, and at speed it launches you into a glide.`],
+  ['fly', (k) => `Flying: steer with the mouse or ${k('left')} ${k('right')}, ${k('forward')} climbs and ${k('back')} dives. ${k('sprint')} boosts, ${k('jump')} brakes, ${k('punch')} fires. ${k('batwing')} bails out.`],
   ['ladder', (k) => `Walk into a ladder to climb it. ${k('forward')} and ${k('back')} climb, ${k('sprint')} slides down, ${k('jump')} kicks off.`],
   ['ledge', (k) => `You grab ledges when you fall short. ${k('left')} ${k('right')} shimmy, ${k('forward')} pulls up, ${k('back')} lets go. ${k('jump')} while holding ${k('back')} backflips off.`],
   ['zip', (k) => `Grapple to a zipline post with ${k('grapple')} or glide into the cable. ${k('jump')} lets go at full speed.`],
@@ -66,6 +68,7 @@ const ENTRIES = [
   ['rifle', (k) => `Rifle goons parry punches and aim with a red laser. ${k('dodge')} dodge when it locks on, and kick or stun them first.`],
   ['swarm', (k) => `Bat Swarm is ready. When your combo lights the bat icon, press ${k('chain4')} to call the bats down on up to six goons.`],
   ['wayneTech', (k) => `Level up! Press ${k('pause')} and open WayneTech to spend your upgrade point.`],
+  ['vehicle', (k) => `The Batmobile is waiting. Walk up and press ${k('vehicle')} to get in.`],
 ];
 
 export const PROMPT_IDS = ENTRIES.map(([id]) => id);
@@ -110,8 +113,12 @@ export function createPromptQueue(hud, getBindings, isEnabled, isBusy = () => fa
   let current = null;
   let t = 0;
   return {
-    show(ids) {
-      for (const id of ids) if (!seen.has(id) && !queue.includes(id)) queue.push(id);
+    // `first`: jump the queue (a vehicle's controls, needed the moment she gets in).
+    show(ids, { first = false } = {}) {
+      for (const id of first ? [...ids].reverse() : ids) {
+        if (seen.has(id) || queue.includes(id) || current === id) continue;
+        if (first) queue.unshift(id); else queue.push(id);
+      }
     },
     // Marks a prompt as done early (the player already did the thing).
     done(id) {
@@ -122,7 +129,9 @@ export function createPromptQueue(hud, getBindings, isEnabled, isBusy = () => fa
     },
     update(dt) {
       if (!isEnabled()) { if (current) { current = null; hud.hideHint(); } return; }
-      if (isBusy()) { if (current) { queue.unshift(current); current = null; hud.hideHint(); } return; }
+      // isBusy is asked about the prompt that would be on screen: a vehicle's own controls card may
+      // show while that vehicle is in use, when everything else waits.
+      if (isBusy(current ?? queue[0])) { if (current) { queue.unshift(current); current = null; hud.hideHint(); } return; }
       t -= dt;
       if (current && t > 0) return;
       if (current) { seen.add(current); current = null; }

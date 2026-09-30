@@ -9,11 +9,13 @@
 // 'toYard', 'toNeon', 'toStreet', 'toMonarch', 'toAce', 'toVat', 'toTower' must not move to a
 // different place in the story than the one they already mark.
 //
-// New mission types (see flow.js): 'radio' (a dialogue beat), 'chase' / 'battle' (ground vehicles),
-// 'armada' (the Batwing), 'crasher' / 'ally' (Nightwing), 'interior' (a room site). Every one of
-// them is read against window.__game at run time; when the part that provides it is missing, flow.js
-// plays the step's `lines` and completes it on a short timer, so the whole story always reaches
-// credits even with none of Vehicles, Batwing, Nightwing or Interiors merged in yet.
+// New mission types (see flow.js): 'radio' (a dialogue beat), 'board' (walk up and get in the
+// Batmobile, no teleport), 'chase' / 'battle' (ground vehicles, always preceded by a 'board' step
+// in normal play), 'armada' (the Batwing), 'crasher' / 'ally' (Nightwing), 'interior' (a room
+// site). Every one of them is read against window.__game at run time; when the part that provides
+// it is missing, flow.js plays the step's `lines` and completes it on a short timer, so the whole
+// story always reaches credits even with none of Vehicles, Batwing, Nightwing or Interiors merged
+// in yet.
 import { HARLEY_FIGHT } from './fights.js';
 
 const g = (speaker, text) => ({ speaker, portrait: speaker, text });
@@ -66,14 +68,22 @@ export const STEPS = [
     ],
   },
   {
-    // The dock road running north along x = -90, from the yard up toward the warehouses at
-    // wh3Roof (x -60, z 180): a real street the city builder always leaves clear (see
-    // src/vehicles/vehicles.js's LINES). Ramming the van 3 times ends the chase before it gets in
-    // among the warehouses.
+    // SITES.dockBoard: the dock road at x = -90, a real street the city builder always leaves
+    // clear (src/vehicles/vehicles.js's LINES), a short climb down from wh3Roof. The Batmobile
+    // parks itself there (src/vehicles/vehicles.js's park(), called from flow.js's 'board'
+    // handling) and waits; this step only ends once Mansi actually walks up and gets in.
+    id: 'boardBatmobile', type: 'board', text: 'The Batmobile is parked on the dock road below. Get in.', site: 'dockBoard', tutorial: ['vehicle'],
+  },
+  {
+    // The same dock road, running north from here up toward the warehouses at wh3Roof (x -60,
+    // z 180). She is already driving by the time this starts (the board step above put her in
+    // the car herself), so the van simply appears further down the road and comes to her. Ramming
+    // it 3 times ends the chase before it gets in among the warehouses.
     id: 'batmobileChase', type: 'chase', text: 'Run down the Joker van before it reaches the warehouses. Ram it 3 times.', site: 'wh3Roof',
     path: [{ x: -90, z: 40 }, { x: -90, z: 100 }, { x: -90, z: 165 }, { x: -90, z: 100 }, { x: -90, z: 40 }],
     lines: [g('alfred', 'A van just peeled off the dock road with your gift wrap sticking out the back. After it.')],
   },
+  { id: 'toRoofAfterChase', text: 'Leave the car. The goons are on the warehouse roof.', site: 'wh3Roof', radius: 16, checkpoint: 'wh3Roof' },
   { id: 'f1', type: 'fight', fight: 'docksRoof', text: 'Take down the goons on the warehouse roof.', tutorial: ['punch', 'kick', 'counter'] },
   { id: 'toYard', text: 'More goons in the container yard below. Drop down.', site: 'yard', radius: 14, checkpoint: 'wh3Roof' },
   { id: 'f2', type: 'fight', fight: 'yard', text: 'Clear the container yard.', tutorial: ['block', 'dodge', 'throw'] },
@@ -108,11 +118,20 @@ export const STEPS = [
 
   // ---------------------------------------------------------------- Act 2: Ace Chemicals
   { id: 'actTwoTitle', type: 'cutscene', scene: 'actTwo', cinematic: CINEMATIC.actTwo },
-  { id: 'toAce', text: 'Something smells like frosting at Ace Chemicals. Go north.', site: 'aceYard', radius: 16, checkpoint: 'party' },
+  { id: 'toAce', text: 'Something smells like frosting at Ace Chemicals. Go north.', site: 'aceGate', radius: 16, checkpoint: 'party' },
   {
+    // SITES.aceGate: the real street just south of the Ace Chemicals compound, where the
+    // Batmobile parks and waits (the compound itself is a merged super-block with no streets
+    // inside). Ends the moment she gets in, same as boardBatmobile in Act 1.
+    id: 'boardBatmobileAce', type: 'board', text: 'The Batmobile is waiting by the gate. Get in.', site: 'aceGate', tutorial: ['vehicle'], checkpoint: 'aceGate',
+  },
+  {
+    // She drives herself in from the gate; startBattle no longer has to place her (she is already
+    // in the Batmobile from the board step above).
     id: 'aceBattle', type: 'battle', text: 'Drone tanks are dug in across the yard. Use the cannon.', site: 'aceYard',
     lines: [g('alfred', 'Motion in the yard, and none of it is friendly. Batmobile cannon, if you would.')],
   },
+  { id: 'toBruteFight', text: 'Get clear of the Batmobile. A brute is still standing.', site: 'aceYard', radius: 16, checkpoint: 'aceYard' },
   { id: 'a1', type: 'fight', fight: 'aceYard', text: 'A brute. Stun it with your cape, then pile on.', tutorial: ['brute'] },
   { id: 'toFactory', text: 'Get up onto the factory roof.', site: 'factoryRoof', radius: 18, checkpoint: 'aceYard' },
   { id: 'a2', type: 'fight', fight: 'factory', text: 'Clear the factory roof.' },
@@ -123,6 +142,10 @@ export const STEPS = [
       g('harley', "Aw, is it somebody's birthday? Puddin' never lets ME have a party."),
       g('harley', 'The cake stays right where it is, birthday bat. Come say hi to my crew.'),
     ],
+  },
+  {
+    id: 'toHarleyDoor', type: 'interior', text: "Harley's crew is in the chemical hall. The loading dock door is open.", site: 'aceHallDoor', room: 'aceHall', radius: 10, checkpoint: 'aceHallDoor',
+    lines: [g('alfred', 'The loading dock is open. That is either careless or a trap. Mind the difference.')],
   },
   { id: 'harleyFight', type: 'fight', fight: HARLEY_FIGHT, text: "Fight through Harley's crew." },
   { id: 'a3', type: 'fight', fight: 'vats', text: 'Protect the cake, no matter what she throws at you!' },
@@ -156,7 +179,8 @@ export const STEPS = [
       g('nightwing', "And I am holding the middle of it. Let's finish this together."),
     ],
   },
-  { id: 'nightwingAlly', type: 'ally', text: 'Nightwing has your back for this one.', at: 'balcony' },
+  { id: 'nightwingAlly', type: 'ally', text: 'Nightwing has your back for this one.', at: 'plaza' },
+  { id: 'toPlaza', text: 'Get down to the plaza and back Nightwing up.', site: 'plaza', radius: 14, checkpoint: 'plaza' },
   { id: 'plazaFight', type: 'fight', fight: 'plaza', text: 'Clear the plaza with Nightwing at your side.' },
   {
     id: 'toFunhouse', type: 'interior', text: 'The last of the party is behind the funhouse door in the old cathedral.', site: 'funhouseDoor', room: 'funhouse', radius: 10, checkpoint: 'arena',
