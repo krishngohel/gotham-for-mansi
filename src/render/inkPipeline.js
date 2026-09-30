@@ -291,6 +291,10 @@ export function createInkPipeline(renderer, quality, { gpuTime = false } = {}) {
   const FILTER_INDEX = { ink: 0, noir: 1, pop: 2, sepia: 3 };
   function setFilter(name) { uniforms.uFilter.value = FILTER_INDEX[name] ?? 0; }
 
+  // Benchmark switches (src/dev/perfBench.js, ?bench=1): each one drops a piece of the frame so
+  // its cost can be measured on the player's own machine. Never set in normal play.
+  const debug = { cachedShadows: false, skipNormals: false };
+
   function render(scene, camera, time) {
     uniforms.uNear.value = camera.near;
     uniforms.uFar.value = camera.far;
@@ -301,7 +305,7 @@ export function createInkPipeline(renderer, quality, { gpuTime = false } = {}) {
 
     camera.layers.set(0);
     camera.layers.enable(LAYER_FX);
-    renderer.shadowMap.needsUpdate = true;
+    if (!debug.cachedShadows) renderer.shadowMap.needsUpdate = true;
     renderer.setRenderTarget(colorRT);
     renderer.render(scene, camera);
 
@@ -315,7 +319,7 @@ export function createInkPipeline(renderer, quality, { gpuTime = false } = {}) {
     // Nothing moved since the colour pass: skip the second scene-graph matrix walk.
     const autoMatrices = scene.matrixWorldAutoUpdate;
     scene.matrixWorldAutoUpdate = false;
-    renderer.render(scene, camera);
+    if (!debug.skipNormals) renderer.render(scene, camera);
     scene.matrixWorldAutoUpdate = autoMatrices;
     renderer.setOpaqueSort(null);
     scene.overrideMaterial = null;
@@ -349,5 +353,5 @@ export function createInkPipeline(renderer, quality, { gpuTime = false } = {}) {
     try { await renderer.compileAsync(scene, camera); } finally { renderer.setRenderTarget(null); }
   }
 
-  return { uniforms, setSize, render, setComic, setPalette, setImpact, setFilter, compileAsync, get gpuMs() { return gpuMs; } };
+  return { uniforms, setSize, render, setComic, setPalette, setImpact, setFilter, compileAsync, debug, get gpuMs() { return gpuMs; } };
 }

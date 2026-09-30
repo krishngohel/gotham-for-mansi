@@ -973,7 +973,9 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   let prevNow = performance.now();
   function frame(now) {
     requestAnimationFrame(frame);
+    const stepStart = performance.now();
     try { step(now); } catch (err) { if (errors++ < 5) console.error(err); }
+    state.stepMs = performance.now() - stepStart; // JavaScript time this frame (read by ?bench=1)
     dynRes.update(now - prevNow);
     prevNow = now;
     if (state.frame === 1) mark('firstFrame');
@@ -1032,6 +1034,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   mark('prewarm');
   requestAnimationFrame(frame);
   state.ready = true;
+  // ?bench=1: the one-link benchmark for the player's own machine (loaded only when asked for).
+  if (params.get('bench') === '1') import('../dev/perfBench.js').then(({ runPerfBench }) => runPerfBench({ renderer, ink, dynRes, quality, applyResolution, state, getGame: () => game, gpuName }));
   // Nightwing and Harley (see warmCast.js): warmed once, off-screen, on idle right after the
   // first real frame instead of before it. Neither appears until minutes into a run (the Crasher
   // in Act 1, Harley in Act 2), so this never risks a first-use hitch; it just keeps their shader
