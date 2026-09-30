@@ -27,7 +27,7 @@ const RAM_MIN_SPEED = 4.5;    // m/s: below this, touching a goon or a car is ju
 const ENTER_RANGE = 4;        // meters
 const CANNON_RANGE = 34;
 const CANNON_HALF_WIDTH = 2.2;
-const WHEEL_RADIUS = 0.42;
+const WHEEL_RADIUS = 0.46;
 const MAX_STEER = 0.55;       // radians, front wheel visual steer cap
 
 function tinyToast(hudRoot) {
@@ -86,8 +86,8 @@ export function createVehicles(deps) {
   bm.kind = 'batmobile';
   bm.v = { speed: 0, yaw: 0, drift: 0 };
   bm.tuning = BATMOBILE_TUNING;
-  bm.radius = 1.7;
   bm.summoned = false;
+  bm.arriving = null; // set while summon() is sliding it in; see updateSummonArrival
   scene.add(bm.group);
 
   // ---------------- street cars (commandeerable) ----------------
@@ -122,9 +122,10 @@ export function createVehicles(deps) {
   function enterables() { return [bm, ...streetCars]; }
 
   // ---------------- nearest street point (for summoning near Batman) ----------------
-  function nearestStreetSpawn(near) {
-    // Pick whichever grid line (an x-street or a z-street) is closest, snap to it, and stand a
-    // little further along that street from the hero so the car doesn't land on top of him.
+  // Picks whichever grid line (an x-street or a z-street) is closest to `near` and returns a
+  // point `dist` meters along it from `near` (clamped inside the world). Called twice per summon
+  // with two different distances, so both points always land on the same street line.
+  function nearestStreetSpawn(near, dist) {
     let best = null, bestD = Infinity;
     for (const line of LINES) {
       const dx = Math.abs(near.x - line);
@@ -132,28 +133,65 @@ export function createVehicles(deps) {
       const dz = Math.abs(near.z - line);
       if (dz < bestD) { bestD = dz; best = { alongX: true, line }; }
     }
-    // Close enough that the very next 'vehicle' press (now within ENTER_RANGE) enters it.
-    const back = 2.6;
-    if (best.alongX) return { x: clamp(near.x - back, WORLD.minX + 5, WORLD.maxX - 5), z: best.line, yaw: Math.PI / 2 };
-    return { x: best.line, z: clamp(near.z - back, WORLD.minZ + 5, WORLD.waterZ - 10), yaw: 0 };
+    if (best.alongX) return { x: clamp(near.x - dist, WORLD.minX + 5, WORLD.maxX - 5), z: best.line };
+    return { x: best.line, z: clamp(near.z - dist, WORLD.minZ + 5, WORLD.waterZ - 10) };
   }
 
+  const SUMMON_FAR = 8;   // meters: where the Batmobile first appears, out of Batman's way
+  const SUMMON_NEAR = 2.6; // meters: where it parks, safely inside ENTER_RANGE
+  const SUMMON_DUR = 0.85; // seconds: the slide-in
+
   // ---------------- summon / enter / exit ----------------
-  function summon(kind = 'batmobile') {
+  // Appears on a real street point 6 to 10 m from Batman, facing along the street toward him,
+  // then slides in over SUMMON_DUR and parks a few meters away (inside ENTER_RANGE) with a
+  // screech. { instant: true } (used by startBattle, so it can chain straight into enter()) skips
+  // the slide and places it parked immediately.
+  function summon(kind = 'batmobile', { instant = false } = {}) {
     if (kind !== 'batmobile') return; // only the Batmobile is summonable; street cars are found, not called
-    const spot = nearestStreetSpawn(hero.pos);
-    const groundY = collision.groundBelow(spot.x, hero.pos.y + 4, spot.z, 0.3);
-    bm.group.position.set(spot.x, groundY > -Infinity ? groundY : hero.pos.y, spot.z);
-    bm.v.speed = 0; bm.v.drift = 0; bm.v.yaw = spot.yaw;
-    bm.group.rotation.y = bm.v.yaw;
+    if (bm.arriving) return; // already on the way
+    const spot = nearestStreetSpawn(hero.pos, SUMMON_FAR);
+    const park = nearestStreetSpawn(hero.pos, SUMMON_NEAR);
+    const yaw = Math.atan2(park.x - spot.x, park.z - spot.z);
+    bm.v.speed = 0; bm.v.drift = 0; bm.v.yaw = yaw;
+    bm.group.rotation.y = yaw;
     bm.group.visible = true;
     bm.summoned = true;
-    events.emit('word', { text: 'SCREEECH!', pos: new THREE.Vector3(spot.x, groundY + 1, spot.z), big: true });
-    toast.show('The Batmobile screeches in.', 2200);
+    if (instant) {
+      const groundY = collision.groundBelow(park.x, hero.pos.y + 4, park.z, 0.3);
+      bm.group.position.set(park.x, groundY > -Infinity ? groundY : hero.pos.y, park.z);
+      events.emit('word', { text: 'SCREEECH!', pos: bm.group.position.clone().setY(bm.group.position.y + 1), big: true });
+      toast.show('The Batmobile screeches in.', 2200);
+      return;
+    }
+    const groundY = collision.groundBelow(spot.x, hero.pos.y + 4, spot.z, 0.3);
+    bm.group.position.set(spot.x, groundY > -Infinity ? groundY : hero.pos.y, spot.z);
+    bm.arriving = { t: 0, dur: SUMMON_DUR, fromX: spot.x, fromZ: spot.z, toX: park.x, toZ: park.z, yaw };
+    toast.show('The Batmobile is on its way.', 2200);
+  }
+
+  // Slides the Batmobile from its summon point to its park point while summon() is arriving:
+  // called every frame from update() instead of integrateVehicle (it has its own, scripted move).
+  function updateSummonArrival(dt) {
+    const a = bm.arriving;
+    a.t += dt;
+    const k = Math.min(1, a.t / a.dur);
+    const e = k * k * (3 - 2 * k); // smoothstep
+    bm.group.position.x = a.fromX + (a.toX - a.fromX) * e;
+    bm.group.position.z = a.fromZ + (a.toZ - a.fromZ) * e;
+    const groundY = collision.groundBelow(bm.group.position.x, bm.group.position.y + 2, bm.group.position.z, 0.4);
+    if (groundY > -Infinity) bm.group.position.y = groundY;
+    bm.group.rotation.y = a.yaw;
+    const dist = Math.hypot(a.toX - a.fromX, a.toZ - a.fromZ);
+    const roll = (dist / a.dur / WHEEL_RADIUS) * dt;
+    for (const w of bm.wheels) w.spin.rotation.x -= roll;
+    if (k >= 1) {
+      bm.arriving = null;
+      events.emit('word', { text: 'SCREEECH!', pos: bm.group.position.clone().setY(bm.group.position.y + 1), big: true });
+    }
   }
 
   function enter(v) {
-    if (!v || active || !v.group.visible) return;
+    if (!v || active || !v.group.visible || v.arriving) return;
     active = v;
     v.driven = true;
     lastSteer = 0;
@@ -354,7 +392,7 @@ export function createVehicles(deps) {
   function startBattle({ site, drones, onDone } = {}) {
     if (!site) { console.warn('startBattle: no site given; skipping the battle.'); onDone?.({ ok: false }); return; }
     if (!active || active.kind !== 'batmobile') {
-      if (!bm.summoned || !bm.group.visible) { hero.teleport(site); summon('batmobile'); }
+      if (!bm.summoned || !bm.group.visible) { hero.teleport(site); summon('batmobile', { instant: true }); }
       enter(bm);
     }
     const count = Array.isArray(drones) ? drones.length : (drones ?? 3);
@@ -470,7 +508,7 @@ export function createVehicles(deps) {
     if (active) { exit(); return; }
     let nearest = null, nearestD = ENTER_RANGE;
     for (const v of enterables()) {
-      if (v.driven || !v.group.visible) continue;
+      if (v.driven || v.arriving || !v.group.visible) continue;
       const d = Math.hypot(hero.pos.x - v.group.position.x, hero.pos.z - v.group.position.z);
       if (d < nearestD) { nearestD = d; nearest = v; }
     }
@@ -511,7 +549,8 @@ export function createVehicles(deps) {
       ramVehicles(active, dt);
       if (battle?.active && active === bm && input.pressed('punch')) fireCannon();
     }
-    if (bm !== active) integrateVehicle(bm, NEUTRAL_INPUT, dt);
+    if (bm.arriving) updateSummonArrival(dt);
+    else if (bm !== active) integrateVehicle(bm, NEUTRAL_INPUT, dt);
     for (const v of streetCars) if (v !== active) integrateVehicle(v, NEUTRAL_INPUT, dt);
     updateChase(dt);
     updateBattle(dt);
