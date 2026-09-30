@@ -3,6 +3,45 @@
 Branch `veh`, worktree `gotham-veh`. Built against the spec at
 `docs/superpowers/specs/2026-09-30-birthday-night-design.md`.
 
+## Polish round (after merge into the integration branch)
+
+The controller looked at the merged build and flagged that the Batmobile didn't read (a stack of
+flat boxes) and that summon overlapped Batman. Addressed, same worktree:
+
+- **Model rebuilt as a real silhouette.** `createBatmobile` now extrudes the hull from a single
+  side-profile `Shape` (nose tapered and low, canopy set forward, a longer flat rear deck, a low
+  tail), bevelled instead of flat-faced. The cockpit canopy is a blue-tinted glass bubble. Two tail
+  fins are the actual bat emblem (`batOutline` from `src/config/batShape.js`), mounted as raked
+  blades standing off the rear deck (full face from the side, a thin edge from behind, like a real
+  fin). Wheels are chunkier with a hub that visibly protrudes and a bright cap. The rear jet glow
+  was cut down to size (it was blowing out to dominate the whole back of the car) and now sits
+  inside its housing ring; white headlights and a split red tail-light strip were added. The
+  armour material carries the same rim-light treatment the characters get
+  (`addRim`, `src/actors/outfitParts.js`), plus mid-grey panel lines on the hood and doors, so it
+  pops against the dark street. Verified from behind, from the side and head-on — see screenshots.
+- **Street cars rebuilt the same way**: an extruded body profile per kind (a fastback sedan, a
+  boxier van) instead of stacked boxes, inset windscreen/rear/side glass, a wheel-arch overlay per
+  wheel, headlights and tail lights, ink edges. Still cheap (a handful of meshes each, no new
+  shader variants).
+- **Drive camera pulled back and up**: `MODES.drive` in `src/game/camera.js` went from
+  `{ dist: 7.2, height: 1.7 }` to `{ dist: 11.5, height: 3.6 }`, with a smaller speed FOV kick, so
+  the car reads as a whole with the road ahead visible instead of filling most of the frame.
+- **Summon no longer overlaps Batman.** It now appears on a real street point 8 m away (not on top
+  of him), facing along the street toward him, then slides in over 0.85 s (wheels spinning, ground
+  snapped every step) and parks 2.6 m away — inside the 4 m enter range — with the "SCREEECH!" word
+  firing on arrival, not on appearance. `summon(kind, { instant: true })` (used only by
+  `startBattle`, so its auto-enter still chains synchronously) skips the slide. While the Batmobile
+  is mid-slide (`bm.arriving`) it can't be entered or re-summoned, so a second `vehicle` press
+  during the animation is a safe no-op. Verified deterministic across three repeated runs: appears
+  7.5 m out, parks at 2.60 m, enters every time (`vehicles.active.kind === 'batmobile'`,
+  `hero.control.name === 'drive'`).
+- Also fixed in passing: the collision radius (was hand-set to 1.7, independent of the model) now
+  comes from the model itself (1.9, sized for the longer hull); the wheel-spin radius constant was
+  updated to match the bigger tyres.
+
+Full vitest suite still green (881/881) and the fps sweep still comfortably under budget (p95
+2.9–6.3 ms) after these changes; see the updated sections below.
+
 ## What works
 
 - **Batmobile model** (`src/vehicles/vehicleModels.js: createBatmobile`): code-built from boxes,
@@ -117,6 +156,14 @@ Dev/debug extras (not part of the frozen contract): `vehicles.batmobile`, `vehic
   1/3), `14_chase_ram2.png`.
 - `16_battle_start.png`, `17_battle_cannon1.png`, `18_battle_cannon2.png` ("BAZZAP!" bursts, the
   drone counter ticking down).
+
+**Polish round** (same folder): `p01_summon_mid.png`/`p02_summon_arrived.png` (the slide-in and the
+screech on arrival), `p03_driving_behind.png`/`p04_driving_boost.png` (the pulled-back drive
+camera), `p05_batmobile_side.png` (the new silhouette — nose taper, forward canopy, tail fins),
+`p06_batmobile_rear_close.png` (fins, jet, tail-light strip, all correctly sized),
+`p07_batmobile_front_close.png` (raked nose, headlights), `p08_sedan_side.png`/`p09_van_side.png`
+(the shaped street cars), `check_parked.png`/`check_entered.png` (summon parking cleanly beside
+Batman, not on top of him, then entering).
 
 ## Known gaps (time-boxed choices, not hidden bugs)
 
