@@ -89,8 +89,9 @@ describe('stealth visuals', () => {
     const g = createStealthWarm();
     const mats = new Set();
     g.traverse((o) => { if (o.material) mats.add(o.material); });
-    // cones (3) + laser + laserOutline + tracer + flash.
-    expect(mats.size).toBe(STATE_COLORS.length + 4);
+    // cones (3) + laser + laserOutline + tracer + flash + every shared x-ray silhouette colour
+    // (PALETTE.sodium, the 3 state colours, PALETTE.jokerGreen - see toon.js's xrayMaterial cache).
+    expect(mats.size).toBe(STATE_COLORS.length + 4 + (STATE_COLORS.length + 2));
   });
   // Fix round 1: a lone red laser washed out against a bright backdrop (Ace Chemicals' green vat
   // glow). A dark ink twin, offset a hair above and below the laser's own path, keeps it legible

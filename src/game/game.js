@@ -35,7 +35,7 @@ import { createStealth } from '../stealth/stealthSystem.js';
 import { pickGrapplePoint } from '../world/grapple.js';
 import { createPickups, createNeonParty } from '../world/storyProps.js';
 import { createCombat } from '../combat/combatSystem.js';
-import { createHud } from '../ui/hud.js';
+import { createHud, SFX_WORDS } from '../ui/hud.js';
 import { createRadio } from '../ui/radio.js';
 import { createStealthHud } from '../ui/stealthHud.js';
 import { glyphCode } from '../stealth/brain.js';
@@ -252,6 +252,10 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
 
     const hud = createHud(hudRoot);
     hud.setHealth(1);
+    // Pays the comic sound-word vocabulary's one-time layout cost now (fonts are already loaded,
+    // see mark('fonts') above), so a hit's "POW!" or the Bat Swarm's "SKREEEE!" never forces
+    // that reflow for the first time mid-fight.
+    hud.prewarmWords(SFX_WORDS);
     // ---- Batwing (Part V2): src/vehicles/batwing.js, contract in the design doc ----
     const batwing = createBatwing({ scene, camera, hero, follow, collision: world.collision, events, hudRoot: hudRoot.querySelector('.hud') ?? hudRoot });
     // Part S: the radio and cutscene dialogue panel (src/ui/radio.js). Lives alongside the HUD and

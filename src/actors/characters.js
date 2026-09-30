@@ -444,6 +444,10 @@ const CIVILIAN_SCHEME = { a: [0x5a4a3a, 0x8a7a64], b: [0x33303a, 0xcfc6b0] };
 const BEANIES = [PALETTE.pants, 0x3a2a24, 0x2f3f5a, 0x4a3a52];
 
 let goonBody = null;
+// The uncut body geometry (before hideBody trims it to just head/neck for the clothed render),
+// cached once and shared by every goon and the Joker: one full-figure x-ray silhouette instead of
+// a body xray plus one per clothing piece, all stacked and alpha-blended over the same pixels.
+let xrayBodyFull = null;
 
 // type: 'grunt' | 'knife' | 'brute' | 'rifle' | 'civilian' (a bystander for street crimes, never an enemy)
 export function createGoon(assets, { type = 'grunt', rng = null } = {}) {
@@ -459,6 +463,9 @@ export function createGoon(assets, { type = 'grunt', rng = null } = {}) {
   if (goonBody) body.geometry = goonBody;
   else {
     paintRegions(body, classifyGoonVertex, GOON_COLORS, lm);
+    // The full, unclothed figure, captured before hideBody trims it: the x-ray silhouette's
+    // source (see xrayBodyFull above), since the trimmed body alone is just a head and neck.
+    xrayBodyFull ??= body.geometry.clone();
     // Only the head and neck of the base body show; clothes (with their own hands) cover the rest.
     hideBody(body, (p) => p.y < lm.neckY - 0.02 || Math.abs(p.x) > 0.16);
     goonBody = body.geometry;
@@ -468,14 +475,12 @@ export function createGoon(assets, { type = 'grunt', rng = null } = {}) {
   eyes.visible = civilian;
   brows.visible = civilian;
   addHullOutline(body, brute ? 0.013 : 0.011);
-  ch.xray = addXray(body);
-  const skin = addRim(toonMaterial({ color: PALETTE.skinGoon }), 0x9fc3ff, 0.5);
-  const clothes = [];
-  for (const part of look.parts) {
-    clothes.push(...wear(ch, assets.outfits, part, (m) => (isSkinMaterial(m) ? skin : duotone(m.map, m.normalMap, scheme)), { outline: brute ? 0.012 : 0.009 }));
-  }
+  ch.xray = addXray(body, PALETTE.sodium, xrayBodyFull);
   ch.xrays = [ch.xray];
-  for (const m of clothes) ch.xrays.push(addXray(m));
+  const skin = addRim(toonMaterial({ color: PALETTE.skinGoon }), 0x9fc3ff, 0.5);
+  for (const part of look.parts) {
+    wear(ch, assets.outfits, part, (m) => (isSkinMaterial(m) ? skin : duotone(m.map, m.normalMap, scheme)), { outline: brute ? 0.012 : 0.009 });
+  }
   if (brute) ch.root.scale.setScalar(1.25);
 
   const r = lm.headRadius * 1.12;
@@ -553,14 +558,20 @@ export function createJoker(assets) {
   body.castShadow = true;
   brows.visible = false;
   eyes.material = new THREE.MeshBasicMaterial({ color: 0xd8f0c0 });
+  // The full, unclothed figure (see xrayBodyFull above createGoon): same base mesh as a goon's,
+  // so it's shared rather than cloned again here, as long as a goon has built it first (always
+  // true in practice: warmCast.js warms every goon look before the Joker). Falls back to its own
+  // clone if this is ever the very first character built.
+  xrayBodyFull ??= body.geometry.clone();
   // A purple coat over a green vest, and gloved hands.
   hideBody(body, (p) => p.y < lm.neckY - 0.02 || Math.abs(p.x) > 0.16);
   addHullOutline(body, 0.012);
-  ch.xray = addXray(body, PALETTE.jokerGreen);
+  ch.xray = addXray(body, PALETTE.jokerGreen, xrayBodyFull);
+  ch.xrays = [ch.xray];
   const suitScheme = { a: [0x3c8a2a, 0x7fd65a], b: [0x6c3fa3, 0xe8923a] };
   const glove = addRim(toonMaterial({ color: 0x8f5fcf }));
   for (const part of ['Male_Ranger_Body', 'Male_Ranger_Legs', 'Male_Peasant_Feet', 'Male_Ranger_Arms']) {
-    for (const m of wear(ch, assets.outfits, part, (src) => (isSkinMaterial(src) ? glove : duotone(src.map, src.normalMap, suitScheme)))) addXray(m, PALETTE.jokerGreen);
+    wear(ch, assets.outfits, part, (src) => (isSkinMaterial(src) ? glove : duotone(src.map, src.normalMap, suitScheme)));
   }
   // Spiky green hair from a crown of cones.
   const hairMat = toonMaterial({ color: 0x3f9e34 });

@@ -6,6 +6,21 @@ const C = 2 * Math.PI * R;
 const BOLT = 'M22 2 L6 30 L17 30 L12 52 L32 20 L20 20 L26 2 Z';
 const BALLOON = '<svg width="16" height="22" viewBox="0 0 16 22"><ellipse cx="8" cy="8" rx="7" ry="8" fill="#c8323c" stroke="#0b0b12" stroke-width="1.5"/><path d="M8 16 q-2 3 0 6" stroke="#0b0b12" fill="none"/></svg>';
 
+// The comic sound-effect vocabulary, gathered from every events.emit('word', ...) call in the
+// game (combat hits, every gadget, vehicles, stealth takedowns, breakables, level-up and the Bat
+// Swarm's own two lines) so prewarmWords() (below) can pay sfx()'s one-time forced-layout cost
+// for all of them at boot, not on whichever is first shown mid-play. Kept as one flat, loosely
+// maintained list rather than importing each source's own words: missing a newly added word here
+// costs nothing but that one word's first-use reflow, same as before this list existed.
+export const SFX_WORDS = [
+  'KRAK!', 'WHAM!', 'THWACK!', 'WHUMP!', 'POW!', 'BLAM!', 'KAPOW!', 'THWAMP!', 'KRUNCH!',
+  'KA-BOOM!', 'WHAMMO!', 'SWOOSH-THWACK!', 'KRAKOOM!', 'BADOOM!', 'WHEEE-CRASH!', 'YOINK!',
+  'KRSSSH!', 'TINK!', 'RIIIP!', 'KRZZT!', 'SPLUT!', 'KA-BLOOEY!', 'THUNK!', 'POP! POP! POP!',
+  'WHIRRR!', 'FSSSHH!', 'LEVEL UP!', 'ZZZIP!', 'FWOOSH!', 'KA-THOOM!', 'THUD', 'TEAM UP!',
+  'NIGHTY NIGHT!', 'SCREEECH!', 'BAZZAP!', 'SKREEEE!', 'FLAP FLAP KRAKOOM!', 'KA-CHUNK!',
+  'KSSSSH!', 'KLANG!', 'SKREEK!',
+];
+
 // Chain icons, inked: a looped rope, two heads meeting, a boot coming down on a crater.
 const CHAIN_ICON = [
   '<path d="M8 30 C8 14 30 14 30 24 C30 34 14 34 14 24 C14 14 36 12 40 22"/>',
@@ -117,6 +132,14 @@ export function createHud(root) {
   const liveWords = [];
   // Until when (performance.now) sound words keep off the action camera's framed blow.
   let focusUntil = 0;
+  // sfx()'s own offsetWidth/offsetHeight read right after inserting the element is a forced
+  // synchronous layout (the browser can't just batch it with the next paint), and the comic
+  // vocabulary ("POW!", "THUD", a chain finisher's own line) repeats constantly in a real fight.
+  // Cached by the exact string shown (word text plus the big/small class), so only a word's very
+  // first appearance ever pays for the reflow; every repeat reuses the measured size. Cleared on
+  // resize since font metrics (and so text layout) can change with the viewport.
+  const wordSizeCache = new Map();
+  window.addEventListener('resize', () => wordSizeCache.clear());
   // The objective card, a showing hint, the combo and chain icons and the health ring.
   const uiBoxes = () => [captionEl.getBoundingClientRect(), hintEl.classList.contains('show') ? hintEl.getBoundingClientRect() : null,
     combo.getBoundingClientRect(), chainsEl.getBoundingClientRect(), healthEl.getBoundingClientRect()];
@@ -231,9 +254,13 @@ export function createHud(root) {
       const rot = Math.random() * 24 - 12;
       s.style.setProperty('--r', `${rot.toFixed(1)}deg`);
       layer.appendChild(s);
-      // Measured once per word, now it's laid out: keep it on screen, off the objective card, a
-      // showing hint, the combo and chain icons, the health ring and any word still on screen.
-      const w = s.offsetWidth, h = s.offsetHeight;
+      // Measured once per distinct word (see wordSizeCache above), now it's laid out: keep it on
+      // screen, off the objective card, a showing hint, the combo and chain icons, the health
+      // ring and any word still on screen.
+      const sizeKey = big ? `1:${word}` : `0:${word}`;
+      let size = wordSizeCache.get(sizeKey);
+      if (!size) { size = { w: s.offsetWidth, h: s.offsetHeight }; wordSizeCache.set(sizeKey, size); }
+      const { w, h } = size;
       const view = { w: innerWidth, h: innerHeight };
       const ui = uiBoxes();
       // While a critical's action shot plays, the middle of the screen is the blow itself.
@@ -247,6 +274,26 @@ export function createHud(root) {
       s.addEventListener('animationend', () => { s.remove(); const i = liveWords.indexOf(box); if (i >= 0) liveWords.splice(i, 1); });
       s.style.left = `${p.x}px`;
       s.style.top = `${p.y}px`;
+    },
+    // Pays sfx()'s one-time forced-layout cost for a batch of words up front (called once at
+    // boot, after the 'Bangers' comic font is confirmed loaded, alongside the rest of the
+    // loading-screen warm-up), so nothing mid-play is the very first appearance of its text. A
+    // word this list misses just falls back to sfx()'s own pay-on-first-use behaviour: safe to
+    // under-list, never wrong to over-list.
+    prewarmWords(words) {
+      for (const text of words) {
+        for (const big of [false, true]) {
+          const key = big ? `1:${text}` : `0:${text}`;
+          if (wordSizeCache.has(key)) continue;
+          const s = document.createElement('div');
+          s.className = big ? 'sfx big' : 'sfx';
+          s.textContent = text;
+          s.style.visibility = 'hidden';
+          layer.appendChild(s);
+          wordSizeCache.set(key, { w: s.offsetWidth, h: s.offsetHeight });
+          layer.removeChild(s);
+        }
+      }
     },
     // A critical's action shot is about to frame the blow in the middle of the screen: words keep
     // off it for `ms`, and any word already there (emitted a moment before) steps aside.
