@@ -1,10 +1,16 @@
 // Boots a build in WebKit (Safari's engine) and plays into the opening. Usage: node scripts/webkit-check.mjs [url] [outDir]
-import { webkit } from 'playwright-core';
+// ENGINE=firefox runs the same check in Firefox (muted through its volume pref).
+import { webkit, firefox } from 'playwright-core';
+import { mkdirSync } from 'node:fs';
+const engine = process.env.ENGINE ?? 'webkit';
 const url = process.argv[2] ?? 'http://localhost:5202/';
-const out = process.argv[3] ?? 'webkit-check';
-const b = await webkit.launch();
+const out = process.argv[3] ?? `${engine}-check`;
+mkdirSync(out, { recursive: true });
+const b = engine === 'firefox'
+  ? await firefox.launch({ firefoxUserPrefs: { 'webgl.force-enabled': true, 'media.volume_scale': '0.0' } })
+  : await webkit.launch();
 const p = await b.newPage({ viewport: { width: 1440, height: 900 } });
-// WebKit has no --mute-audio: start the game with master volume 0 (the owner uses this laptop while tests run).
+// WebKit has no --mute-audio (and Firefox's pref is belt and braces): start the game with master volume 0 (the owner uses this laptop while tests run).
 await p.addInitScript(() => { try { const k = 'gotham-mansi-settings-v1'; const s = JSON.parse(localStorage.getItem(k) || '{}'); s.volume = { ...(s.volume || {}), master: 0 }; localStorage.setItem(k, JSON.stringify(s)); } catch { /* storage blocked */ } });
 const errors = [];
 p.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
