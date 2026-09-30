@@ -51,6 +51,7 @@ import { createFollowCamera } from './camera.js';
 import { createBatwing } from '../vehicles/batwing.js';
 import { createCinematic } from '../ui/cinematic.js';
 import { createParty } from './party.js';
+import { guestsUpTo, celebrateAt } from './partyStory.js';
 import { createFx } from './fx.js';
 import { createStealthFx } from '../stealth/stealthFx.js';
 import { createGadgetFx } from '../gadgets/gadgetFx.js';
@@ -343,8 +344,19 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const boss = createBoss({ assets, scene, rng, combat, events, hud, spawn, despawn, hero, time, getDifficulty: () => settings.difficulty, collision: world.collision, effects });
     boss.joker.health = 999;
     const finale = createFinale({ scene, world, hero, boss, camera, events, rng });
-    // ---- Finale rooftop party: src/game/party.js ----
+    // ---- Finale rooftop party: src/game/party.js, wired to story progress (partyStory.js) ----
     const party = createParty({ scene, assets, events, gfx, finale });
+    // A resumed save (or a completed one, past credits, which never re-fires 'step' below):
+    // every guest whose join step is already behind the current one joins immediately.
+    for (const id of guestsUpTo(progress.step ?? 0, STEPS)) party.addGuest(id);
+    if (celebrateAt(progress.step ?? 0, STEPS)) party.celebrate();
+    // Live progression: flow.js's enterStep() emits 'step' the moment each new step starts
+    // (including, on a fresh run, the very first one), which is also when the finale cutscene
+    // itself starts (s.type === 'cutscene' && s.scene === 'finale').
+    events.on('step', ({ index }) => {
+      for (const id of guestsUpTo(index, STEPS)) party.addGuest(id);
+      if (celebrateAt(index, STEPS)) party.celebrate();
+    });
 
     // Renders the live city from a posed camera into an image for comic panels.
     const stage = {
