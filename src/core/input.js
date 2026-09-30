@@ -7,6 +7,11 @@ export const PAD_BUTTONS = {
   // RB (5) is not here: a tap is the cape stun and a hold opens the gadget wheel (createHoldTap).
   dodge: [6], batarang: [7],
   detective: [8], pause: [9], special: [11], photo: [12], help: [13], throw: [15],
+  // D-pad down (13) is already 'help' and D-pad up/right are taken too, so vehicle (summon,
+  // enter, exit) takes D-pad left (14): it doubles as the chain1 chord button below, and the
+  // existing chord-latch machinery already suppresses it from firing 'vehicle' while block (Y)
+  // is held for a chain takedown.
+  vehicle: [14],
 };
 
 // Chain takedowns: D-pad left, up and right while block (Y) is held. With block held, D-pad

@@ -10,7 +10,7 @@ describe('padActions', () => {
     expect(acts(2)).toEqual(['punch']);
     expect(acts(15)).toEqual(['throw']);
     expect(acts(12)).toEqual(['photo']);
-    expect(acts(14)).toEqual([]);
+    expect(acts(14)).toEqual(['vehicle']);
   });
   it('photo on D-pad up never fires while block is held (block + up is chain 2)', () => {
     expect(acts(3, 12)).toEqual(['block', 'chain2']);
