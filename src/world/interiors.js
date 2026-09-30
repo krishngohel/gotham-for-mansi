@@ -430,11 +430,12 @@ function buildAceHall(ctx) {
   ctx.buckets.add('concrete', tiledBox(b.maxX - b.minX, 0.15, b.maxZ - b.minZ, FX, 0.08, FZ, { uvScale: [8, 8] }));
   // A real fill light over the vat floor: toxic green, so the hall reads bright at a glance
   // instead of relying only on baked halos. Distance-limited, never reaches the exterior city.
-  roomFill(ctx, FX, 9, FZ, PALETTE.chem, 3.6, 60);
-  roomFill(ctx, FX, 4, FZ - 12, PALETTE.chem, 2.2, 34);
-  roomFill(ctx, FX, 4, FZ + 12, PALETTE.chem, 2, 30);
-  // One big toxic pool right under the centre catwalk, so straight down the aisle reads green too.
-  ctx.buckets.add('pool', new THREE.CircleGeometry(9, 26).rotateX(-Math.PI / 2).translate(FX, 0.15, FZ), 0x7dff4a);
+  roomFill(ctx, FX, 9, FZ, PALETTE.chem, 2.4, 55);
+  roomFill(ctx, FX, 4, FZ - 12, PALETTE.chem, 1.6, 32);
+  roomFill(ctx, FX, 4, FZ + 12, PALETTE.chem, 1.4, 28);
+  // A soft toxic pool under the centre catwalk, so straight down the aisle reads green too,
+  // without washing the whole floor flat.
+  ctx.buckets.add('pool', new THREE.CircleGeometry(3.6, 22).rotateX(-Math.PI / 2).translate(FX, 0.15, FZ), 0x6fef3a);
 
   // Three rows of glowing, bubbling vats (six total), all clearly in view from the hall centre.
   for (const [px, pz] of [[122, -184], [158, -184], [122, -176], [158, -168], [122, -160], [158, -160]]) hallVat(ctx, px, pz);
