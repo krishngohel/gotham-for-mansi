@@ -47,6 +47,7 @@ import { createAudio } from '../audio/audio.js';
 import { createVoice } from '../audio/voice.js';
 import { createWorld } from './world.js';
 import { createFollowCamera } from './camera.js';
+import { createBatwing } from '../vehicles/batwing.js';
 import { createFx } from './fx.js';
 import { createStealthFx } from '../stealth/stealthFx.js';
 import { createGadgetFx } from '../gadgets/gadgetFx.js';
@@ -243,6 +244,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
 
     const hud = createHud(hudRoot);
     hud.setHealth(1);
+    // ---- Batwing (Part V2): src/vehicles/batwing.js, contract in the design doc ----
+    const batwing = createBatwing({ scene, camera, hero, follow, collision: world.collision, events, hudRoot: hudRoot.querySelector('.hud') ?? hudRoot });
     const comicFx = createComicFx(document.body);
     const fx = createFx(scene);
     const stealthFx = createStealthFx(scene);
@@ -630,6 +633,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       if (playing && !state.paused) {
         if (input.pressed('photo') && flow.mode === 'play' && !hero.dead) { photo.open(); return; }
         if (input.pressed('detective')) state.detectiveOn = !state.detectiveOn;
+        // Batwing (Part V2): call it from a roof or a glide, or eject back into a glide.
+        if (input.pressed('batwing')) { if (batwing.active) batwing.exit(); else batwing.call(); }
         // 'due' first, so the card check (a DOM read) runs only while the notice is still pending.
         if (progress.predatorNotice === 'due' && predatorNoticeReady(progress.predatorNotice, flow.mode === 'play', hud.cardShowing, gadgets.newsPending)) predatorNotice();
         pickGrapple(real);
@@ -659,6 +664,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         stealth.update(dt);
         combat.update(dt, ctx);
         hero.update(dt, ctx);
+        batwing.update(dt, real);
         side.update(dt, real, { toScreen });
         fx.update(dt, real);
         fxView.detective = !!state.detectiveOn;
@@ -733,6 +739,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
 
     const api = {
       hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, despawn, side,
+      batwing,
       // Impact frames test hook: pin(ms) samples `ms` into the sequence the next fire() starts.
       impact: {
         fire: (tier, target) => fireImpact(tier, target),
