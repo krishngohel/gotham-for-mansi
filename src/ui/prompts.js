@@ -66,6 +66,7 @@ const ENTRIES = [
   ['rifle', (k) => `Rifle goons parry punches and aim with a red laser. ${k('dodge')} dodge when it locks on, and kick or stun them first.`],
   ['swarm', (k) => `Bat Swarm is ready. When your combo lights the bat icon, press ${k('chain4')} to call the bats down on up to six goons.`],
   ['wayneTech', (k) => `Level up! Press ${k('pause')} and open WayneTech to spend your upgrade point.`],
+  ['vehicle', (k) => `The Batmobile is waiting. Walk up and press ${k('vehicle')} to get in.`],
 ];
 
 export const PROMPT_IDS = ENTRIES.map(([id]) => id);

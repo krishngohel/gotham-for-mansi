@@ -11,12 +11,13 @@ import MANSI from '../mansi.config.js';
 // tries the real system first (through window.__game, never captured at creation so it still works
 // however late that part attaches itself) and falls back to a short timer, so the story always
 // reaches credits with any subset of Vehicles, Batwing or Nightwing missing.
-const ASYNC_TYPES = new Set(['radio', 'chase', 'battle', 'armada', 'crasher', 'ally']);
+const ASYNC_TYPES = new Set(['radio', 'chase', 'battle', 'armada', 'crasher', 'ally', 'board']);
 const DEGRADE_MS = 2200;
 // A plain travel step may still finish while Mansi is driving or flying (that is the point of
 // getting there). Every other kind of beat needs her on foot first (coordinator guidance,
-// 2026-09-30): a cutscene, fight, boss, collect or any of these async ones except the two that put
-// her IN a vehicle on purpose (chase, battle, armada).
+// 2026-09-30): a cutscene, fight, boss, collect or any of these async ones except the three that
+// put her IN a vehicle on purpose (chase, battle, armada) or ask her to get into one herself
+// (board; forcing an exit here would fight its own "already driving? finish at once" check below).
 const EXIT_VEHICLE_TYPES = new Set(['cutscene', 'fight', 'boss', 'radio', 'crasher', 'ally', 'interior', 'collect']);
 
 export function createFlow(d) {
@@ -70,14 +71,15 @@ export function createFlow(d) {
     switch (step.type) {
       case 'chase':
         if (!G.vehicles?.startChase) return false;
-        // The mission needs Mansi in the Batmobile first: startChase summons and enters it
-        // itself (parked, no slide-in) when she isn't already driving it, the same as startBattle.
+        // Normal play: a 'board' step always runs first (see below), so Mansi is already driving
+        // the Batmobile by the time this fires and startChase never has to place her at all. The
+        // teleport-and-summon inside startChase only fires as a last-resort fallback (an old save
+        // resuming mid-mission, say), never on the path a player actually takes.
         G.vehicles.startChase({ path: step.path ?? null, onDone: (r) => done(r?.ok !== false) });
         return true;
       case 'battle':
-        // startBattle summons (instant) and enters the Batmobile itself when Mansi isn't already
-        // driving it, so no manual summon/enter here (doing it first, as with chase, would only
-        // race its own internal check).
+        // Same as chase: the 'board' step ahead of this one gets her into the Batmobile for real,
+        // so startBattle's own teleport-and-summon is a fallback, not the normal path.
         if (!G.vehicles?.startBattle) return false;
         G.vehicles.startBattle({ site: siteOf(step), drones: step.drones ?? 6, onDone: (r) => done(r?.ok !== false) });
         return true;
@@ -99,6 +101,19 @@ export function createFlow(d) {
         G.nightwing.spawn(SITES[step.at] ?? hero.pos, 'ally');
         done(true);
         return true;
+      // A real, player-driven "get in the car" beat (no teleport): the Batmobile parks itself at
+      // the step's own site (vehicles.park, a short slide-in for drama), and the step only
+      // completes once Mansi actually gets in it herself, at whatever pace she likes. Already
+      // driving it (a save resumed mid-mission, or she never got out after the last mission):
+      // finish at once, nothing to walk up to.
+      case 'board': {
+        if (!G.vehicles?.park) return false;
+        if (G.vehicles.active === G.vehicles.batmobile) { done(true); return true; }
+        const spot = siteOf(step);
+        if (spot) G.vehicles.park(spot);
+        const off = events.on('vehicleEnter', ({ kind }) => { if (kind === 'batmobile') { off(); done(true); } });
+        return true;
+      }
       default:
         return false;
     }

@@ -135,6 +135,13 @@ export const SITES = {
   monarchRoof: { x: 180, y: 22, z: -60 },
   party: { x: 186, y: 22, z: -66 },
   aceYard: { x: 95, y: 0, z: -140 },
+  // Batmobile parking spots (Part S's 'board' steps, src/game/story.js): real street tiles
+  // (src/vehicles/vehicles.js's LINES) near the route the player already took on foot, so getting
+  // in is a walk-up-and-press-the-key beat instead of a teleport. `yaw` is which way the car
+  // faces when it parks (src/vehicles/vehicles.js's park()); forward is (sin(yaw), cos(yaw)), so
+  // PI faces north (-z), toward the site she is about to drive to.
+  dockBoard: { x: -90, y: 0.15, z: 165, yaw: Math.PI },
+  aceGate: { x: 95, y: 0.15, z: -90, yaw: Math.PI },
   factoryRoof: { x: 140, y: 25.1, z: -172 },
   vatDeck: { x: 180, y: 10, z: -118 },
   cake: { x: 184, y: 10, z: -112 },
