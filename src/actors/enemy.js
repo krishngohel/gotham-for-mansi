@@ -1,8 +1,10 @@
 // Joker goon AI: idle, alert, circle the hero, wind up (glyph), attack, react to hits.
 import * as THREE from 'three';
 import { createGoon, footGround, enemyPlantsFeet } from './characters.js';
+import { createHarleyCharacter } from './harleyChar.js';
 import { ENEMY } from '../combat/rules.js';
 import { yankVelocity } from '../gadgets/aim.js';
+import { chooseHarleyMove, shouldCartwheel, harleyGlyph, harleyWindup, HARLEY_COOLDOWN, HARLEY_TAUNTS } from '../combat/harleyLogic.js';
 
 const IDLE_POSES = ['Idle_Talking_Loop', 'Idle_TalkingPhone_Loop', 'Idle_FoldArms_Loop', 'Idle_Loop'];
 const GRUNT_ATTACKS = ['Punch_Cross', 'Punch_Jab', 'Melee_Hook'];
@@ -15,8 +17,8 @@ export const CHAIN_HOLD_CLIPS = ['Idle_Shield_Break', 'Hit_Head', 'Hit_Chest', '
 // States wake() lets finish on their own instead of jumping straight to 'alert' (see e.wake below).
 const WAKE_HOLD_STATES = ['tied', 'down', 'getup', 'chained', 'grabbed'];
 
-export function createEnemy({ id, type, assets, scene, collision, rng }) {
-  const ch = createGoon(assets, { type, rng });
+export function createEnemy({ id, type, assets, scene, collision, rng, events = null }) {
+  const ch = type === 'harley' ? createHarleyCharacter(assets) : createGoon(assets, { type, rng });
   ch.animator.prime(CHAIN_HOLD_CLIPS);
   const groundUnderFoot = footGround(collision);
   scene.add(ch.root);
@@ -37,6 +39,8 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
     glyph: null,
     tiedWith: null, tiedT: 0,
     frozenT: 0, danceT: 0, lostT: 0, shattered: false,
+    // Harley Quinn only (type 'harley'): per-move cooldowns and her cartwheel dodge tic.
+    harleyCd: { slam: 0, sweep: 0, throw: 0 }, cartwheelCd: rng.range(0.6, 1.6), harleySlammed: false,
     // Predator stealth (src/stealth/stealthSystem.js): where the goon walks or looks, which room it
     // belongs to, and whether it can see Batman right now (a rifle only fires when it can).
     nav: { x: 0, y: 0, z: 0, speed: 0, face: null, lookX: 0, lookZ: 0, arrived: false, px: 0, pz: 0, stuckT: 0 },
@@ -75,6 +79,7 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
   e.wake = () => {
     if (e.aware || !e.alive) return;
     e.aware = true;
+    if (type === 'harley') events?.emit('harleyTaunt', { text: HARLEY_TAUNTS[0] });
     // Held, tied or on the floor: aware from now on, but let that state finish on its own.
     // getup and tie expiry (below) and chainRelease already send an aware goon on to 'engage'.
     if (WAKE_HOLD_STATES.includes(e.state)) return;
@@ -197,6 +202,7 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
     if (e.state !== 'engage' || !e.alive || e.down || e.lostT > 0) return false;
     const d = tmp.set(hero.pos.x - pos.x, 0, hero.pos.z - pos.z).length();
     // Fists and knives only reach Batman on the goon's own level (not up on a gargoyle).
+    if (type === 'harley') return d < 14 && Math.abs(hero.pos.y - pos.y) < MELEE_DY;
     return def.ranged ? e.seesHero !== false && d < 30 : d < 6.5 && Math.abs(hero.pos.y - pos.y) < MELEE_DY;
   };
 
@@ -219,6 +225,24 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
       e.windupDur = windup + 0.55;
       e.glyph = 'red';
       play('Rifle_Aim', { fade: 0.1 });
+    } else if (type === 'harley') {
+      // Mallet slam and sweep at melee range, an occasional pie/confetti throw at a distance;
+      // src/combat/harleyLogic.js picks which and gates it on her own per-move cooldowns.
+      const dx0 = hero.pos.x - pos.x, dz0 = hero.pos.z - pos.z;
+      const dist0 = Math.hypot(dx0, dz0);
+      const move = chooseHarleyMove(dist0, e.harleyCd, rng.next()) ?? 'slam';
+      e.harleyCd[move] = HARLEY_COOLDOWN[move];
+      e.attackKind = move === 'slam' ? 'harleySlam' : move === 'sweep' ? 'harleySweep' : 'harleyThrow';
+      e.windupDur = windup + harleyWindup(move);
+      e.glyph = harleyGlyph(move);
+      if (move === 'slam') {
+        if (!e.harleySlammed) { e.harleySlammed = true; events?.emit('harleyTaunt', { text: HARLEY_TAUNTS[1] }); }
+        play('Sword_Heavy_Combo', { once: true, timeScale: 0.22, fade: 0.1 });
+      } else if (move === 'sweep') {
+        play('Sword_Regular_A', { once: true, timeScale: 0.28, fade: 0.1 });
+      } else {
+        play('OverhandThrow', { once: true, timeScale: 0.45, fade: 0.1 });
+      }
     } else {
       e.attackKind = type === 'joker' ? 'joker' : 'grunt';
       e.windupDur = windup;
@@ -271,6 +295,7 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
         e.knock.copy(tmp).multiplyScalar(3.5 * power);
         if (launch || e.air) e.launch(tmp.x * 4 * power, Math.max(launch, e.air ? 4 : 0), tmp.z * 4 * power);
         play(rng.chance(0.5) ? 'Death01' : 'Hit_Knockback', { once: true, timeScale: 1.1, fade: 0.05 });
+        if (type === 'harley') events?.emit('harleyDown', { target: e });
         break;
       case 'stun':
         setState('stunned');
@@ -307,6 +332,12 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
     }
     e.t += dt;
     if (e.stunT > 0) { e.stunT -= dt; if (e.stunT <= 0) e.stunned = false; }
+    if (type === 'harley') {
+      if (e.harleyCd.slam > 0) e.harleyCd.slam -= dt;
+      if (e.harleyCd.sweep > 0) e.harleyCd.sweep -= dt;
+      if (e.harleyCd.throw > 0) e.harleyCd.throw -= dt;
+      if (e.cartwheelCd > 0) e.cartwheelCd -= dt;
+    }
     const dx = hero.pos.x - pos.x, dz = hero.pos.z - pos.z;
     const dist = Math.hypot(dx, dz);
     const level = Math.abs(hero.pos.y - pos.y) < MELEE_DY;
@@ -335,6 +366,12 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
         break;
       case 'engage':
       case 'recover': {
+        if (type === 'harley' && e.state === 'engage' && shouldCartwheel(true, e.cartwheelCd, rng.next())) {
+          e.cartwheelCd = rng.range(1.8, 2.8);
+          setState('cartwheel');
+          play('Roll', { once: true, timeScale: 1.3, fade: 0.05 });
+          break;
+        }
         if (e.state === 'recover' && e.t > 0.55) setState('engage');
         e.strafeT -= dt;
         if (e.strafeT <= 0) { e.strafe *= -1; e.strafeT = rng.range(1.2, 3); }
@@ -361,7 +398,7 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
           if (def.ranged) { setState('attack'); e.glyph = null; break; }
           setState('attack');
           e.lungeFrom.copy(pos);
-          const reach = e.attackKind === 'charge' ? 0 : Math.max(0, dist - 1.1);
+          const reach = (e.attackKind === 'charge' || e.attackKind === 'harleyThrow') ? 0 : Math.max(0, dist - 1.1);
           e.lungeTo.set(pos.x + (dx / (dist || 1)) * reach, pos.y, pos.z + (dz / (dist || 1)) * reach);
           e.chargeDir.set(dx / (dist || 1), 0, dz / (dist || 1));
           ch.animator.mixer.timeScale = 1;
@@ -393,6 +430,14 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
           moveX = e.chargeDir.x; moveZ = e.chargeDir.z;
           if (!e.hitDone && dist < 1.5 * scale && level) { e.hitDone = true; ctx.onAttackLand(e, 'charge'); }
           if (e.t > 0.75) { setState('recover'); ctx.onAttackEnd(e); }
+        } else if (e.attackKind === 'harleyThrow') {
+          // A thrown pie/confetti bomb: stands her ground and tosses it, no lunge.
+          faceHero(hero, 10, dt);
+          if (!e.hitDone && e.t > 0.22) {
+            e.hitDone = true;
+            if (dist < 16 && level) ctx.onAttackLand(e, 'harleyThrow');
+          }
+          if (e.t > 0.5) { setState('recover'); ctx.onAttackEnd(e); }
         } else {
           const k = Math.min(1, e.t / 0.16);
           pos.x = e.lungeFrom.x + (e.lungeTo.x - e.lungeFrom.x) * k;
@@ -428,6 +473,16 @@ export function createEnemy({ id, type, assets, scene, collision, rng }) {
         e.danceT -= dt;
         if (e.danceT <= 0) { e.stunned = false; e.stunT = 0; setState(e.aware ? 'engage' : 'idle'); }
         break;
+      case 'cartwheel': {
+        // Harley Quinn only: a quick hop-roll away from Batman. Flavor, not a hard i-frame.
+        const cx = pos.x - hero.pos.x, cz = pos.z - hero.pos.z;
+        const cd = Math.hypot(cx, cz) || 1;
+        speed = 5;
+        moveX = cx / cd; moveZ = cz / cd;
+        ch.face(Math.atan2(moveX, moveZ));
+        if (e.t > 0.45) setState('engage');
+        break;
+      }
       case 'patrol':
       case 'search':
       case 'hunt': {
