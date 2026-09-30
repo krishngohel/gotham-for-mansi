@@ -1,6 +1,6 @@
 // tests/unit/partySlots.test.js
 import { describe, it, expect } from 'vitest';
-import { GUEST_IDS, GUEST_SLOTS, guestSlots, allSlotPoints, farEnough, noOverlaps, clearsFurniture, FURNITURE_ZONES, clearsKeepout, KEEPOUT_POINTS, KEEPOUT_DIST } from '../../src/game/partySlots.js';
+import { GUEST_IDS, GUEST_SLOTS, guestSlots, allSlotPoints, farEnough, noOverlaps, clearsFurniture, FURNITURE_ZONES, clearsKeepout, KEEPOUT_POINTS, KEEPOUT_DIST, guestsInView, GUEST_VIEW_DIST, PARTY_Y } from '../../src/game/partySlots.js';
 
 describe('GUEST_SLOTS', () => {
   it('has a slot list for every documented guest id', () => {
@@ -58,5 +58,17 @@ describe('clearsFurniture', () => {
   it('rejects a point actually inside a furniture zone', () => {
     const z = FURNITURE_ZONES[0];
     expect(clearsFurniture({ x: z.x, z: z.z })).toBe(false);
+  });
+});
+
+describe('guestsInView', () => {
+  it('shows the guests anywhere on or near the GCPD roof', () => {
+    expect(guestsInView({ x: 0, y: PARTY_Y + 3, z: 0 })).toBe(true);
+    expect(guestsInView({ x: 18, y: PARTY_Y + 6, z: -18 })).toBe(true);
+    expect(guestsInView({ x: GUEST_VIEW_DIST - 1, y: PARTY_Y, z: 0 })).toBe(true);
+  });
+  it('hides them from across the city (the clock tower arena, the docks)', () => {
+    expect(guestsInView({ x: -62, y: 60, z: -150 })).toBe(false);
+    expect(guestsInView({ x: 0, y: 2, z: 178 })).toBe(false);
   });
 });

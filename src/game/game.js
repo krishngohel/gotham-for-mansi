@@ -698,7 +698,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         batwing.update(dt, real);
         // ---- Part V1: ground vehicles hook (src/vehicles/vehicles.js) ----
         vehicles.update(dt, real);
-        party.update(dt);
+        party.update(dt, camera.position);
         side.update(dt, real, { toScreen });
         fx.update(dt, real);
         fxView.detective = !!state.detectiveOn;

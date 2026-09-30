@@ -13,6 +13,14 @@ export const PARTY_Y = 42;
 export const KEEPOUT_POINTS = [{ id: 'start', x: 6, z: 10 }, { id: 'signal', x: -12, z: -12 }];
 export const KEEPOUT_DIST = 5;
 
+// Past this distance from the roof centre the guests are specks a few pixels tall, but they still
+// cost a draw call per mesh (hundreds of thousands of triangles with the whole cast there), so the
+// party hides them. The banners and string lights stay: they are cheap and read from far away.
+export const GUEST_VIEW_DIST = 90;
+export function guestsInView(cam, dist = GUEST_VIEW_DIST) {
+  return Math.hypot(cam.x, cam.y - PARTY_Y, cam.z) <= dist;
+}
+
 // One or more (x, z, yaw) spots per guest id: 'band' and 'kids' place a small cluster. The dance
 // floor sits around (-2, 3): the DJ booth (west) faces it across from the cake (east), and
 // everyone else forms a loose arc south of it, all yawed roughly toward the middle.

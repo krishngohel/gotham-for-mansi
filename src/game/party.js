@@ -13,7 +13,7 @@ import { PALETTE } from '../config/palette.js';
 import { createRng } from '../core/rng.js';
 import { letterPoints, birthdayLine } from '../gadgets/skyLetters.js';
 import MANSI from '../mansi.config.js';
-import { PARTY_Y as Y, guestSlots } from './partySlots.js';
+import { PARTY_Y as Y, guestSlots, guestsInView } from './partySlots.js';
 
 const mat = (color, extra = {}) => toonMaterial({ color, ...extra });
 const prop = (geo, color, extra = {}) => { const m = new THREE.Mesh(geo, mat(color, extra)); addHullOutline(m, 0.012); return m; };
@@ -96,7 +96,7 @@ export function createParty({ scene, assets, events, gfx, finale }) {
   const guests = []; // { id, ch, dance() }
   const dancers = []; // every ch added, for celebrate()
   const pulsers = []; // { mesh, base } emissive lights to pulse
-  let djKit = null, decorated = false;
+  let djKit = null, decorated = false, near = true;
 
   // Set dressing shared by every guest (string lights + the banner), built once, the first time
   // any guest is added, so an empty roof never pays for it.
@@ -107,13 +107,16 @@ export function createParty({ scene, assets, events, gfx, finale }) {
       { x: -18, y: Y + 8, z: -18 }, { x: 0, y: Y + 9.5, z: -18 }, { x: 18, y: Y + 8, z: -18 },
       { x: 18, y: Y + 8, z: 18 }, { x: -18, y: Y + 8, z: 18 }, { x: -18, y: Y + 8, z: -18 },
     ]);
+    bulbs.userData.keepFar = true;
     group.add(bulbs);
     const banner = buildBanner(MANSI.finaleSignal);
     banner.position.set(0, Y + 10.5, -17.9);
+    banner.userData.keepFar = true;
     group.add(banner);
     const banner2 = buildBanner(MANSI.finaleSignal, 6, 1.1);
     banner2.position.set(-17.9, Y + 9, 0);
     banner2.rotation.y = Math.PI / 2;
+    banner2.userData.keepFar = true;
     group.add(banner2);
   }
 
@@ -297,7 +300,13 @@ export function createParty({ scene, assets, events, gfx, finale }) {
       while (group.children.length) group.remove(group.children[0]);
       djKit = null; decorated = false;
     },
-    update(dt) {
+    update(dt, camPos) {
+      // Every frame, not only on a change: a guest can join while the camera is across the city.
+      if (camPos) {
+        near = guestsInView(camPos);
+        for (const c of group.children) if (!c.userData.keepFar) c.visible = near;
+      }
+      if (!near) return;
       const now = performance.now() / 1000;
       for (const p of pulsers) p.mesh.material.color.copy(p.base).multiplyScalar(0.6 + Math.sin(now * p.k) * 0.4);
       if (djKit) djKit.userData.ball.rotation.y += dt * 1.2;

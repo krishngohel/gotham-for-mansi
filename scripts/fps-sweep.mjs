@@ -42,6 +42,8 @@ async function openGame(query) {
   p.on('pageerror', (e) => errors.push(String(e)));
   await p.goto(`${base}?${query}&q=${q}${extra}`);
   await p.waitForFunction(() => window.__game?.comic, null, { timeout: 120000 });
+  // PRE=<js>: an expression run in the page once the game is up (A/B experiments, e.g. hiding a system).
+  if (process.env.PRE) await p.evaluate(process.env.PRE);
   await p.evaluate(() => {
     const r = window.__game.renderer;
     r.info.autoReset = false;
@@ -58,7 +60,21 @@ async function openGame(query) {
   return { p, errors };
 }
 const label = (p, l) => p.evaluate((l) => { window.__rec.label = l; }, l);
-const skipComic = async (p) => { for (let i = 0; i < 6; i++) { await p.evaluate(() => window.__game.comic.playing && window.__game.comic.skip()); await p.waitForTimeout(300); } };
+// A cutscene can open with an in-engine cinematic before its comic starts, so skip that (and the
+// radio) too, and keep going until a few passes in a row find nothing left to skip.
+const skipComic = async (p) => {
+  for (let i = 0, quiet = 0; i < 40 && quiet < 4; i++) {
+    const busy = await p.evaluate(() => {
+      const G = window.__game;
+      if (G.cinematic?.active) { G.cinematic.skip(); return true; }
+      if (G.comic.playing) { G.comic.skip(); return true; }
+      if (G.radio?.playing) { G.radio.skip(); return true; }
+      return false;
+    });
+    quiet = busy ? 0 : quiet + 1;
+    await p.waitForTimeout(300);
+  }
+};
 async function collect(p, page) {
   const frames = await p.evaluate(() => window.__rec.frames);
   return frames.map(([l, dt, calls, tris, t]) => ({ page, l, dt, calls, tris, t }));
