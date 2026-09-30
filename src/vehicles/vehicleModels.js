@@ -2,6 +2,7 @@
 // boxes), cylinders and the bat emblem for the tail fins, all in the game's ink or toon
 // materials. No asset files, no textures beyond the shared toon gradient.
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { toonMaterial, addHullOutline } from '../render/toon.js';
 import { addRim } from '../actors/outfitParts.js';
 import { batOutline } from '../config/batShape.js';
@@ -183,6 +184,41 @@ export function createBatmobile() {
   };
 }
 
+// Bakes a static model (nothing inside it animates on its own) into one mesh per fill material
+// plus one ink outline per outline width, all relative to `group`, and swaps them in for the
+// original parts. A street car goes from 34 draw calls to about 11, and its outlines become
+// frustum-culled (addHullOutline turns culling off, since it can't know a mesh's final bounds).
+function mergeStaticParts(group) {
+  group.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(group.matrixWorld).invert();
+  const fills = new Map(), hulls = new Map();
+  const m = new THREE.Matrix4();
+  group.traverse((o) => {
+    if (!o.isMesh) return;
+    const outline = o.material.userData.outline;
+    const buckets = outline ? hulls : fills;
+    const key = outline ? outline.value : o.material;
+    let b = buckets.get(key);
+    if (!b) buckets.set(key, (b = { material: o.material, layers: o.layers.mask, geos: [] }));
+    const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+    for (const name of Object.keys(g.attributes)) if (name !== 'position' && name !== 'normal') g.deleteAttribute(name);
+    g.applyMatrix4(m.multiplyMatrices(inv, o.matrixWorld));
+    b.geos.push(g);
+  });
+  while (group.children.length) group.remove(group.children[0]);
+  for (const buckets of [fills, hulls]) {
+    for (const b of buckets.values()) {
+      const geo = mergeGeometries(b.geos, false);
+      for (const g of b.geos) g.dispose();
+      geo.computeBoundingSphere();
+      if (buckets === hulls) geo.boundingSphere.radius += 0.05; // the outline pushes out past the hull
+      const mesh = new THREE.Mesh(geo, b.material);
+      mesh.layers.mask = b.layers;
+      group.add(mesh);
+    }
+  }
+}
+
 // A civilian sedan or van: an extruded body silhouette (not stacked boxes), inset glass, wheel
 // arches, headlights and tail lights, in a few paint colours. `kind` is 'sedan' or 'van'.
 export function createStreetCar(color = 0x2f3f5a, kind = 'sedan') {
@@ -249,6 +285,7 @@ export function createStreetCar(color = 0x2f3f5a, kind = 'sedan') {
     group.add(tail);
   }
 
+  mergeStaticParts(group);
   return { group, radius: isVan ? 2.3 : 2.1 };
 }
 

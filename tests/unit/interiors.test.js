@@ -3,6 +3,7 @@
 // buildInteriors() with a stub ctx (the same pattern as tests/unit/sawtoothRoof.test.js).
 import { describe, it, expect } from 'vitest';
 import { INTERIOR_ROOMS, roomBounds, insideRoom, roomAt, buildInteriors, createInteriors } from '../../src/world/interiors.js';
+import { lobbyInView, LOBBY_VIEW_DIST } from '../../src/game/gcpdLobby.js';
 import { createCollision } from '../../src/world/collision.js';
 import { createClimbables } from '../../src/world/climbables.js';
 import { SITES } from '../../src/world/mapData.js';
@@ -185,5 +186,18 @@ describe('createInteriors runtime', () => {
     hero.pos.z = -105; // walked back out
     interiors.update();
     expect(interiors.inside).toBe(null);
+  });
+});
+
+describe('lobbyInView', () => {
+  it('shows the lobby from inside it, at its door and from the GCPD roof', () => {
+    expect(lobbyInView({ x: 0, y: 1.7, z: 6 })).toBe(true);
+    expect(lobbyInView({ x: 0, y: 2, z: 30 })).toBe(true);
+    expect(lobbyInView({ x: 6, y: 45, z: 10 })).toBe(true);
+    expect(lobbyInView({ x: LOBBY_VIEW_DIST - 1, y: 3, z: 0 })).toBe(true);
+  });
+  it('hides it from across the city', () => {
+    expect(lobbyInView({ x: 95, y: 2, z: -140 })).toBe(false);
+    expect(lobbyInView({ x: -62, y: 60, z: -150 })).toBe(false);
   });
 });

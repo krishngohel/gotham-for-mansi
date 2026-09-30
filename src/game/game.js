@@ -702,7 +702,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         // ---- Part V1: ground vehicles hook (src/vehicles/vehicles.js) ----
         vehicles.update(dt, real);
         party.update(dt, camera.position);
-        gcpdLobby.update(dt);
+        gcpdLobby.update(dt, camera.position);
         side.update(dt, real, { toScreen });
         fx.update(dt, real);
         fxView.detective = !!state.detectiveOn;

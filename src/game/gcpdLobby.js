@@ -34,6 +34,12 @@ const TROPHY_BUILDERS = {
 };
 const TROPHY_ORDER = ['dj', 'baker', 'band', 'nightwing', 'gordon', 'alfred', 'kids'];
 
+// The lobby sits inside the GCPD building, around the roof's centre (0, 0) at street level.
+export const LOBBY_VIEW_DIST = 60;
+export function lobbyInView(cam, dist = LOBBY_VIEW_DIST) {
+  return Math.hypot(cam.x, cam.y - 3, cam.z) <= dist;
+}
+
 export function createGCPDLobby({ scene, assets, events, progress }) {
   const rng = createRng(71166);
   const group = new THREE.Group();
@@ -72,7 +78,13 @@ export function createGCPDLobby({ scene, assets, events, progress }) {
   return {
     refresh,
     // Idle-only: no locomotion, no combat, just their own animator ticking over so they read as
-    // alive instead of frozen in a bind pose.
-    update(dt) { for (const ch of cellGoons) ch.animator.update(dt); },
+    // alive instead of frozen in a bind pose. Past LOBBY_VIEW_DIST the whole room's runtime set
+    // hides: the goons' ink outlines are never frustum-culled, so they would otherwise draw from
+    // anywhere in the city, through the building's walls.
+    update(dt, camPos) {
+      if (camPos) group.visible = lobbyInView(camPos);
+      if (!group.visible) return;
+      for (const ch of cellGoons) ch.animator.update(dt);
+    },
   };
 }
