@@ -9,19 +9,46 @@ import { toonMaterial, addHullOutline } from '../render/toon.js';
 import { LAYER_FX } from '../render/layers.js';
 
 // Outline units to metres. SZ > SX stretches the bat emblem's nose-to-tail axis into a longer
-// jet fuselage than the logo itself (which reads squat when used at 1:1).
-const SX = 0.165, SZ = 0.235, THICK = 1.15;
+// jet fuselage than the logo itself (which reads squat when used at 1:1). Sized like a small
+// fighter jet (~14 m wingspan), not a building, next to a rooftop or Batman.
+const SX = 0.145, SZ = 0.205, THICK = 1.0;
 
 function buildBody() {
   const pts = batOutline().map(([x, y]) => new THREE.Vector2(x * SX, -y * SZ));
   const shape = new THREE.Shape(pts);
   const geo = new THREE.ExtrudeGeometry(shape, { depth: THICK, bevelEnabled: true, bevelThickness: 0.1, bevelSize: 0.1, bevelSegments: 1 }).rotateX(-Math.PI / 2);
   geo.translate(0, -THICK / 2, 0);
-  const mat = toonMaterial({ color: 0x121319 });
+  // Black, but not so black the ink rim disappears against the night city: a hair of blue-grey.
+  const mat = toonMaterial({ color: 0x181b24 });
   const body = new THREE.Mesh(geo, mat);
   body.castShadow = false;
-  addHullOutline(body, 0.035);
+  // A lighter slate rim (not plain ink) so the silhouette pops against dark buildings and sky.
+  addHullOutline(body, 0.07, 0x4b586e);
   return body;
+}
+
+// A raised, lighter spine down the centreline: reads as a panel highlight from above and behind.
+function buildSpine() {
+  const shape = new THREE.Shape([
+    new THREE.Vector2(-0.42, -4.6), new THREE.Vector2(-0.3, 4.6), new THREE.Vector2(0.3, 4.6), new THREE.Vector2(0.42, -4.6),
+  ]);
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.1, bevelEnabled: false }).rotateX(-Math.PI / 2);
+  const mat = new THREE.MeshBasicMaterial({ color: 0x333c4c });
+  const spine = new THREE.Mesh(geo, mat);
+  spine.position.y = THICK * 0.52;
+  return spine;
+}
+
+// Small aviation nav lights at the wingtips (red left, green right) and a white tail light: a
+// cheap, unmistakable "this is a plane" read even in silhouette.
+function buildNavLights() {
+  const g = new THREE.Group();
+  const mk = (color, x, y, z) => { const m = new THREE.Mesh(new THREE.SphereGeometry(0.16, 6, 6), new THREE.MeshBasicMaterial({ color })); m.position.set(x, y, z); return m; };
+  const tipX = 49 * SX, tipZ = 23 * SZ;
+  g.add(mk(0xff3b3b, -tipX, THICK * 0.1, tipZ * 0.85));
+  g.add(mk(0x3bff6a, tipX, THICK * 0.1, tipZ * 0.85));
+  g.add(mk(0xf2f2f2, 0, THICK * 0.2, -21 * SZ - 0.2));
+  return g;
 }
 
 function buildCanopy() {
@@ -50,13 +77,19 @@ function buildFin(side) {
 
 function buildEngine(side) {
   const g = new THREE.Group();
-  g.position.set(side * 2.1, -THICK * 0.1, -3.4);
-  const coreMat = new THREE.MeshBasicMaterial({ color: 0xbfe8ff });
-  const core = new THREE.Mesh(new THREE.SphereGeometry(0.26, 10, 8), coreMat);
-  const haloMat = new THREE.MeshBasicMaterial({ color: 0x4fb4ff, transparent: true, opacity: 0.45, depthWrite: false });
-  const halo = new THREE.Mesh(new THREE.SphereGeometry(0.5, 10, 8), haloMat);
+  g.position.set(side * 1.9, -THICK * 0.1, -2.9);
+  const coreMat = new THREE.MeshBasicMaterial({ color: 0xd8f2ff });
+  const core = new THREE.Mesh(new THREE.SphereGeometry(0.34, 10, 8), coreMat);
+  const haloMat = new THREE.MeshBasicMaterial({ color: 0x4fb4ff, transparent: true, opacity: 0.5, depthWrite: false });
+  const halo = new THREE.Mesh(new THREE.SphereGeometry(0.75, 10, 8), haloMat);
   halo.layers.set(LAYER_FX);
-  g.add(core, halo);
+  // An exhaust flame trailing back off the tail: a bright translucent cone, nozzle-first.
+  const flameMat = new THREE.MeshBasicMaterial({ color: 0x6fd4ff, transparent: true, opacity: 0.55, depthWrite: false });
+  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.4, 2.0, 10, 1, true), flameMat);
+  flame.rotation.x = -Math.PI / 2;
+  flame.position.z = -1.1;
+  flame.layers.set(LAYER_FX);
+  g.add(core, halo, flame);
   return g;
 }
 
@@ -64,15 +97,15 @@ function buildEngine(side) {
 export function buildBatwingMesh() {
   const group = new THREE.Group();
   group.name = 'batwing';
-  group.add(buildBody(), buildCanopy(), buildFin(-1), buildFin(1));
+  group.add(buildBody(), buildSpine(), buildCanopy(), buildFin(-1), buildFin(1), buildNavLights());
   const eL = buildEngine(-1), eR = buildEngine(1);
   group.add(eL, eR);
   group.visible = false;
   return { mesh: group, engines: [eL, eR] };
 }
 
-export const WING_RADIUS = 6.2;
-export const WING_HEIGHT = 2.6;
+export const WING_RADIUS = 5.6;
+export const WING_HEIGHT = 2.2;
 
 // A Joker balloon: a toon sphere body, a knot and a simple grin (an arc) plus two dot eyes so it
 // reads at a glance, purple or green.

@@ -97,7 +97,9 @@ export function chainCostText(costs = BASE_CHAIN_COSTS) {
 // Hero controls a tip card never covers: the silent takedown and the perch drop, and the chain
 // takedowns and the Bat Swarm (their camera is the 'chain' mode, not the action camera, so
 // follow.actionActive alone misses most of them). game.js's isBusy reads this.
-export const QUIET_CONTROLS = new Set(['silent', 'perchDrop', 'chain', 'swarm']);
+// 'boarding' and 'fly': the Batwing (Part V2) swoop-in and flight, where the glide tip and every
+// other traversal tutorial card would be talking over a different vehicle entirely.
+export const QUIET_CONTROLS = new Set(['silent', 'perchDrop', 'chain', 'swarm', 'boarding', 'fly']);
 
 // Queues prompts so they don't talk over each other. While isBusy() (a takedown, a chain, the
 // Bat Swarm or an action camera shot is on screen) nothing new appears, and a card already up is
