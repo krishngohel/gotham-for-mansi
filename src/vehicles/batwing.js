@@ -256,5 +256,13 @@ export function createBatwing({ scene, camera, hero, follow, collision, events, 
       hud.set(0, balloons);
       hud.show();
     },
+    // Dev/QA fast path (scripts/playthrough.mjs): pops every balloon at once and lets the normal
+    // completion check in updateArmada fire armadaDone and onDone, the same as a real playthrough.
+    debugWin() {
+      if (!armada.active) return false;
+      for (const b of armada.balloons) b.popped = true;
+      updateArmada(0);
+      return true;
+    },
   };
 }

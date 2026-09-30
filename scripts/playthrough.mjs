@@ -34,6 +34,7 @@ for (let guard = 0; guard < 600; guard++) {
   await page.waitForTimeout(400);
   await skipRadio();
   const s = await state();
+  if (process.env.DEBUG_TRACE) console.log(guard, JSON.stringify(s));
   if (!s.id) break;
   if (s.mode === 'cutscene' || s.mode === 'dead') {
     // Read every page of the comic.
@@ -56,6 +57,15 @@ for (let guard = 0; guard < 600; guard++) {
       if (B.phase === 3 && ['approach', 'windup', 'backoff'].includes(B.joker.state)) { B.joker.state = 'staggered'; B.joker.finishable = true; B.joker.applyHit({ outcome: 'hit' }, window.__game.hero.pos); }
     });
     await page.waitForTimeout(1400);
+    continue;
+  }
+  if (s.type === 'chase' || s.type === 'battle' || s.type === 'armada') {
+    // These start async (after the beat's radio line, however far skipRadio has gotten it): try
+    // the dev fast path every pass. It's a no-op returning false until the real mission is
+    // actually running, then wins it once through the same onDone path a real finish would take.
+    // No generic teleport here: it would fight the vehicle's own position sync and clear the
+    // hero's drive/fly control state for no reason.
+    await page.evaluate(() => { window.__game.vehicles?.debugWin?.(); window.__game.batwing?.debugWin?.(); });
     continue;
   }
   if (s.site) await page.evaluate((p) => window.__game.teleport({ x: p.x, y: p.y, z: p.z }), s.site);

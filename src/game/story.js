@@ -66,9 +66,12 @@ export const STEPS = [
     ],
   },
   {
-    id: 'batmobileChase', type: 'chase', text: 'Run down the Joker van before it reaches the warehouses.', site: 'wh3Roof',
-    // The dock road, ground level: vehicles.startChase needs at least two points.
-    path: [{ x: -60, y: 0.15, z: 140 }, { x: -40, y: 0.15, z: 170 }, { x: -20, y: 0.15, z: 200 }, { x: 0, y: 0.15, z: 220 }],
+    // The dock road running north along x = -90, from the yard up toward the warehouses at
+    // wh3Roof (x -60, z 180): a real street the city builder always leaves clear (see
+    // src/vehicles/vehicles.js's LINES). Ramming the van 3 times ends the chase before it gets in
+    // among the warehouses.
+    id: 'batmobileChase', type: 'chase', text: 'Run down the Joker van before it reaches the warehouses. Ram it 3 times.', site: 'wh3Roof',
+    path: [{ x: -90, z: 40 }, { x: -90, z: 100 }, { x: -90, z: 165 }, { x: -90, z: 100 }, { x: -90, z: 40 }],
     lines: [g('alfred', 'A van just peeled off the dock road with your gift wrap sticking out the back. After it.')],
   },
   { id: 'f1', type: 'fight', fight: 'docksRoof', text: 'Take down the goons on the warehouse roof.', tutorial: ['punch', 'kick', 'counter'] },
