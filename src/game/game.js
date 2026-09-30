@@ -435,6 +435,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const side = createSideContent({
       scene, assets, hero, follow, combat, encounters, events, flow, prompts, progress, storage, rng,
       hudRoot: hudRoot.querySelector('.hud') ?? hudRoot, collision: world.collision, buildings: world.data.buildings,
+      // For the Gotham Grand Prix / Wing Walk challenges (src/game/vehicleChallenges.js).
+      vehicles, batwing,
     });
     Object.assign(sideHooks, side.flowHooks);
     const photo = createPhotoMode({

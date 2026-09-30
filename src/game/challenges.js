@@ -10,6 +10,18 @@ export const ARENA_ID = 'challenge:bash';
 const ring = (x, y, z, r = 4, n = null) => ({ x, y, z, r, n });
 const cp = (x, y, z, r, label, needs = null, h = 4) => ({ x, y, z, r, h, label, needs });
 
+// n rings evenly spaced on a circle of `radius` around (cx, cz), height oscillating between
+// baseY - yAmp and baseY + yAmp so a lap reads as a real flight path, not a flat disc. Used by
+// wingWalk below.
+function ringLoop(cx, cz, radius, baseY, yAmp, n, r = 5) {
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    pts.push(ring(cx + Math.sin(a) * radius, baseY + Math.sin(a * 2) * yAmp, cz + Math.cos(a) * radius, r));
+  }
+  return pts;
+}
+
 // Unit normals from each point back to the previous one (the direction you fly through it),
 // or the point's own `n`. `flat` keeps checkpoint hoops upright.
 export function withNormals(points, start, flat = false) {
@@ -93,6 +105,48 @@ const RAW = [
     // The Monarch roof has a duct unit close on the standard heading; a shorter side offset
     // clears it. See pillarPos below.
     pillarSide: 1.5,
+  },
+  {
+    // A Batmobile checkpoint race: reuses the parkour checkpoint machinery (ground zones, not
+    // aerial hoops, so a car can actually drive through them) on the street grid's own clear
+    // centrelines (src/vehicles/vehicles.js LINES: x = -210..210 and z = -210..210 by 60 m,
+    // 14 m-wide streets). A rectangle around four blocks south of the GCPD/Ace/Clock compounds,
+    // so every leg is a real, unobstructed street with only 90-degree turns at the corners.
+    // src/game/vehicleChallenges.js puts Mansi in the Batmobile (summon instant, then enter)
+    // when this starts, and takes her out again when it ends.
+    id: 'gothamGrandPrix', name: 'Gotham Grand Prix', kind: 'parkour',
+    blurb: 'A Batmobile checkpoint race through the streets. Eight gates, then the finish.',
+    start: { x: -90, y: 0.15, z: -60, yaw: 0 },
+    // Rough numbers: timed with a scripted drive (scripts/challenge-tune.mjs --pilot=drive), not
+    // a human lap, so treat these as a first pass to retune once someone actually races it.
+    limit: 110, medals: { gold: 48, silver: 62, bronze: 82 },
+    checkpoints: [
+      cp(-90, 0.15, 20, 6, 'Gate 1'),
+      cp(-90, 0.15, 150, 7, 'Gate 2: hard right'),
+      cp(0, 0.15, 150, 6, 'Gate 3'),
+      cp(90, 0.15, 150, 7, 'Gate 4: hard right'),
+      cp(90, 0.15, 60, 6, 'Gate 5'),
+      cp(90, 0.15, -30, 7, 'Gate 6: hard right'),
+      cp(0, 0.15, -30, 6, 'Gate 7'),
+      cp(-90, 0.15, -30, 7, 'Finish line'),
+    ],
+  },
+  {
+    // A Batwing ring course looping the clock tower (the "hall" landmark building, the tallest
+    // in the city at 58 m) and passing close by the cathedral beside it. Center (-62, -160)
+    // matches the hall's footprint in src/world/mapData.js. src/game/vehicleChallenges.js calls
+    // the Batwing when this starts
+    // when this starts (Mansi needs to already be somewhere she can call it: the pillar sits on
+    // the clock tower roof) and ejects her into a glide when it ends.
+    id: 'wingWalk', name: 'Wing Walk', kind: 'rings',
+    blurb: 'Call the Batwing and fly the ring course around the clock tower.',
+    // On the clock tower's own roof (the "hall" landmark, matching the arena site nearby), not
+    // in open air: the pillar has to be somewhere Mansi can actually walk up to on foot.
+    start: { x: -62, y: 58, z: -154, yaw: 0 },
+    // Rough numbers: timed with a scripted flight (scripts/challenge-tune.mjs --pilot=fly), not a
+    // human pilot, so treat these as a first pass too.
+    limit: 100, medals: { gold: 42, silver: 55, bronze: 72 },
+    rings: ringLoop(-62, -160, 46, 76, 9, 10),
   },
 ];
 
