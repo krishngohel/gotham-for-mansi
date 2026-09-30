@@ -209,6 +209,13 @@ export function createBatwing({ scene, camera, hero, follow, collision, events, 
 
   return {
     get active() { return active; },
+    // Dev/QA introspection (scripts/challenge-tune.mjs), not part of the frozen contract above:
+    // the live flight state {x,y,z,yaw,pitch,roll,speed}, the same object vehicles.js exposes
+    // its own driving state through (get batmobile() -> bm.v).
+    get state() { return state; },
+    // The live armada set piece (balloons, region, total), the same pattern as vehicles.js's own
+    // get chase() / get battle().
+    get armada() { return armada; },
     call() {
       if (!canCall()) return false;
       mesh.visible = true;
