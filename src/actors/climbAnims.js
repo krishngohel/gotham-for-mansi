@@ -34,17 +34,16 @@ export function buildClimbClips(model, clips, fwd = 1) {
   // elbowL didn't need this: its rest bend already reads close to straight when the arm is
   // raised, so those keyframes are unshifted.
 
-  // Hand over hand: opposite arm and leg reach together. 1 s = two rungs.
-  const climb = clip('Ladder_Climb', 1, [
-    T('upperarm_r', 'armUpR', [[0, 2.6], [0.5, 1.7], [1, 2.6]]), T('upperarm_l', 'armUpL', [[0, 1.7], [0.5, 2.6], [1, 1.7]]),
-    T('lowerarm_r', 'elbowR', [[0, -0.46], [0.5, 0.44], [1, -0.46]]), T('lowerarm_l', 'elbowL', [[0, 1.2], [0.5, 0.3], [1, 1.2]]),
-    T('thigh_l', 'thighFwdL', [[0, 1.2], [0.5, 0.3], [1, 1.2]]), T('thigh_r', 'thighFwdR', [[0, 0.3], [0.5, 1.2], [1, 0.3]]),
-    T('calf_l', 'kneeL', [[0, 1.6], [0.5, 0.5], [1, 1.6]]), T('calf_r', 'kneeR', [[0, 0.5], [0.5, 1.6], [1, 0.5]]),
-  ]);
-  const ladderIdle = clip('Ladder_Idle', 1, [
-    T('upperarm_r', 'armUpR', [[0, 2.3], [1, 2.3]]), T('upperarm_l', 'armUpL', [[0, 2.0], [1, 2.0]]),
-    T('lowerarm_r', 'elbowR', [[0, -0.16], [1, -0.16]]), T('lowerarm_l', 'elbowL', [[0, 0.8], [1, 0.8]]),
-    T('thigh_l', 'thighFwdL', [[0, 0.8], [1, 0.8]]), T('calf_l', 'kneeL', [[0, 1.1], [1, 1.1]]),
+  // The base pose under the ladder IK (src/actors/traverse/ladder.js + src/actors/limbIK.js): the
+  // IK moves every hand and foot onto its rung. Every limb bone the IK turns is keyed here, so the
+  // mixer re-poses them each frame and the IK never builds on its own previous answer. The chest
+  // leans in a little, toward the rungs.
+  const ladderHold = clip('Ladder_Hold', 1, [
+    T('upperarm_r', 'armUpR', [[0, 2.3], [1, 2.3]]), T('upperarm_l', 'armUpL', [[0, 2.3], [1, 2.3]]),
+    T('lowerarm_r', 'elbowR', [[0, 0.2], [1, 0.2]]), T('lowerarm_l', 'elbowL', [[0, 1.0], [1, 1.0]]),
+    T('thigh_r', 'thighFwdR', [[0, 0.9], [1, 0.9]]), T('thigh_l', 'thighFwdL', [[0, 0.9], [1, 0.9]]),
+    T('calf_r', 'kneeR', [[0, 1.2], [1, 1.2]]), T('calf_l', 'kneeL', [[0, 1.2], [1, 1.2]]),
+    T('spine_02', 'spineFwd', [[0, 0.1], [1, 0.1]]),
   ]);
   // Both arms straight up, legs dangling with a slight sway.
   const hang = clip('Hang_Idle', 2, [
@@ -86,5 +85,5 @@ export function buildClimbClips(model, clips, fwd = 1) {
     T('lowerarm_r', 'elbowR', [[0, -0.61], [0.25, -0.66], [0.55, 0.64], [0.9, -0.61]]), T('lowerarm_l', 'elbowL', [[0, 0.15], [0.25, 0.1], [0.55, 1.4], [0.9, 0.15]]),
     T('spine_02', 'spineFwd', [[0, 0], [0.55, 0.45], [0.9, 0]]),
   ]);
-  return [climb, ladderIdle, hang, shimmy, zip, wallRun, dive, yank];
+  return [ladderHold, hang, shimmy, zip, wallRun, dive, yank];
 }

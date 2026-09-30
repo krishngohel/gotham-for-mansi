@@ -402,7 +402,7 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
     if (h.crouched && (h.state !== 'ground' || (h.control && !h.control.keepCrouch))) setCrouch(false);
     h.invulnerable = Math.max(0, h.invulnerable - dt);
     bat.groundAt = heroPlantsFeet(h) ? groundUnderFoot : null;
-    if (h.frozen) { bat.animator.update(dt); return; }
+    if (h.frozen) { bat.animator.update(dt); h.control?.pose?.(0); return; }
     if (h.control) {
       const ctl = h.control;
       if (ctl.update(dt, ctx) && h.control === ctl) { h.control = null; cable.visible = false; }
@@ -414,6 +414,8 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
       }
     }
     bat.animator.update(dt);
+    // A control that poses limbs itself (the ladder's IK) does it on top of the animation.
+    h.control?.pose?.(dt);
   };
 
   const groundUnderHem = (x, z) => collision.groundBelow(x, pos.y + 0.3, z, 0.02);
