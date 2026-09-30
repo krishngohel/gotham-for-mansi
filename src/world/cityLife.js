@@ -45,9 +45,10 @@ function createTraffic(scene, halos, rng, count = 44) {
   for (let i = 0; i < count; i++) {
     const alongX = rng.chance(0.5);
     // z = -150 now runs straight through both hollow interiors (Part I): the funhouse's centre
-    // and the Ace hall's south wall. Dropped from the alongX pick (never from the rng.pick() call
-    // count, only from the array it draws): traffic elsewhere is unaffected.
-    const line = rng.pick(LINES.filter((l) => alongX ? (l < WORLD.waterZ - 20 && l !== -150) : true));
+    // and the Ace hall's south wall. x = 150 also cuts straight through the Ace hall (its office
+    // and vat rows). Both dropped from the pick (never from the rng.pick() call count, only from
+    // the array it draws): traffic elsewhere is unaffected.
+    const line = rng.pick(LINES.filter((l) => alongX ? (l < WORLD.waterZ - 20 && l !== -150) : l !== 150));
     const dir = rng.chance(0.5) ? 1 : -1;
     const min = alongX ? WORLD.minX : WORLD.minZ, max = alongX ? WORLD.maxX : WORLD.waterZ - 8;
     cars.push({ alongX, line, dir, t: rng.range(min, max), min, max, speed: rng.range(9, 15), cur: 0, head: [halos.add(0, 0, 0, 0xfff3d0, 2), halos.add(0, 0, 0, 0xfff3d0, 2)], tail: [halos.add(0, 0, 0, 0xff3030, 1.2), halos.add(0, 0, 0, 0xff3030, 1.2)] });
