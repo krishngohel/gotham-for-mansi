@@ -8,6 +8,48 @@ Branch `wing`, on top of `main` (b13c946). Commits:
 - `74aced8` Fix radio.say call: takes a list of lines, not (text, line)
 - `10ce22d` Finale rooftop party: guests join in, celebrate() brings it to life
 - `502a154` Party fix: one cake, a clear helipad, guests arced around a dance floor
+- (merge) Merge night into wing (no conflicts): story, radio, vehicles, Nightwing, interiors
+- `3036558` Party: use the real Nightwing's actor/despawn contract correctly
+- `8c4c165` Wire the party to story progress
+
+## Part 4: wiring the party to story progress
+
+`src/game/partyStory.js` (pure, no three.js/DOM) maps the story step whose start confirms a
+guest's rescue to that guest:
+
+| Step id | Guest(s) | Why |
+|---|---|---|
+| `aceClueRadio` | `dj` | right after `party` (Act 1) recovers the DJ's rig |
+| `rewardCake` | `baker` | right after `cake` (Act 2) is saved |
+| `crasherReveal` | `nightwing` | the mask comes off |
+| `rescueGuestsRadio` | `band`, `kids` | Act 3: "found the band... the rest of the guest list" |
+| `finale` | `gordon`, `alfred` | plus `party.celebrate()`, the moment the finale cutscene starts |
+
+`guestsUpTo(stepIndex, STEPS)` and `celebrateAt(stepIndex, STEPS)` are both pure and reused for
+two cases: live, off `flow.js`'s own `'step'` event (`enterStep()` emits it for every step,
+including the finale cutscene itself, `s.type === 'cutscene' && s.scene === 'finale'`), and once
+at hook creation against `progress.step`, so a resumed (or already-finished) save catches up
+immediately instead of waiting for a `'step'` event that, past credits, never fires again. All of
+this lives in the party hook in `game.js`; `story.js` and `flow.js` were not touched.
+
+While merging in the real `window.__game.nightwing` (from `night`, no conflicts), fixed two bugs
+in the party's Nightwing guest builder: `spawn(p, mode)` returns the controller, not the
+character (`.actor` is the getter for that), and `reset()` now calls nightwing's own `despawn()`
+for that guest instead of pulling his root out of the scene directly, since he is externally owned.
+Note: his own combat AI (`updateAlly`, run every frame) keeps steering his animation, so
+`celebrate()`'s `Dance_Loop` may not visibly stick on the real actor, only the look-alike fallback
+used when Nightwing is not spawned as an ally elsewhere.
+
+### Verification
+
+`npx vitest run`: 988 passed. New: `tests/unit/partyStory.test.js` (every `STEP_GUESTS` entry is a
+real guest id, every guest id is covered by exactly one step, `guestsUpTo` accumulates correctly
+as the story advances and has everyone by the finale, `celebrateAt` flips at the right index).
+Browser: `?at=aceClueRadio&god=1&new=1` gave `party.guests === ['dj']` exactly, screenshotted (the
+GCPD roof shows only the DJ booth, no other guest or decoration, alongside Gordon's own "The DJ
+says thank you" radio line on screen). `?at=finale&god=1&new=1` gave `party.guests` with all seven
+ids and `flow.mode === 'finale'`; screenshotted mid-cutscene with fireworks, the HAPPY BIRTHDAY
+MANSI signal and banners, the cake and every guest all present at once.
 
 ## Part 3: the finale rooftop party
 
