@@ -20,6 +20,9 @@ await page.evaluate(() => {
   const G = window.__game;
   G.__unlocked = [];
   G.events.on('gadgetUnlocked', ({ id }) => G.__unlocked.push(id));
+  // The real Batmobile/Batwing minigames (chase, battle, armada) run for real: the loop below
+  // finishes each through vehicles.debugWin() / batwing.debugWin(), the same completion path a
+  // player's win takes, so the story's wiring to the real parts is exercised end to end.
 });
 
 const state = () => page.evaluate(() => {
@@ -27,12 +30,17 @@ const state = () => page.evaluate(() => {
   return { id: s?.id ?? null, type: s?.type ?? null, mode: G.flow.mode, site: G.flow.target, phase: G.boss?.phase, joker: G.boss?.joker.state };
 });
 let shotN = 0;
-// Part S: skip radio dialogue instantly (a real player reads it at typewriter pace; the script
-// just needs the beat to finish so its async step, if any, can proceed or degrade).
-async function skipRadio() { await page.evaluate(() => { if (window.__game.radio?.playing) window.__game.radio.skip(); }); }
+// Part S: skip radio dialogue and any cinematic instantly (a real player reads/watches them at
+// their own pace; the script just needs each beat to finish so its step, if any, can proceed).
+async function skipTalk() {
+  await page.evaluate(() => {
+    if (window.__game.cinematic?.active) window.__game.cinematic.skip();
+    if (window.__game.radio?.playing) window.__game.radio.skip();
+  });
+}
 for (let guard = 0; guard < 600; guard++) {
   await page.waitForTimeout(400);
-  await skipRadio();
+  await skipTalk();
   const s = await state();
   if (process.env.DEBUG_TRACE) console.log(guard, JSON.stringify(s));
   if (!s.id) break;

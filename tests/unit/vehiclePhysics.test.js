@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { stepDrive, driveVelocity, bounceOffWall, createRamCounter, mergeTuning, DEFAULT_TUNING } from '../../src/vehicles/vehiclePhysics.js';
+import { stepDrive, driveVelocity, bounceOffWall, createRamCounter, mergeTuning, DEFAULT_TUNING, findClearGroundSpot } from '../../src/vehicles/vehiclePhysics.js';
 
 const T = DEFAULT_TUNING;
 
@@ -130,5 +130,36 @@ describe('createRamCounter (chase mission)', () => {
     c.reset();
     expect(c.hits).toBe(0);
     expect(c.done).toBe(false);
+  });
+});
+
+describe('findClearGroundSpot (summon fallback)', () => {
+  const near = { x: 0, y: 0, z: 0 };
+
+  it('takes the spot dead on `near` when it is clear', () => {
+    const isClear = (x, y, z) => ({ x, y, z });
+    const spot = findClearGroundSpot(near, isClear);
+    expect(spot).toEqual({ x: 0, y: 0, z: 0 });
+  });
+
+  it('rings outward past a blocked centre and every blocked inner ring', () => {
+    // Nothing is clear inside 5m (a wide open-yard obstruction); the first ring with any room is
+    // the one at radius 5.
+    const isClear = (x, y, z) => (Math.hypot(x - near.x, z - near.z) >= 5 ? { x, y, z } : null);
+    const spot = findClearGroundSpot(near, isClear, [0, 3, 5, 7]);
+    expect(spot).not.toBeNull();
+    expect(Math.hypot(spot.x, spot.z)).toBeCloseTo(5, 5);
+  });
+
+  it('returns null when every ring is blocked (truly boxed in)', () => {
+    const isClear = () => null;
+    expect(findClearGroundSpot(near, isClear, [0, 3, 5])).toBeNull();
+  });
+
+  it('never calls isClear for a candidate outside the radii it was given', () => {
+    const seen = [];
+    const isClear = (x, y, z) => { seen.push(Math.hypot(x - near.x, z - near.z)); return null; };
+    findClearGroundSpot(near, isClear, [0, 4]);
+    for (const d of seen) expect(d).toBeLessThanOrEqual(4 + 1e-9);
   });
 });
