@@ -96,6 +96,43 @@ export function findClearGroundSpot(near, isClear, radii = [0, 3, 5, 7, 10]) {
   return null;
 }
 
+// Battle armour: a hit removes hp immediately and resets the regen delay; stepArmor only starts
+// trickling hp back once `regenDelay` seconds have passed with no hit, so a player under fire
+// can't out-regen a steady attacker, but a player who dodges (or the attacker missing) recovers.
+// `a` is a plain { hp, sinceHit } the caller owns; both functions mutate and return it.
+export function damageArmor(a, amount) {
+  a.hp = Math.max(0, a.hp - amount);
+  a.sinceHit = 0;
+  return a;
+}
+export function stepArmor(a, dt, { max = 100, regenDelay = 3, regenRate = 6 } = {}) {
+  a.sinceHit += dt;
+  if (a.sinceHit >= regenDelay && a.hp < max && a.hp > 0) a.hp = Math.min(max, a.hp + regenRate * dt);
+  return a;
+}
+
+// Traffic lane following: advances `lane.t` (a position along its street line, same convention as
+// nearestStreetSpawn's x-or-z) at `lane.speed * lane.dir`, pausing for `stopDur` seconds whenever
+// it crosses one of `crossings` (the perpendicular streets), so it reads as city traffic stopping
+// at intersections without any real traffic-light logic. Mutates and returns `lane`.
+export function stepLane(lane, dt, crossings, stopDur = 1.1) {
+  if (lane.stopT > 0) {
+    lane.stopT -= dt;
+    return lane;
+  }
+  const prevT = lane.t;
+  const nextT = lane.t + lane.dir * lane.speed * dt;
+  for (const c of crossings) {
+    if ((prevT < c && nextT >= c) || (prevT > c && nextT <= c)) {
+      lane.t = c;
+      lane.stopT = stopDur;
+      return lane;
+    }
+  }
+  lane.t = nextT;
+  return lane;
+}
+
 // Chase mission: counts rams on a fleeing target with a short cooldown so one collision can't
 // register twice in the same graze.
 export function createRamCounter(hitsNeeded = 3, cooldown = 0.6) {
