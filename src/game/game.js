@@ -54,6 +54,7 @@ import { createBreakables } from '../world/breakables.js';
 import { createChainFx } from './chainFx.js';
 import { createSwarmFx } from './swarmFx.js';
 import { createEncounters } from './encounters.js';
+import { createInteriors } from '../world/interiors.js';
 import { createBalloons } from './balloons.js';
 import { createFlow } from './flow.js';
 import { STEPS } from './story.js';
@@ -312,6 +313,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       e.remove();
     };
     const encounters = createEncounters({ spawn, despawn, combat, events, collision: world.collision, stealth });
+    // ---- Part I: interiors (see src/world/interiors.js) ----
+    const interiors = createInteriors({ hero, events, rain: world.rain, collision: world.collision });
     const balloons = createBalloons(scene, progress.balloons);
     const pickups = createPickups(scene, world.halos, SITES);
     const neonParty = createNeonParty(scene, world.halos);
@@ -656,6 +659,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
           swarmLabel = bindingLabel(settings.bindings, 'chain4');
         }
         gadgets.update(real, dt, ctx);
+        interiors.update();
         stealth.update(dt);
         combat.update(dt, ctx);
         hero.update(dt, ctx);
@@ -732,7 +736,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     }
 
     const api = {
-      hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, despawn, side,
+      hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, despawn, side, interiors,
       // Impact frames test hook: pin(ms) samples `ms` into the sequence the next fire() starts.
       impact: {
         fire: (tier, target) => fireImpact(tier, target),
