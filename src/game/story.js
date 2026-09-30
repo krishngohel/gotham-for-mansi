@@ -25,7 +25,7 @@ const c = (who, text) => ({ who, text });
 // still play their existing comic pages or dialogue either way.
 const CINEMATIC = {
   // Prologue: a slow push toward the Batsignal as it turns into a cake.
-  intro: { shots: [{ from: { x: -26, y: 52, z: 8 }, to: { x: -7, y: 44.4, z: -7 }, look: { x: -12, y: 43.6, z: -12 }, dur: 5 }], lines: [c('joker', 'Good evening, Gotham. Do try to keep up.')] },
+  intro: { shots: [{ from: { x: -26, y: 52, z: 8 }, to: { x: -7, y: 44.4, z: -7 }, look: { x: -12, y: 43.6, z: -12 }, dur: 5 }], lines: [c('joker', 'Good evening, Gotham. Try to keep up, birthday bat.')] },
   // Act openers: an establishing orbit over the act's district.
   actOne: { orbit: { center: { x: -30, y: 24, z: 185 }, radius: 62, height: 26, dur: 6 }, lines: [c('alfred', 'The Docks, and Neon Row beyond them. Rather a lot of city for one birthday.')] },
   actTwo: { orbit: { center: { x: 140, y: 20, z: -150 }, radius: 58, height: 28, dur: 6 }, lines: [c('gordon', 'Ace Chemicals. Whatever he is cooking up in there, it will not be subtle.')] },
@@ -90,8 +90,8 @@ export const STEPS = [
   {
     id: 'crasherRooftop', type: 'crasher', text: 'The masked man is right there.', at: 'monarchRoof', to: 'monarchBalconyEntry', checkpoint: 'monarchRoof',
     lines: [
-      g('mansi', 'Nowhere left to run.'),
-      g('crasher', 'Wrong again.'),
+      g('mansi', 'Nowhere left to run, and I would like my present back.'),
+      g('crasher', 'Wrong again. Happy birthday, for what it is worth.'),
     ],
   },
   { id: 'monarchBalcony', type: 'fight', fight: 'monarchBalcony', text: 'Rifle goons guard the balcony below the roof. Stay in the shadows and take them down one at a time.', tutorial: ['crouch', 'silent', 'perch', 'perchDrop'], checkpoint: 'monarchBalconyEntry' },
@@ -120,12 +120,12 @@ export const STEPS = [
   {
     id: 'harleyRadio', type: 'radio', text: 'Someone is on the Joker\'s open channel.', checkpoint: 'factoryRoof',
     lines: [
-      g('harley', "Aw, is it somebody's birthday? Puddin never lets ME have a party."),
+      g('harley', "Aw, is it somebody's birthday? Puddin' never lets ME have a party."),
       g('harley', 'The cake stays right where it is, birthday bat. Come say hi to my crew.'),
     ],
   },
   { id: 'harleyFight', type: 'fight', fight: HARLEY_FIGHT, text: "Fight through Harley's crew." },
-  { id: 'a3', type: 'fight', fight: 'vats', text: "Protect the cake from Harley's crew!" },
+  { id: 'a3', type: 'fight', fight: 'vats', text: 'Protect the cake, no matter what she throws at you!' },
   { id: 'aceCatwalks', type: 'fight', fight: 'aceCatwalks', text: 'Rifle goons on the vat hall catwalks have the cake in their sights. Take them out quietly.', tutorial: ['distract', 'vent', 'ledgeStealth'], checkpoint: 'aceCatwalksEntry' },
   { id: 'cake', type: 'collect', item: 'cake', site: 'cake', radius: 3, text: "Save the baker's cake.", checkpoint: 'vatDeck' },
   { id: 'rewardCake', type: 'cutscene', scene: 'cake' },
@@ -135,7 +135,7 @@ export const STEPS = [
       g('crasher', 'Before you swing at me again, you should probably see who you have been chasing.'),
       g('nightwing', "Nightwing. Surprise. Well, it WAS supposed to be a surprise, before I kept grabbing your gifts on camera."),
       g('nightwing', "The Bat-family planned a whole reveal for later tonight. The Joker rather ruined the timing."),
-      g('mansi', 'You have been running from me across two rooftops.'),
+      g('mansi', 'You have been running from me across two rooftops in what I can only assume were very uncomfortable boots.'),
       g('nightwing', 'In my defence, that part was extremely fun. Come on, birthday girl. Let us go get the rest of your party back.'),
     ],
   },
@@ -168,7 +168,7 @@ export const STEPS = [
     lines: [
       g('nightwing', 'Found the band, tied up but tuning their instruments out of spite. Found the rest of the guest list too.'),
       g('gordon', "Everyone's accounted for, Mansi. Every guest, every gift, the cake, the band, all of it."),
-      g('oracle', "One more thing before you go. The clock tower's cameras just lit up. He's waiting for you."),
+      g('oracle', "One more thing before you go, and happy birthday, by the way. The clock tower's cameras just lit up. He's waiting for you."),
     ],
   },
   { id: 'toTower', text: 'The Joker is waiting at the clock tower. End this.', site: 'arena', radius: 18, checkpoint: 'funhouse' },
