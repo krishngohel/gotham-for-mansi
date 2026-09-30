@@ -13,6 +13,11 @@ import MANSI from '../mansi.config.js';
 // reaches credits with any subset of Vehicles, Batwing or Nightwing missing.
 const ASYNC_TYPES = new Set(['radio', 'chase', 'battle', 'armada', 'crasher', 'ally']);
 const DEGRADE_MS = 2200;
+// A plain travel step may still finish while Mansi is driving or flying (that is the point of
+// getting there). Every other kind of beat needs her on foot first (coordinator guidance,
+// 2026-09-30): a cutscene, fight, boss, collect or any of these async ones except the two that put
+// her IN a vehicle on purpose (chase, battle, armada).
+const EXIT_VEHICLE_TYPES = new Set(['cutscene', 'fight', 'boss', 'radio', 'crasher', 'ally', 'interior', 'collect']);
 
 export function createFlow(d) {
   const { hero, encounters, hud, events, progress, storage, comic, stage, prompts, waypoint, beacon, balloons, pickups, collision, radio } = d;
@@ -65,14 +70,20 @@ export function createFlow(d) {
     switch (step.type) {
       case 'chase':
         if (!G.vehicles?.startChase) return false;
+        // The mission needs Mansi in the Batmobile first (coordinator guidance, 2026-09-30).
+        G.vehicles.summon?.();
+        if (G.vehicles.active) G.vehicles.enter?.(G.vehicles.active);
         G.vehicles.startChase({ path: step.path ?? null, onDone: (r) => done(r?.ok !== false) });
         return true;
       case 'battle':
         if (!G.vehicles?.startBattle) return false;
+        G.vehicles.summon?.();
+        if (G.vehicles.active) G.vehicles.enter?.(G.vehicles.active);
         G.vehicles.startBattle({ site: siteOf(step), drones: step.drones ?? 6, onDone: (r) => done(r?.ok !== false) });
         return true;
       case 'armada':
         if (!G.batwing?.startArmada) return false;
+        G.batwing.call?.();
         G.batwing.startArmada({ balloons: step.balloons ?? 12, onDone: (r) => done(r?.ok !== false) });
         return true;
       case 'crasher': {
@@ -125,6 +136,11 @@ export function createFlow(d) {
     progress.stepId = s?.id ?? null;
     save();
     if (!s) return;
+    if (EXIT_VEHICLE_TYPES.has(s.type)) {
+      const G = theGame();
+      if (G?.vehicles?.active) G.vehicles.exit();
+      if (G?.batwing?.active) G.batwing.exit();
+    }
     hud.setObjective(s.text ?? '');
     target = siteOf(s);
     fightStarted = false;
