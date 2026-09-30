@@ -117,9 +117,11 @@ const RAW = [
     id: 'gothamGrandPrix', name: 'Gotham Grand Prix', kind: 'parkour',
     blurb: 'A Batmobile checkpoint race through the streets. Eight gates, then the finish.',
     start: { x: -90, y: 0.15, z: -60, yaw: 0 },
-    // Rough numbers: timed with a scripted drive (scripts/challenge-tune.mjs --pilot=drive), not
-    // a human lap, so treat these as a first pass to retune once someone actually races it.
-    limit: 110, medals: { gold: 48, silver: 62, bronze: 82 },
+    // Measured with a real-input scripted drive (scripts/challenge-tune.mjs's driveRun: WASD,
+    // Shift boost, Space handbrake, through the actual Batmobile controls), 3 clean laps against
+    // main 0eac04f (maxSpeed 26, boost 38, eased steering): 31.2s, 31.2s, 34.1s. suggestThresholds
+    // from the best lap.
+    limit: 95, medals: { gold: 34, silver: 41, bronze: 50 },
     checkpoints: [
       cp(-90, 0.15, 20, 6, 'Gate 1'),
       cp(-90, 0.15, 150, 7, 'Gate 2: hard right'),
@@ -146,9 +148,11 @@ const RAW = [
     // On the clock tower's own roof (the "hall" landmark, matching the arena site nearby), not
     // in open air: the pillar has to be somewhere Mansi can actually walk up to on foot.
     start: { x: -62, y: 58, z: -154, yaw: 0 },
-    // Rough numbers: timed with a scripted flight (scripts/challenge-tune.mjs --pilot=fly), not a
-    // human pilot, so treat these as a first pass too.
-    limit: 100, medals: { gold: 42, silver: 55, bronze: 72 },
+    // Measured with a real-input scripted flight (scripts/challenge-tune.mjs's flyRun: WASD roll
+    // and pitch, Shift boost, Space brake, through the actual Batwing controls), 3 clean laps:
+    // 117.5s, 64.1s, 120.2s (a sensitive course - a clean entry into the loop is much faster than
+    // a messy one, so the spread is real, not noise). suggestThresholds from the best lap.
+    limit: 195, medals: { gold: 69.5, silver: 83.5, bronze: 103 },
     rings: ringLoop(-62, -160, 46, 76, 9, 10),
   },
 ];
