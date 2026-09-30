@@ -50,6 +50,7 @@ import { createWorld } from './world.js';
 import { createFollowCamera } from './camera.js';
 import { createBatwing } from '../vehicles/batwing.js';
 import { createCinematic } from '../ui/cinematic.js';
+import { createParty } from './party.js';
 import { createFx } from './fx.js';
 import { createStealthFx } from '../stealth/stealthFx.js';
 import { createGadgetFx } from '../gadgets/gadgetFx.js';
@@ -342,6 +343,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const boss = createBoss({ assets, scene, rng, combat, events, hud, spawn, despawn, hero, time, getDifficulty: () => settings.difficulty, collision: world.collision, effects });
     boss.joker.health = 999;
     const finale = createFinale({ scene, world, hero, boss, camera, events, rng });
+    // ---- Finale rooftop party: src/game/party.js ----
+    const party = createParty({ scene, assets, events, gfx, finale });
 
     // Renders the live city from a posed camera into an image for comic panels.
     const stage = {
@@ -681,6 +684,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         batwing.update(dt, real);
         // ---- Part V1: ground vehicles hook (src/vehicles/vehicles.js) ----
         vehicles.update(dt, real);
+        party.update(dt);
         side.update(dt, real, { toScreen });
         fx.update(dt, real);
         fxView.detective = !!state.detectiveOn;
@@ -757,7 +761,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
 
     const api = {
       hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, despawn, side,
-      batwing, nightwing, radio, vehicles, cinematic, interiors,
+      batwing, nightwing, radio, vehicles, cinematic, interiors, party,
       // Impact frames test hook: pin(ms) samples `ms` into the sequence the next fire() starts.
       impact: {
         fire: (tier, target) => fireImpact(tier, target),
