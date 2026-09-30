@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { stepDrive, driveVelocity, bounceOffWall, createRamCounter, mergeTuning, DEFAULT_TUNING, findClearGroundSpot } from '../../src/vehicles/vehiclePhysics.js';
+import { stepDrive, driveVelocity, bounceOffWall, createRamCounter, mergeTuning, DEFAULT_TUNING, findClearGroundSpot, damageArmor, stepArmor, stepLane } from '../../src/vehicles/vehiclePhysics.js';
 
 const T = DEFAULT_TUNING;
 
@@ -161,5 +161,78 @@ describe('findClearGroundSpot (summon fallback)', () => {
     const isClear = (x, y, z) => { seen.push(Math.hypot(x - near.x, z - near.z)); return null; };
     findClearGroundSpot(near, isClear, [0, 4]);
     for (const d of seen) expect(d).toBeLessThanOrEqual(4 + 1e-9);
+  });
+});
+
+describe('damageArmor / stepArmor (Batmobile battle armour)', () => {
+  it('a hit removes hp and resets the regen delay', () => {
+    const a = { hp: 100, sinceHit: 99 };
+    damageArmor(a, 22);
+    expect(a.hp).toBe(78);
+    expect(a.sinceHit).toBe(0);
+  });
+
+  it('never drops hp below zero', () => {
+    const a = { hp: 10, sinceHit: 0 };
+    damageArmor(a, 50);
+    expect(a.hp).toBe(0);
+  });
+
+  it('does not regen while still inside the post-hit delay', () => {
+    const a = { hp: 50, sinceHit: 0 };
+    stepArmor(a, 1, { max: 100, regenDelay: 3, regenRate: 6 });
+    expect(a.hp).toBe(50);
+  });
+
+  it('regens once the delay has passed, and stops at max', () => {
+    const a = { hp: 50, sinceHit: 2.9 };
+    stepArmor(a, 0.2, { max: 100, regenDelay: 3, regenRate: 6 }); // crosses the 3s delay this step
+    expect(a.hp).toBeGreaterThan(50);
+    for (let i = 0; i < 200; i++) stepArmor(a, 1, { max: 100, regenDelay: 3, regenRate: 6 });
+    expect(a.hp).toBe(100);
+  });
+
+  it('a destroyed car (hp 0) stays at 0 until healed explicitly, not by regen', () => {
+    const a = { hp: 0, sinceHit: 50 };
+    stepArmor(a, 1, { max: 100, regenDelay: 3, regenRate: 6 });
+    expect(a.hp).toBe(0);
+  });
+});
+
+describe('stepLane (traffic lane following)', () => {
+  const crossings = [-30, 30, 90];
+
+  it('advances t by speed * dir * dt when clear of a stop', () => {
+    const lane = { t: 0, dir: 1, speed: 10, stopT: 0 };
+    stepLane(lane, 0.5, []);
+    expect(lane.t).toBeCloseTo(5, 5);
+  });
+
+  it('reverses direction correctly for dir -1', () => {
+    const lane = { t: 0, dir: -1, speed: 10, stopT: 0 };
+    stepLane(lane, 0.5, []);
+    expect(lane.t).toBeCloseTo(-5, 5);
+  });
+
+  it('stops exactly at a crossing it would otherwise drive through', () => {
+    const lane = { t: 28, dir: 1, speed: 10, stopT: 0 };
+    stepLane(lane, 1, crossings, 1.1); // would go from 28 to 38, crossing 30
+    expect(lane.t).toBe(30);
+    expect(lane.stopT).toBeCloseTo(1.1, 5);
+  });
+
+  it('holds position while stopped, then resumes after stopT elapses', () => {
+    const lane = { t: 30, dir: 1, speed: 10, stopT: 1.1 };
+    stepLane(lane, 0.6, crossings);
+    expect(lane.t).toBe(30);
+    expect(lane.stopT).toBeCloseTo(0.5, 5);
+    stepLane(lane, 0.6, crossings); // stopT runs out mid-step; next call moves again
+    stepLane(lane, 0.2, crossings);
+    expect(lane.t).toBeGreaterThan(30);
+  });
+
+  it('never allocates a new object: same lane reference back', () => {
+    const lane = { t: 0, dir: 1, speed: 10, stopT: 0 };
+    expect(stepLane(lane, 0.1, crossings)).toBe(lane);
   });
 });

@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { createRng } from '../core/rng.js';
 import { WORLD } from '../world/mapData.js';
-import { stepDrive, driveVelocity, bounceOffWall, createRamCounter, mergeTuning, findClearGroundSpot } from './vehiclePhysics.js';
+import { stepDrive, driveVelocity, bounceOffWall, createRamCounter, mergeTuning, findClearGroundSpot, damageArmor, stepArmor, stepLane } from './vehiclePhysics.js';
 import { createBatmobile, createStreetCar, createJokerVan, createDroneTank, createTracer, createShell } from './vehicleModels.js';
 
 // The same street centrelines cityLife.js drives its ambient traffic on (60 m block grid, 14 m
@@ -63,6 +63,29 @@ function missionMeter(hudRoot) {
   };
 }
 
+// A HUD-style armour bar for the drone battle, its own DOM (same self-contained approach as
+// missionMeter and tinyToast above: Part V1 never touches src/ui/hud.js or style.css).
+function armorBar(hudRoot) {
+  const el = document.createElement('div');
+  el.style.cssText = 'position:absolute;left:50%;top:130px;transform:translateX(-50%);'
+    + 'width:min(360px,70vw);padding:7px 16px 9px;background:#fffdf5;border:3px solid #0b0b12;'
+    + 'box-shadow:3px 3px 0 #0b0b12;display:none;z-index:20;';
+  el.innerHTML = '<div style="font:16px Bangers,cursive;letter-spacing:1.5px;color:#0b0b12;margin-bottom:4px;">BATMOBILE ARMOUR</div>'
+    + '<div style="height:13px;background:#d8cfa8;border:2px solid #0b0b12;">'
+    + '<div class="fill" style="height:100%;width:100%;background:#c8323c;transition:width 0.12s linear;"></div></div>';
+  hudRoot.appendChild(el);
+  const fill = el.querySelector('.fill');
+  return {
+    show() { el.style.display = ''; },
+    hide() { el.style.display = 'none'; },
+    set(frac) {
+      const f = Math.max(0, Math.min(1, frac));
+      fill.style.width = `${f * 100}%`;
+      fill.style.background = f < 0.3 ? '#7a1c1c' : '#c8323c';
+    },
+  };
+}
+
 function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
 
 export function createVehicles(deps) {
@@ -71,6 +94,7 @@ export function createVehicles(deps) {
 
   const toast = tinyToast(hudRoot);
   const meter = missionMeter(hudRoot);
+  const armorHud = armorBar(hudRoot);
 
   // ---- scratch (no per-frame allocation) ----
   const velScratch = { x: 0, z: 0 };
@@ -88,10 +112,13 @@ export function createVehicles(deps) {
   bm.tuning = BATMOBILE_TUNING;
   bm.summoned = false;
   bm.arriving = null; // set while summon() is sliding it in; see updateSummonArrival
+  bm.maxArmor = 100;
+  bm.armor = { hp: bm.maxArmor, sinceHit: 999 }; // battle armour (src/vehicles/vehiclePhysics.js stepArmor)
   scene.add(bm.group);
 
-  // ---------------- street cars (commandeerable) ----------------
+  // ---------------- street cars (commandeerable, some of them moving traffic) ----------------
   const streetCars = [];
+  const TRAFFIC_COUNT = 7; // of 12: the rest stay parked, exactly as before
   function spawnStreetCars(count = 12) {
     for (let i = 0; i < count; i++) {
       const alongX = rng.chance(0.5);
@@ -113,11 +140,45 @@ export function createVehicles(deps) {
       car.group.position.set(x, groundY > -Infinity ? groundY : 0, z);
       car.group.rotation.y = car.v.yaw;
       car.borrowed = false;
+      car.traffic = i < TRAFFIC_COUNT;
+      car.knockT = 0; // >0 while a ram is carrying it off its lane; see updateTrafficCar
+      if (car.traffic) car.lane = { alongX, line, dir, t, speed: rng.range(8, 11), stopT: 0 };
       scene.add(car.group);
       streetCars.push(car);
     }
   }
   spawnStreetCars(12);
+
+  // One moving traffic car's frame step: cheap lane-following (stepLane, pure) instead of the
+  // full drive-physics pipeline, and no allocation (car.lane and car.group.position are mutated
+  // in place). Ramming it (tryRamOther) sets car.knockT, which switches it briefly onto the same
+  // simple ballistic-ish slide integrateVehicle would give it, then it rejoins its lane.
+  function updateTrafficCar(car, dt) {
+    if (car.knockT > 0) {
+      car.knockT -= dt;
+      driveVelocity(car.v, car.tuning, velScratch);
+      car.group.position.x += velScratch.x * dt;
+      car.group.position.z += velScratch.z * dt;
+      car.v.speed *= Math.max(0, 1 - dt * 1.5);
+      car.group.rotation.y = car.v.yaw;
+      if (car.knockT <= 0) {
+        // Rejoin the lane from wherever the knock left it, instead of snapping back.
+        car.lane.t = car.lane.alongX ? car.group.position.x : car.group.position.z;
+        car.lane.stopT = 0;
+      }
+      return;
+    }
+    const lane = car.lane;
+    stepLane(lane, dt, LINES, 1.1);
+    // Streets are flat (world.js's floor is a constant 0 short of the waterline, which traffic
+    // never reaches): no per-frame ground query needed here, just the one done once at spawn.
+    car.group.position.x = lane.alongX ? lane.t : lane.line;
+    car.group.position.z = lane.alongX ? lane.line : lane.t;
+    const yaw = lane.alongX ? (lane.dir > 0 ? Math.PI / 2 : -Math.PI / 2) : (lane.dir > 0 ? 0 : Math.PI);
+    car.v.yaw = yaw;
+    car.v.speed = lane.stopT > 0 ? 0 : lane.speed;
+    car.group.rotation.y = yaw;
+  }
 
   function enterables() { return [bm, ...streetCars]; }
 
@@ -229,8 +290,39 @@ export function createVehicles(deps) {
     }
   }
 
+  // A little code figure that hops out and dashes off: enter()'s carjack flourish. Only one ever
+  // needed at a time in practice, but kept as a small pool-free list since it's an event (a
+  // carjack), not a per-frame cost.
+  const fleeingFigures = [];
+  function spawnFleeingDriver(car) {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.9, 0.26), new THREE.MeshBasicMaterial({ color: 0x3a3a44 }));
+    body.position.y = 0.72;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 8), new THREE.MeshBasicMaterial({ color: 0xc99a7c }));
+    head.position.y = 1.28;
+    g.add(body, head);
+    const away = rng.chance(0.5) ? 1 : -1;
+    const yaw = car.v.yaw + (Math.PI / 2) * away;
+    g.position.copy(car.group.position);
+    g.rotation.y = yaw;
+    scene.add(g);
+    fleeingFigures.push({ g, dx: Math.sin(yaw), dz: Math.cos(yaw), t: 0 });
+  }
+  function updateFleeingFigures(dt) {
+    for (let i = fleeingFigures.length - 1; i >= 0; i--) {
+      const f = fleeingFigures[i];
+      f.t += dt;
+      f.g.position.x += f.dx * 5.5 * dt;
+      f.g.position.z += f.dz * 5.5 * dt;
+      if (f.t > 1.8) { scene.remove(f.g); fleeingFigures.splice(i, 1); }
+    }
+  }
+
   function enter(v) {
     if (!v || active || !v.group.visible || v.arriving) return;
+    // A carjack: the car was actually moving under its own lane logic, not parked or already
+    // knocked around. Stop it dead, and send its driver running.
+    const carjack = v.traffic && v.knockT <= 0 && v.lane && v.lane.stopT <= 0 && Math.abs(v.v.speed) > 1;
     active = v;
     v.driven = true;
     lastSteer = 0;
@@ -238,7 +330,14 @@ export function createVehicles(deps) {
     hero.bat.root.visible = false;
     hero.cape.mesh.visible = false;
     hero.vel.set(0, 0, 0);
-    if (v.kind === 'car') toast.show('Borrowed for the birthday. Gordon will explain.', 3200);
+    if (carjack) {
+      spawnFleeingDriver(v);
+      v.v.speed = 0;
+      v.v.drift = 0;
+      toast.show('Carjacked! Gordon will REALLY have questions.', 3200);
+    } else if (v.kind === 'car') {
+      toast.show('Borrowed for the birthday. Gordon will explain.', 3200);
+    }
     events.emit('vehicleEnter', { kind: v.kind });
   }
 
@@ -254,6 +353,10 @@ export function createVehicles(deps) {
     hero.control = null;
     hero.teleport({ x: ex, y: groundY > -Infinity ? groundY : v.group.position.y, z: ez }, v.v.yaw);
     v.driven = false;
+    // Once commandeered, a traffic car stays exactly where it's left, like any other borrowed
+    // car; without this its stale lane.t (frozen since the moment it was entered) would snap it
+    // back to wherever its route was when the player drives or ejects out of it somewhere else.
+    if (v.traffic) v.traffic = false;
     if (v.kind === 'car') v.borrowed = true;
     events.emit('vehicleExit', { kind: v.kind });
     active = null;
@@ -279,6 +382,7 @@ export function createVehicles(deps) {
     hero.bat.face(v.v.yaw);
     hero.startGlide();
     v.driven = false;
+    if (v.traffic) v.traffic = false; // see the same note in exit()
     if (v.kind === 'car') v.borrowed = true;
     events.emit('vehicleExit', { kind: v.kind });
     active = null;
@@ -362,6 +466,9 @@ export function createVehicles(deps) {
       other.v.speed = Math.min(other.tuning.maxSpeed * 0.6, Math.abs(inst.v.speed) * 0.5 + 3);
       other.v.drift = 0;
       other.ramCd = 0.6;
+      // A shove off its lane, not a takeover: moving traffic rides the knock out (see
+      // updateTrafficCar) and rejoins its lane afterward, same as real comic-book traffic.
+      if (other.traffic) other.knockT = 1.2;
       if (isChaseVan && chase.ramCounter.ram()) {
         fx?.impact(other.group.position.clone(), 1.1);
         events.emit('word', { text: 'KRUNCH!', pos: other.group.position.clone().setY(other.group.position.y + 1.2), big: true });
@@ -444,6 +551,9 @@ export function createVehicles(deps) {
   }
 
   // ---------------- the Ace Chemicals battle ----------------
+  const SHELL_DAMAGE = 16;    // armour hp lost per shell that connects: about 7 hits to destroy
+  const SHELL_SPEED = 8;      // m/s: slow and dodgeable, especially boosting away from one
+  const SHELL_HIT_RADIUS = 2.1;
   let battle = null;
   function startBattle({ site, drones, onDone } = {}) {
     if (!site) { console.warn('startBattle: no site given; skipping the battle.'); onDone?.({ ok: false }); return; }
@@ -469,20 +579,64 @@ export function createVehicles(deps) {
       scene.add(tank.group);
       list.push(tank);
     }
-    battle = { site, drones: list, onDone, active: true, tracer: createTracer(), cannonCdT: 0 };
+    battle = { site, drones: list, droneCount: count, onDone, active: true, tracer: createTracer(), flash: null, cannonCdT: 0, debris: [] };
     scene.add(battle.tracer);
+    bm.armor.hp = bm.maxArmor;
+    bm.armor.sinceHit = 999;
+    armorHud.set(1);
+    armorHud.show();
     meter.show(`DRONES  ${list.length}`);
     toast.show('Shock cannon: PUNCH to fire from the Batmobile.', 3200);
   }
+  function clearBattleScene() {
+    for (const d of battle.drones) { scene.remove(d.group); for (const s of d.shells) scene.remove(s); }
+    for (const m of battle.debris) scene.remove(m);
+    scene.remove(battle.tracer);
+    if (battle.flash) scene.remove(battle.flash);
+    meter.hide();
+    armorHud.hide();
+  }
   function endBattle(ok) {
     if (!battle) return;
-    for (const d of battle.drones) { scene.remove(d.group); for (const s of d.shells) scene.remove(s); }
-    scene.remove(battle.tracer);
-    meter.hide();
+    clearBattleScene();
     events.emit('battleDone', { ok });
     battle.onDone?.({ ok });
     battle.active = false;
     battle = null;
+  }
+  // The Batmobile's armour hit zero: Mansi is knocked out of it and the battle resets clean, so a
+  // casual player always gets a fair retry instead of a hard fail state.
+  function disableBatmobile() {
+    if (!battle?.active) return;
+    const site = battle.site, count = battle.droneCount, onDone = battle.onDone;
+    events.emit('word', { text: 'KRAKOOM!', pos: bm.group.position.clone().setY(bm.group.position.y + 1.4), big: true });
+    fx?.impact(bm.group.position.clone().setY(bm.group.position.y + 0.6), 1.6);
+    follow.addShake?.(6);
+    clearBattleScene();
+    battle.active = false;
+    battle = null;
+    if (active === bm) exit();
+    bm.group.visible = false;
+    toast.show('Batmobile disabled! Resetting the battle.', 2800);
+    setTimeout(() => {
+      bm.armor.hp = bm.maxArmor;
+      bm.armor.sinceHit = 999;
+      startBattle({ site, drones: count, onDone });
+    }, 1700);
+  }
+  function spawnDebris(pos) {
+    if (!battle) return;
+    for (let i = 0; i < 6; i++) {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.16), new THREE.MeshBasicMaterial({ color: 0x1c1c1c }));
+      m.position.copy(pos).setY(pos.y + 0.6);
+      const a = rng.range(0, Math.PI * 2), s = rng.range(3, 7);
+      m.userData.vx = Math.cos(a) * s;
+      m.userData.vz = Math.sin(a) * s;
+      m.userData.vy = rng.range(4, 7);
+      m.userData.life = 0.9;
+      scene.add(m);
+      battle.debris.push(m);
+    }
   }
   function fireCannon() {
     if (!battle?.active || active !== bm || battle.cannonCdT > 0) return;
@@ -506,6 +660,14 @@ export function createVehicles(deps) {
     posAttr.needsUpdate = true;
     battle.tracer.visible = true;
     battle.tracer.userData.fadeT = 0.14;
+    // Muzzle flash (a reused, repositioned glow sphere) and a little recoil kick.
+    if (!battle.flash) { battle.flash = createShell(0xeaf2ff); battle.flash.scale.setScalar(2.1); scene.add(battle.flash); }
+    battle.flash.position.set(ox, bm.group.position.y + 0.65, oz);
+    battle.flash.visible = true;
+    battle.flash.material.opacity = 1;
+    battle.flash.userData.fadeT = 0.1;
+    bm.v.speed -= 1.6;
+    follow.hitKick?.(4);
     if (hitDrone) {
       hitDrone.health -= 1;
       fx?.impact(hitDrone.group.position.clone().setY(hitDrone.group.position.y + 0.8), 1.1);
@@ -513,6 +675,9 @@ export function createVehicles(deps) {
       if (hitDrone.health <= 0 && !hitDrone.dead) {
         hitDrone.dead = true;
         hitDrone.group.visible = false;
+        fx?.impact(hitDrone.group.position.clone().setY(hitDrone.group.position.y + 0.9), 1.8);
+        events.emit('word', { text: 'KRAKOOM!', pos: hitDrone.group.position.clone().setY(hitDrone.group.position.y + 1.7), big: true });
+        spawnDebris(hitDrone.group.position);
         const remaining = battle.drones.filter((d) => !d.dead).length;
         meter.set(`DRONES  ${remaining}`);
         if (remaining <= 0) endBattle(true);
@@ -522,10 +687,28 @@ export function createVehicles(deps) {
   function updateBattle(dt) {
     if (!battle?.active) return;
     battle.cannonCdT = Math.max(0, battle.cannonCdT - dt);
+    if (active === bm) {
+      stepArmor(bm.armor, dt, { max: bm.maxArmor, regenDelay: 3, regenRate: bm.maxArmor / 16 });
+      armorHud.set(bm.armor.hp / bm.maxArmor);
+    }
     if (battle.tracer.visible) {
       battle.tracer.userData.fadeT -= dt;
       battle.tracer.material.opacity = Math.max(0, battle.tracer.userData.fadeT / 0.14) * 0.95;
       if (battle.tracer.userData.fadeT <= 0) battle.tracer.visible = false;
+    }
+    if (battle.flash?.visible) {
+      battle.flash.userData.fadeT -= dt;
+      if (battle.flash.userData.fadeT <= 0) battle.flash.visible = false;
+      else battle.flash.material.opacity = battle.flash.userData.fadeT / 0.1;
+    }
+    for (let i = battle.debris.length - 1; i >= 0; i--) {
+      const m = battle.debris[i];
+      m.userData.vy -= 18 * dt;
+      m.position.x += m.userData.vx * dt;
+      m.position.y += m.userData.vy * dt;
+      m.position.z += m.userData.vz * dt;
+      m.userData.life -= dt;
+      if (m.userData.life <= 0 || m.position.y < -2) { scene.remove(m); battle.debris.splice(i, 1); }
     }
     const targetPos = active ? active.group.position : bm.group.position;
     for (const d of battle.drones) {
@@ -539,9 +722,9 @@ export function createVehicles(deps) {
         const shell = createShell(0x8a2fbf);
         shell.position.set(d.group.position.x, d.group.position.y + 0.95, d.group.position.z);
         const dist = Math.hypot(dx, dz) || 1;
-        shell.userData.vx = (dx / dist) * 9;
-        shell.userData.vz = (dz / dist) * 9;
-        shell.userData.life = 4;
+        shell.userData.vx = (dx / dist) * SHELL_SPEED;
+        shell.userData.vz = (dz / dist) * SHELL_SPEED;
+        shell.userData.life = 5;
         shell.visible = true;
         scene.add(shell);
         d.shells.push(shell);
@@ -552,9 +735,16 @@ export function createVehicles(deps) {
         s.position.z += s.userData.vz * dt;
         s.userData.life -= dt;
         const hitDx = s.position.x - targetPos.x, hitDz = s.position.z - targetPos.z;
-        const hit = Math.hypot(hitDx, hitDz) < 2.3;
+        const hit = Math.hypot(hitDx, hitDz) < SHELL_HIT_RADIUS;
         if (hit || s.userData.life <= 0) {
-          if (hit) follow.addShake?.(4);
+          if (hit) {
+            follow.addShake?.(4);
+            if (active === bm) {
+              damageArmor(bm.armor, SHELL_DAMAGE);
+              armorHud.set(bm.armor.hp / bm.maxArmor);
+              if (bm.armor.hp <= 0) { scene.remove(s); d.shells.splice(i, 1); disableBatmobile(); return; }
+            }
+          }
           scene.remove(s);
           d.shells.splice(i, 1);
         }
@@ -610,9 +800,14 @@ export function createVehicles(deps) {
     }
     if (bm.arriving) updateSummonArrival(dt);
     else if (bm !== active) integrateVehicle(bm, NEUTRAL_INPUT, dt);
-    for (const v of streetCars) if (v !== active) integrateVehicle(v, NEUTRAL_INPUT, dt);
+    for (const v of streetCars) {
+      if (v === active) continue;
+      if (v.traffic) updateTrafficCar(v, dt);
+      else integrateVehicle(v, NEUTRAL_INPUT, dt);
+    }
     updateChase(dt);
     updateBattle(dt);
+    updateFleeingFigures(dt);
   }
 
   // Dev/QA fast path (scripts/playthrough.mjs, the same way it force-wins a fight): completes
