@@ -51,6 +51,7 @@ import { createFollowCamera } from './camera.js';
 import { createBatwing } from '../vehicles/batwing.js';
 import { createCinematic } from '../ui/cinematic.js';
 import { createParty } from './party.js';
+import { createGCPDLobby } from './gcpdLobby.js';
 import { guestsUpTo, celebrateAt } from './partyStory.js';
 import { createFx } from './fx.js';
 import { createStealthFx } from '../stealth/stealthFx.js';
@@ -357,6 +358,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       for (const id of guestsUpTo(index, STEPS)) party.addGuest(id);
       if (celebrateAt(index, STEPS)) party.celebrate();
     });
+    // ---- GCPD lobby dressing (goons behind bars, the trophy case): src/game/gcpdLobby.js ----
+    const gcpdLobby = createGCPDLobby({ scene, assets, events, progress });
 
     // Renders the live city from a posed camera into an image for comic panels.
     const stage = {
@@ -699,6 +702,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         // ---- Part V1: ground vehicles hook (src/vehicles/vehicles.js) ----
         vehicles.update(dt, real);
         party.update(dt, camera.position);
+        gcpdLobby.update(dt);
         side.update(dt, real, { toScreen });
         fx.update(dt, real);
         fxView.detective = !!state.detectiveOn;
