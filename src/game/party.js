@@ -222,13 +222,16 @@ export function createParty({ scene, assets, events, gfx, finale }) {
       return [ch];
     },
     nightwing(slot) {
-      // Prefer the real Nightwing system when it's merged in; a simple look-alike otherwise so
-      // this branch's own party still works end to end.
+      // Prefer the real Nightwing system when it's merged in (src/allies/nightwing.js's own
+      // contract: spawn(p, mode), actor); a simple look-alike otherwise so this branch's own
+      // party still works end to end. His own combat AI (updateAlly, run every frame from
+      // game.js) keeps steering his animation, so Dance_Loop may not stick on the real actor.
       const nw = window.__game?.nightwing;
       if (nw?.spawn) {
-        const actor = nw.spawn({ x: slot.x, y: Y, z: slot.z }, 'ally');
-        dancers.push({ animator: actor?.ch?.animator ?? actor?.animator ?? null, root: actor?.root ?? actor?.ch?.root });
-        return [actor];
+        nw.spawn({ x: slot.x, y: Y, z: slot.z }, 'ally');
+        const actor = nw.actor;
+        if (actor) dancers.push(actor);
+        return actor ? [actor] : [];
       }
       const ch = addNpc(buildGuestBody(assets, rng), slot);
       const suit = prop(new THREE.CylinderGeometry(0.2, 0.24, 0.9, 10), 0x14151b);
@@ -281,7 +284,13 @@ export function createParty({ scene, assets, events, gfx, finale }) {
       events?.emit?.('partyCelebrate');
     },
     reset() {
-      for (const g of guests) for (const m of g.made) { const root = m?.root ?? m?.ch?.root; if (root?.parent) root.parent.remove(root); }
+      // The real Nightwing (if used) is externally owned: despawn him properly instead of
+      // ripping his root out from under src/allies/nightwing.js's own state.
+      if (guests.some((g) => g.id === 'nightwing')) window.__game?.nightwing?.despawn?.();
+      for (const g of guests) {
+        if (g.id === 'nightwing') continue;
+        for (const m of g.made) { const root = m?.root ?? m?.ch?.root; if (root?.parent) root.parent.remove(root); }
+      }
       guests.length = 0;
       dancers.length = 0;
       pulsers.length = 0;
