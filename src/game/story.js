@@ -143,14 +143,14 @@ export const STEPS = [
   // ---------------------------------------------------------------- Act 3: The Clock Plaza
   { id: 'actThreeTitle', type: 'cutscene', scene: 'actThree', cinematic: CINEMATIC.actThree },
   {
-    id: 'armadaRun', type: 'armada', text: 'The Joker has balloons rigged over the clock plaza. Take the Batwing through them.', site: 'balcony', balloons: 14, checkpoint: 'balcony',
+    id: 'armadaRun', type: 'armada', text: 'The Joker has balloons rigged over the clock plaza. Take the Batwing through them.', site: 'balcony', balloons: 14, checkpoint: 'arena',
     lines: [
       g('nightwing', "Batwing's yours whenever you call it. I will meet you on the ground."),
       g('joker', 'Up, up and away! Try not to pop too many of my party balloons, party girl!'),
     ],
   },
   {
-    id: 'nightwingTagRadio', type: 'radio', text: 'Gordon and Nightwing are both on the line.', checkpoint: 'balcony',
+    id: 'nightwingTagRadio', type: 'radio', text: 'Gordon and Nightwing are both on the line.', checkpoint: 'arena',
     lines: [
       g('gordon', "GCPD is holding the plaza perimeter. Nobody else gets in or out until you're done."),
       g('nightwing', "And I am holding the middle of it. Let's finish this together."),
@@ -159,7 +159,7 @@ export const STEPS = [
   { id: 'nightwingAlly', type: 'ally', text: 'Nightwing has your back for this one.', at: 'balcony' },
   { id: 'plazaFight', type: 'fight', fight: 'plaza', text: 'Clear the plaza with Nightwing at your side.' },
   {
-    id: 'toFunhouse', type: 'interior', text: 'The last of the party is behind the funhouse door in the old cathedral.', site: 'funhouseDoor', room: 'funhouse', radius: 10, checkpoint: 'balcony',
+    id: 'toFunhouse', type: 'interior', text: 'The last of the party is behind the funhouse door in the old cathedral.', site: 'funhouseDoor', room: 'funhouse', radius: 10, checkpoint: 'arena',
     lines: [g('nightwing', 'Funhouse door, dead ahead. This is exactly as safe as it sounds, which is to say, not very.')],
   },
   { id: 'funhouseFight', type: 'fight', fight: 'funhouseFight', text: "Fight through the Joker's funhouse floor." },
