@@ -8,7 +8,7 @@ const ring = (z, extra = {}) => ({ x: 0, y: 1, z, r: 4, ...extra });
 
 describe('courses', () => {
   it('has three ring courses, a parkour run and an arena, with valid medals', () => {
-    expect(CHALLENGES.map((c) => c.kind)).toEqual(['rings', 'rings', 'rings', 'parkour', 'arena']);
+    expect(CHALLENGES.map((c) => c.kind)).toEqual(['rings', 'rings', 'rings', 'parkour', 'arena', 'parkour', 'rings']);
     expect(new Set(CHALLENGES.map((c) => c.id)).size).toBe(CHALLENGES.length);
     for (const c of CHALLENGES) {
       const m = c.medals;
