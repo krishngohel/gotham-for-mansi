@@ -114,6 +114,61 @@ function crane(ctx, x) {
   edgeGrapples(ctx, x, z0 + 14, 4, 46, y + 2.4, 10);
 }
 
+// The freighter's superstructure was one plain 16 x 13 x 14 m box: from the deck, a blank pale
+// wall. Detail only (buckets and glow, no colliders, no ctx.rng draws, so the city is unchanged):
+// three deck levels with walkways and rails, portholes and lit windows on every face, a full
+// bridge band, doors with lamps, rust streaks and a lifeboat slung on each side.
+function shipSuperstructureDetail(ctx, x0, deck, sz) {
+  const W = 16, D = 14, hw = W / 2, hd = D / 2;
+  const steel = 0x6a7489, dark = 0x23262e, rust = 0x7a4a34;
+  // Walkway ledges between the levels, with a rail around each.
+  for (const y of [deck + 4.3, deck + 8.6]) {
+    ctx.buckets.add('painted', box(W + 1.2, 0.3, D + 1.2, x0, y, sz), steel);
+    for (const [ox, oz, lx, lz] of [[0, hd + 0.55, W + 1.2, 0.07], [0, -hd - 0.55, W + 1.2, 0.07], [hw + 0.55, 0, 0.07, D + 1.2], [-hw - 0.55, 0, 0.07, D + 1.2]]) {
+      ctx.buckets.add('steel', box(lx, 0.07, lz, x0 + ox, y + 1.0, sz + oz));
+      ctx.buckets.add('steel', box(lx, 0.05, lz, x0 + ox, y + 0.55, sz + oz));
+    }
+  }
+  // Windows on every face: portholes on the lowest level, square lit windows on the middle one,
+  // and a continuous bridge band on top.
+  const faces = [
+    { nx: 0, nz: 1, span: W, ox: (u) => x0 + u, oz: () => sz + hd + 0.06, rot: 0 },
+    { nx: 0, nz: -1, span: W, ox: (u) => x0 + u, oz: () => sz - hd - 0.06, rot: Math.PI },
+    { nx: 1, nz: 0, span: D, ox: () => x0 + hw + 0.06, oz: (u) => sz + u, rot: Math.PI / 2 },
+    { nx: -1, nz: 0, span: D, ox: () => x0 - hw - 0.06, oz: (u) => sz + u, rot: -Math.PI / 2 },
+  ];
+  for (const f of faces) {
+    const n = Math.floor(f.span / 2.4);
+    for (let k = 0; k < n; k++) {
+      const u = -f.span / 2 + 1.2 + (k * (f.span - 2.4)) / Math.max(1, n - 1);
+      const x = f.ox(u), z = f.oz(u);
+      const port = new THREE.CircleGeometry(0.42, 14).rotateY(f.rot).translate(x, deck + 2.4, z);
+      if (k % 3 === 1) glow(ctx, port, PALETTE.window); else ctx.buckets.add('painted', port, dark);
+      const win = box(f.nx ? 0.08 : 1.3, 1.0, f.nx ? 1.3 : 0.08, x, deck + 6.6, z);
+      if (k % 2 === 0) glow(ctx, win, PALETTE.windowCool); else ctx.buckets.add('painted', win, dark);
+      // A rust streak under every other window.
+      if (k % 2 === 1) ctx.buckets.add('painted', box(f.nx ? 0.05 : 0.18, 2.6, f.nx ? 0.18 : 0.05, x + f.nx * 0.01, deck + 4.9, z + f.nz * 0.01), rust);
+    }
+    // The bridge: one band of glass all the way across, under a dark visor.
+    glow(ctx, box(f.nx ? 0.1 : f.span - 1.2, 1.3, f.nx ? f.span - 1.2 : 0.1, f.ox(0), deck + 10.6, f.oz(0)), f.nz === 1 ? PALETTE.window : PALETTE.windowCool);
+    ctx.buckets.add('painted', box(f.nx ? 0.6 : f.span + 0.4, 0.25, f.nx ? f.span + 0.4 : 0.6, f.ox(0) + f.nx * 0.3, deck + 11.45, f.oz(0) + f.nz * 0.3), dark);
+  }
+  // Doors at deck level, fore and aft, each with a lamp over it.
+  for (const s of [-1, 1]) {
+    const z = sz + s * (hd + 0.07);
+    ctx.buckets.add('painted', box(1.3, 2.2, 0.1, x0 + 3.5, deck + 1.1, z), dark);
+    glow(ctx, box(0.4, 0.25, 0.12, x0 + 3.5, deck + 2.55, z + s * 0.02), PALETTE.window);
+    ctx.halos.add(x0 + 3.5, deck + 2.6, z + s * 0.2, PALETTE.window, 1.4);
+  }
+  // A lifeboat on davits on each side.
+  for (const s of [-1, 1]) {
+    const x = x0 + s * (hw + 1.6);
+    ctx.buckets.add('painted', new THREE.CapsuleGeometry(0.9, 4.2, 4, 10).rotateX(Math.PI / 2).scale(1, 0.75, 1).translate(x, deck + 9.6, sz), PALETTE.containerOrange);
+    ctx.buckets.add('painted', box(1.9, 0.3, 4.8, x, deck + 10.15, sz), 0xe8e2d4);
+    for (const dz of [-2, 2]) ctx.buckets.add('steel', box(0.15, 2.6, 0.15, x0 + s * (hw + 0.5), deck + 10.2, sz + dz));
+  }
+}
+
 function freighter(ctx) {
   const x0 = -44, zMin = 212, zMax = 292, w = 22, deck = 9;
   // Hull with a black waterline band and a raked bow.
@@ -134,6 +189,7 @@ function freighter(ctx) {
     glow(ctx, box(1.8, 0.9, 0.1, x0 - 6 + k * 3, deck + 10.5, sz + 7.05), PALETTE.window);
     ctx.halos.add(x0 - 6 + k * 3, deck + 10.5, sz + 7.2, PALETTE.window, 1.2);
   }
+  shipSuperstructureDetail(ctx, x0, deck, sz);
   edgeGrapples(ctx, x0, sz, 16, 14, deck + 13.6, 6);
   edgeGrapples(ctx, x0, (zMin + zMax) / 2 - 5, w, zMax - zMin - 10, deck, 10);
   // Deck cargo: a few containers as cover.
@@ -385,6 +441,52 @@ function gargoyle(ctx, x, y, z, rotY) {
   for (const p of parts) ctx.buckets.add('painted', p.rotateY(rotY).translate(x, y, z), 0x55524d);
 }
 
+// A pointed (gothic) arch, w wide and h tall, standing in the XY plane on y = 0.
+function pointedArch(w, h) {
+  const a = new THREE.Shape(), hw = w / 2, spring = h - w * 0.9;
+  a.moveTo(-hw, 0); a.lineTo(-hw, spring); a.quadraticCurveTo(-hw * 0.9, h - w * 0.25, 0, h);
+  a.quadraticCurveTo(hw * 0.9, h - w * 0.25, hw, spring); a.lineTo(hw, 0); a.lineTo(-hw, 0);
+  return new THREE.ShapeGeometry(a);
+}
+
+// The clock tower was a plain 14 x 44 x 14 m stone box, and the boss fight happens right at its
+// foot, where the clock faces (28 m up) are out of view: a blank wall. Detail only (buckets and
+// glow, no colliders, no ctx.rng draws): corner pilasters, string courses, two tall pointed
+// windows per face below the clock, louvred belfry openings above it, and an arched door with a
+// lantern opening onto the arena.
+function clockTowerDetail(ctx, hx, hz) {
+  const half = 7, y0 = 58, y1 = 102;
+  const dark = 0x1f2128, stoneDark = 0x5e5a55, wood = 0x3a2a22;
+  for (const [sx, sz] of [[-1, -1], [-1, 1], [1, -1], [1, 1]]) ctx.buckets.add('painted', box(1.8, y1 - y0, 1.8, hx + sx * (half - 0.5), (y0 + y1) / 2, hz + sz * (half - 0.5)), stoneDark);
+  for (const y of [y0 + 0.4, 64.5, 70.5, 82.5, 90, 101.4]) ctx.buckets.add('trim', box(14.5, 0.45, 14.5, hx, y, hz));
+  for (const [nx, nz] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+    const rot = Math.atan2(nx, nz);
+    // A point on this face: u runs along it, out pushes it off the wall.
+    const at = (u, y, out = 0.06) => ({ x: hx + nx * (half + out) + (nz ? u : 0), y, z: hz + nz * (half + out) + (nx ? u : 0) });
+    for (const u of [-2.6, 2.6]) {
+      // Tall pointed windows between the lower string courses: a stone surround, dark glass, a
+      // faint warm glow at the bottom, and a mullion.
+      const p = at(u, 65.2);
+      ctx.buckets.add('painted', pointedArch(2.4, 8.6).rotateY(rot).translate(p.x, p.y - 0.2, p.z), stoneDark);
+      const g = at(u, 65.2, 0.1);
+      ctx.buckets.add('painted', pointedArch(1.8, 8.0).rotateY(rot).translate(g.x, g.y, g.z), dark);
+      glow(ctx, box(nz ? 1.6 : 0.06, 1.6, nz ? 0.06 : 1.6, g.x + nx * 0.02, 66.2, g.z + nz * 0.02), PALETTE.window);
+      ctx.buckets.add('painted', box(nz ? 0.14 : 0.08, 7.4, nz ? 0.08 : 0.14, g.x + nx * 0.03, 68.9, g.z + nz * 0.03), stoneDark);
+      // Belfry openings above the clock, slatted.
+      const b = at(u, 96.6, 0.1);
+      ctx.buckets.add('painted', pointedArch(2.0, 4.6).rotateY(rot).translate(b.x, b.y - 1.6, b.z), dark);
+      for (let k = 0; k < 4; k++) ctx.buckets.add('painted', box(nz ? 1.8 : 0.1, 0.12, nz ? 0.1 : 1.8, b.x + nx * 0.05, 95.4 + k * 0.7, b.z + nz * 0.05), stoneDark);
+    }
+  }
+  // The door onto the arena (the tower's south face), with a lantern over it.
+  const dz = hz + half + 0.08;
+  ctx.buckets.add('painted', pointedArch(3.0, 4.6).translate(hx, y0, dz), stoneDark);
+  ctx.buckets.add('painted', pointedArch(2.3, 4.0).translate(hx, y0, dz + 0.04), wood);
+  glow(ctx, box(0.5, 0.7, 0.3, hx, y0 + 5.3, dz + 0.25), PALETTE.window);
+  ctx.halos.add(hx, y0 + 5.3, dz + 0.6, PALETTE.window, 2.4);
+  lightSpot(ctx, hx, y0 + 5, dz + 1.5, PALETTE.window, 10, 12);
+}
+
 function clockPlaza(ctx) {
   const c = ctx.compounds.clock;
   solid(ctx, 'sidewalk', tiledBox(c.maxX - c.minX, 0.15, c.maxZ - c.minZ, (c.minX + c.maxX) / 2, 0.075, (c.minZ + c.maxZ) / 2, { uvScale: [3, 3] }));
@@ -415,6 +517,7 @@ function clockPlaza(ctx) {
   solid(ctx, 'painted', box(14, 44, 14, hx, 58 + 22, hz), { color: PALETTE.stone });
   ctx.buckets.add('trim', box(15, 0.8, 15, hx, 76, hz));
   ctx.buckets.add('trim', box(15, 0.8, 15, hx, 96, hz));
+  clockTowerDetail(ctx, hx, hz);
   solid(ctx, 'roof', new THREE.ConeGeometry(10.5, 22, 4).rotateY(Math.PI / 4).translate(hx, 113, hz));
   const faceMat = new THREE.MeshBasicMaterial({ map: clockFaceTexture() });
   for (const [nx, nz] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
