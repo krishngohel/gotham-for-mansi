@@ -57,123 +57,185 @@ function createWheel(front, dark, hubMat, capMat) {
   return { pivot, spin, front };
 }
 
-// Low, long and tapered: a raked nose, a canopy set well forward, a longer flat rear deck and a
-// pair of swept bat-wing tail fins. Local +Z is forward. Returns
-// { group, wheels, jetGlow, jetHalo, radius, setBoost(on) }.
+// Very wide and low: an aggressive wedge nose, a low flat integrated canopy (angled glass panels,
+// not a bubble sitting on top), flared armour over huge corner tyres, a long flat engine deck and
+// a pair of swept bat-wing tail fins flanking a big central rear jet. Local +Z is forward. Every
+// static part (everything but the wheels and the jet glow/halo, which must keep moving or
+// flashing on their own) is merged down to a handful of draw calls by mergeStaticParts, the same
+// helper createStreetCar uses. Returns { group, wheels, jetGlow, jetHalo, radius, setBoost(on) }.
 export function createBatmobile() {
+  const WIDTH = 2.7;     // overall body width (the hull extrude's depth)
+  const HALF_W = WIDTH / 2;
   const group = new THREE.Group();
   const armour = addRim(toonMaterial({ color: 0x0c0d10 }), 0x5f8fd6, 0.55, [0.55, 0.72], 0.22);
   const armourLite = addRim(toonMaterial({ color: 0x14161c }), 0x5f8fd6, 0.5, [0.55, 0.72], 0.24);
+  const plate = addRim(toonMaterial({ color: 0x1a1d23 }), 0x5f8fd6, 0.45, [0.58, 0.74], 0.2);
   const trim = toonMaterial({ color: 0x22262e });
-  const panel = toonMaterial({ color: 0x33373f });
-  const canopyMat = new THREE.MeshBasicMaterial({ color: 0x1f3f5c, transparent: true, opacity: 0.88 });
+  const archMat = toonMaterial({ color: 0x0e0f12 });
+  const canopyMat = new THREE.MeshBasicMaterial({ color: 0x18314a, transparent: true, opacity: 0.9 });
 
-  // The hull: a single extruded side profile, nose at +z (station 2.75) to tail (-2.8). Low flat
-  // belly, a steep raked nose, a forward canopy bump, then a longer, flatter rear deck tapering
-  // down to a low tail where the fins root.
+  // The hull: a single extruded side profile, nose at +z (station 3.05) to tail (-3.2). A low
+  // splitter-tipped nose raked steeply up into a long low hood, a short flat-roofed canopy footprint
+  // set back toward the middle (not perched over the front wheels), then a long flat engine deck
+  // tapering down to a low tail where the fins and the jet root. Lower and longer than a sedan's
+  // profile (createStreetCar), on purpose: this is a tank, not a sports car.
   const profile = [
-    [2.75, 0.18],    // nose tip
-    [2.05, 0.32],
-    [1.15, 0.5],      // hood base, windshield rakes up from here
-    [0.85, 0.92],     // canopy front (forward of the midpoint)
-    [-0.2, 0.96],     // canopy back / roofline
-    [-0.7, 0.66],     // rear deck starts
-    [-1.85, 0.58],    // rear deck (engine housing) top
-    [-2.7, 0.4],      // tail top, fin root
-    [-2.8, 0.12],     // tail tip
-    [-1.9, 0.06],
-    [1.4, 0.06],      // long flat low belly
-    [2.55, 0.08],
+    [3.05, 0.14],    // nose splitter tip, low and aggressive
+    [2.5, 0.24],
+    [1.7, 0.4],       // long low hood
+    [1.05, 0.66],     // cowl / windshield base
+    [0.5, 0.92],      // canopy front, set back of the nose
+    [-0.4, 0.95],     // canopy back / roofline (short, flat footprint)
+    [-1.0, 0.7],       // rear deck starts, steps down behind the canopy
+    [-2.15, 0.64],    // long flat engine deck
+    [-2.95, 0.48],    // tail top, fin root
+    [-3.2, 0.18],     // tail tip / diffuser
+    [-2.15, 0.07],
+    [1.5, 0.06],      // long flat low belly
+    [2.85, 0.09],
   ];
-  const hull = extrudedBody(profile, 2.05, armour, 0.045);
-  hull.position.y = 0.34;
-  addHullOutline(hull, 0.03);
+  const hull = extrudedBody(profile, WIDTH, armour, 0.05);
+  hull.position.y = 0.3;
+  addHullOutline(hull, 0.032);
   group.add(hull);
 
-  // Cockpit canopy: a rounded bubble, set forward over the front half of the car.
-  const canopyShape = new THREE.Shape();
-  canopyShape.moveTo(-0.5, 0);
-  canopyShape.quadraticCurveTo(-0.56, 0.42, -0.18, 0.48);
-  canopyShape.lineTo(0.62, 0.42);
-  canopyShape.quadraticCurveTo(0.86, 0.3, 0.82, 0);
-  canopyShape.lineTo(-0.5, 0);
-  const canopy = new THREE.Mesh(new THREE.ExtrudeGeometry(canopyShape, { depth: 1.5, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.025, bevelSegments: 2 }), canopyMat);
-  canopy.rotation.y = Math.PI / 2;
-  canopy.position.set(0.75, 1.02, -0.15);
-  addHullOutline(canopy, 0.016, 0x0b0b12);
-  group.add(canopy);
-
-  // Side skirts flanking the hull (armour reads thicker from behind/the side) and mid-grey panel
-  // lines along the hood and doors, laid just proud of the hull surface.
+  // Front splitter: a flat blade wider than the hull itself, the first thing a goon sees.
+  const splitter = new THREE.Mesh(new THREE.BoxGeometry(WIDTH + 0.3, 0.08, 0.5), plate);
+  splitter.position.set(0, 0.17, 3.0);
+  addHullOutline(splitter, 0.02);
+  group.add(splitter);
+  // A pair of angled nose "fangs" flanking the splitter.
   for (const s of [-1, 1]) {
-    const skirt = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.3, 3.1), armourLite);
-    skirt.position.set(s * 1.08, 0.32, -0.1);
-    addHullOutline(skirt, 0.018);
-    group.add(skirt);
-    const hoodLine = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.02, 1.6), panel);
-    hoodLine.position.set(s * 0.4, 0.72, 1.5);
-    hoodLine.rotation.z = -0.12 * s;
-    group.add(hoodLine);
-    const doorLine = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.34, 0.02), panel);
-    doorLine.position.set(s * 1.03, 0.5, -0.55);
-    group.add(doorLine);
+    const fang = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.16, 0.7), trim);
+    fang.position.set(s * (HALF_W - 0.1), 0.22, 2.75);
+    fang.rotation.y = s * 0.34;
+    addHullOutline(fang, 0.016);
+    group.add(fang);
   }
 
-  // Tail fins: the bat emblem, mounted as a pair of raked blades standing off the rear deck
-  // (rotation.y turns its thin extrude depth to face sideways; see batFinGeometry).
+  // Cockpit canopy: low, flat-topped and angular (armoured glass panels, not a fighter-jet
+  // bubble), narrower than the hull and set well back of the nose so it reads as integrated into
+  // the hull rather than a box dropped on top of it.
+  const canopyShape = new THREE.Shape();
+  canopyShape.moveTo(-0.46, 0);
+  canopyShape.lineTo(-0.5, 0.3);
+  canopyShape.lineTo(-0.3, 0.38);
+  canopyShape.lineTo(0.5, 0.34);
+  canopyShape.lineTo(0.72, 0.16);
+  canopyShape.lineTo(0.66, 0);
+  canopyShape.lineTo(-0.46, 0);
+  const canopyGeo = new THREE.ExtrudeGeometry(canopyShape, { depth: WIDTH - 0.8, bevelEnabled: true, bevelThickness: 0.025, bevelSize: 0.02, bevelSegments: 1 });
+  canopyGeo.translate(0, 0, -(WIDTH - 0.8) / 2); // center the extrude depth, same technique as extrudedBody
+  const canopy = new THREE.Mesh(canopyGeo, canopyMat);
+  canopy.rotation.y = Math.PI / 2;
+  canopy.position.set(0, 0.92, 0.55);
+  addHullOutline(canopy, 0.016, 0x0b0b12);
+  group.add(canopy);
+  // A thin ink canopy frame along its base, so the glass reads as bordered armour, not a decal.
+  const canopyFrame = new THREE.Mesh(new THREE.BoxGeometry(1.24, 0.05, WIDTH - 0.74), trim);
+  canopyFrame.position.set(0.6, 0.76, 0);
+  group.add(canopyFrame);
+
+  // Armour side skirts: thick, flared blocks running the length of the car, proud enough of the
+  // hull to visually flare out over the tyres (the Arkham-style "wheels tucked under armour" read),
+  // plus raised wheel-arch flares right over each tyre and a few hood/flank panel lines.
   for (const s of [-1, 1]) {
-    const fin = new THREE.Mesh(batFinGeometry(1.3, 0.05), trim);
-    fin.position.set(s * 0.5, 1.08, -2.3);
+    const skirt = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.4, 3.9), armourLite);
+    skirt.position.set(s * (HALF_W + 0.02), 0.26, -0.15);
+    addHullOutline(skirt, 0.02);
+    group.add(skirt);
+    for (const [ax, az] of [[0, 1.55], [0, -1.55]]) {
+      const arch = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.72, 0.34, 12, 1, false, 0, Math.PI), archMat);
+      arch.rotation.z = Math.PI / 2;
+      arch.rotation.y = Math.PI / 2;
+      arch.position.set(s * (HALF_W + 0.12), 0.72, az + ax);
+      addHullOutline(arch, 0.018);
+      group.add(arch);
+    }
+    const hoodLine = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.02, 1.7), trim);
+    hoodLine.position.set(s * 0.55, 0.62, 1.7);
+    hoodLine.rotation.z = -0.1 * s;
+    group.add(hoodLine);
+    const deckVent = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.05, 1.1), trim);
+    deckVent.position.set(s * 0.62, 0.68, -1.5);
+    addHullOutline(deckVent, 0.012);
+    group.add(deckVent);
+  }
+
+  // Tail fins: the bat emblem, mounted as a pair of big raked blades standing off the outer rear
+  // corners of the deck (rotation.y turns its thin extrude depth to face sideways; see
+  // batFinGeometry), swept back and canted outward into a V.
+  for (const s of [-1, 1]) {
+    const fin = new THREE.Mesh(batFinGeometry(1.55, 0.06), trim);
+    fin.position.set(s * (HALF_W - 0.25), 1.12, -2.55);
     fin.rotation.y = Math.PI / 2;
-    fin.rotation.z = s * 0.1;  // a slight outward cant
-    fin.rotation.x = -0.22;    // swept back
-    addHullOutline(fin, 0.014);
+    fin.rotation.z = s * 0.22;  // canted outward into a V
+    fin.rotation.x = -0.26;     // swept back
+    addHullOutline(fin, 0.016);
     group.add(fin);
   }
 
-  // Big rear jet: a dark housing ring plus a glowing core and a soft additive halo, both sized
-  // to sit inside the ring rather than swallow the whole back of the car.
-  const jetRing = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.42, 0.4, 16).rotateX(Math.PI / 2), trim);
-  jetRing.position.set(0, 0.42, -2.75);
-  addHullOutline(jetRing, 0.018);
+  // Big central rear jet: a dark shrouded housing between the fins plus a bright glowing core and
+  // a soft additive halo (left unmerged below so setBoost can keep animating them at runtime).
+  const jetShroud = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.62, 0.7), plate);
+  jetShroud.position.set(0, 0.52, -2.85);
+  addHullOutline(jetShroud, 0.022);
+  group.add(jetShroud);
+  const jetRing = new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.5, 0.4, 16).rotateX(Math.PI / 2), trim);
+  jetRing.position.set(0, 0.5, -3.08);
+  addHullOutline(jetRing, 0.02);
   group.add(jetRing);
-  const jetGlow = new THREE.Mesh(new THREE.CircleGeometry(0.24, 20), glowMaterial(0xffb020, 1));
-  jetGlow.position.set(0, 0.42, -2.95);
+
+  // Lights: two white headlamps low on the nose either side of the splitter, a wide red strip
+  // across the tail between the fins.
+  const headMat = glowMaterial(0xf4f6ff, 1, false);
+  for (const s of [-1, 1]) {
+    const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.13, 0.06), headMat);
+    lamp.position.set(s * (HALF_W - 0.35), 0.3, 3.02);
+    group.add(lamp);
+  }
+  const tailStrip = new THREE.Mesh(new THREE.BoxGeometry(WIDTH - 0.9, 0.08, 0.05), glowMaterial(0xd41c2c, 1, false));
+  tailStrip.position.set(0, 0.46, -3.21);
+  group.add(tailStrip);
+
+  // Bake every static part above into a handful of draw calls, grouped by material (same helper
+  // createStreetCar uses). Nothing added to `group` so far is referenced again at runtime, so it's
+  // safe to let this replace all of it; the jet glow/halo and the wheels are built fresh below and
+  // added after, so they stay individual meshes that can keep animating.
+  mergeStaticParts(group);
+
+  // The rear jet's glow core and halo: unmerged (setBoost mutates these directly every frame while
+  // boosting), sized to sit inside the housing ring rather than swallow the whole tail.
+  const jetGlow = new THREE.Mesh(new THREE.CircleGeometry(0.28, 20), glowMaterial(0xffb020, 1));
+  jetGlow.position.set(0, 0.5, -3.3);
   jetGlow.rotation.y = Math.PI;
   jetGlow.layers.set(LAYER_FX);
   group.add(jetGlow);
-  const jetHalo = new THREE.Mesh(new THREE.CircleGeometry(0.42, 20), glowMaterial(0xff8a3d, 0.32));
+  const jetHalo = new THREE.Mesh(new THREE.CircleGeometry(0.5, 20), glowMaterial(0xff8a3d, 0.32));
   jetHalo.position.copy(jetGlow.position);
   jetHalo.rotation.y = Math.PI;
   jetHalo.layers.set(LAYER_FX);
   group.add(jetHalo);
 
-  // Lights: two white headlamps low on the nose, a thin red strip across the tail.
-  const headMat = glowMaterial(0xf4f6ff, 1, false);
-  for (const s of [-1, 1]) {
-    const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.12, 0.06), headMat);
-    lamp.position.set(s * 0.7, 0.34, 2.78);
-    group.add(lamp);
-  }
-  const tailStrip = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.07, 0.05), glowMaterial(0xd41c2c, 1, false));
-  tailStrip.position.set(0, 0.5, -2.82);
-  group.add(tailStrip);
-
-  // Wheels: wide stance, low profile, chunky visible hubs. Front pair steers.
+  // Wheels: a wide stance pushed out to the corners, scaled up well past a street car's for a
+  // chunky, armoured-tyre read, and kept as individual meshes (not merged above) so they can spin
+  // every frame and the front pair can steer. Track width and z stations follow the wider hull and
+  // longer wheelbase above.
   const dark = toonMaterial({ color: 0x101114 });
   const hubMat = toonMaterial({ color: 0x5a5f68 });
   const capMat = toonMaterial({ color: 0x8f97a3 });
   const wheels = [];
-  for (const [x, z, front] of [[-1.15, 1.6, true], [1.15, 1.6, true], [-1.2, -1.6, false], [1.2, -1.6, false]]) {
+  for (const [x, z, front] of [[-1.42, 1.55, true], [1.42, 1.55, true], [-1.46, -1.55, false], [1.46, -1.55, false]]) {
     const w = createWheel(front, dark, hubMat, capMat);
     w.pivot.position.set(x, 0.46, z);
+    w.pivot.scale.setScalar(1.4);
     group.add(w.pivot);
     wheels.push(w);
   }
 
   return {
     group, wheels, jetGlow, jetHalo,
-    radius: 1.9, halfLength: 2.8, halfWidth: 1.25,
+    radius: 2.05, halfLength: 3.2, halfWidth: 1.45,
     setBoost(on) {
       jetGlow.material.color.setHex(on ? 0xfff2c0 : 0xffb020);
       jetGlow.material.opacity = on ? 1 : 0.85;
