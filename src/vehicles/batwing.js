@@ -94,18 +94,30 @@ export function createBatwing({ scene, camera, hero, follow, collision, events, 
     };
   }
 
+  // Mouse flying: how much one pixel pushes the virtual stick, and how fast it recentres (s).
+  const MOUSE_STEER = 0.0012 / 0.1, MOUSE_EASE = 0.1;
+  const stick = { x: 0, y: 0 };
   function flyControl() {
+    stick.x = 0; stick.y = 0;
     return {
       name: 'fly',
       camera: 'fly',
       update(dt, ctx) {
         const { input } = ctx;
         const invert = ctx.cam?.state?.invertY ? -1 : 1;
-        const pitchIn = input.move.y * invert + (-input.look.dy * 0.0007 * invert);
+        const sens = ctx.cam?.state?.sensitivity ?? 1;
+        // The mouse (or trackpad) works a virtual stick: movement pushes it, and it eases back to
+        // centre in about a tenth of a second, so a steady drag holds a turn and stopping straightens
+        // out. It used to be raw mouse pixels times 0.001, about 1% of a turn per trackpad swipe.
+        // Same result at any frame rate (the push scales with distance, the ease with time).
+        const ease = Math.exp(-dt / MOUSE_EASE);
+        stick.x = Math.max(-1, Math.min(1, stick.x * ease + input.look.dx * MOUSE_STEER * sens));
+        stick.y = Math.max(-1, Math.min(1, stick.y * ease + input.look.dy * MOUSE_STEER * sens));
+        const pitchIn = (input.move.y - stick.y) * invert;
         // Roll +1 banks and turns LEFT (wingFlight.js: yaw += roll * turnRate, and yaw up is a left
         // turn); D and mouse-right mean a right turn, so both go in negated. Measured in the
         // plane's own frame (scripts/steer-check.mjs), not the camera's.
-        const rollIn = -(input.move.x + input.look.dx * 0.001);
+        const rollIn = -(input.move.x + stick.x);
         const boost = input.down('sprint'), brake = input.down('jump');
         stepWing(state, { pitchIn, rollIn, boost, brake }, dt);
         clampToWorld(state, WORLD, dt);
@@ -116,8 +128,10 @@ export function createBatwing({ scene, camera, hero, follow, collision, events, 
         if (r.hitWall) {
           const nx = scratch.x - preX, nz = scratch.z - preZ;
           const len = Math.hypot(nx, nz) || 1;
+          // Out of the wall to where collision resolved it, then glance off along it.
+          state.x = scratch.x; state.y = scratch.y; state.z = scratch.z;
           bounceWing(state, nx / len, nz / len);
-          follow.addShake(7);
+          follow.addShake(3);
         } else {
           state.x = scratch.x; state.y = scratch.y; state.z = scratch.z;
         }
