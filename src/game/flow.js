@@ -224,6 +224,23 @@ export function createFlow(d) {
       hero.bat.face(yaw);
       d.follow?.snapBehind(yaw, 0.22);
     }
+    // faceAwayFrom: step her back from something she walked right up to (the Batsignal lamp) and
+    // turn her to the open view beyond it, so it isn't looming over the camera for the next beats.
+    if (s.faceAwayFrom && SITES[s.faceAwayFrom]) {
+      const p = SITES[s.faceAwayFrom];
+      let dx = hero.pos.x - p.x, dz = hero.pos.z - p.z;
+      const len = Math.hypot(dx, dz) || 1;
+      dx /= len; dz /= len;
+      const back = s.stepBack ?? 0;
+      if (back > 0) {
+        const x = hero.pos.x + dx * back, z = hero.pos.z + dz * back;
+        const gy = collision.groundBelow(x, hero.pos.y + 1.5, z, 0.3);
+        if (gy > -Infinity && Math.abs(gy - hero.pos.y) < 0.6) hero.teleport({ x, y: gy, z });
+      }
+      const yaw = Math.atan2(dx, dz);
+      hero.bat.face(yaw);
+      d.follow?.snapBehind(yaw, 0.22);
+    }
     prompts.newStep?.();
     const tips = tutorialFor(s, progress.moves);
     if (tips) prompts.show(tips, { first: true });
@@ -360,7 +377,10 @@ export function createFlow(d) {
       if (s && target && !side.holdStory() && s.type !== 'fight' && s.type !== 'boss' && s.type !== 'cutscene' && !ASYNC_TYPES.has(s.type)) {
         const dxz = Math.hypot(hero.pos.x - target.x, hero.pos.z - target.z);
         const dy = Math.abs(hero.pos.y - target.y);
-        if (dxz < (s.radius ?? 8) && dy < 6) {
+        // onFoot: only done once she is out of the car or plane ("get clear of the Batmobile").
+        const G = s.onFoot ? theGame() : null;
+        const mounted = !!(G?.vehicles?.active || G?.batwing?.active);
+        if (dxz < (s.radius ?? 8) && dy < 6 && !mounted) {
           if (s.type === 'collect') { pickups.take(s.item); encounters.cleanupBodies(); events.emit('pickup', { item: s.item }); advance({ type: 'collected', item: s.item }); }
           else {
             if (s.type === 'interior') theGame()?.interiors?.enter?.(s.room);

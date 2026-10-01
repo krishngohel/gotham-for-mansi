@@ -46,8 +46,8 @@ export const STEPS = [
   { id: 'signal', text: 'Something is stuck to the Batsignal. Go and look.', site: 'signal', radius: 4.5, tutorial: ['move', 'look'], checkpoint: 'start' },
   { id: 'card', type: 'cutscene', scene: 'card' },
   {
-    // face: after the card, turn from the lamp to the city and the Docks (where the Crasher runs).
-    id: 'gordonRadio', type: 'radio', text: 'Gordon is on the radio.', checkpoint: 'signal', face: 'wh3Roof',
+    // After the card: two steps back from the Batsignal lamp she walked up to, facing the city.
+    id: 'gordonRadio', type: 'radio', text: 'Gordon is on the radio.', checkpoint: 'signal', faceAwayFrom: 'signal', stepBack: 2.5,
     lines: [
       g('gordon', 'Gordon here. Sorry to spoil the surprise, but the surprise is already spoiled.'),
       g('gordon', 'We had a whole night planned for Mansi. Gifts, the band, a cake the size of a squad car.'),
@@ -134,7 +134,7 @@ export const STEPS = [
     id: 'aceBattle', type: 'battle', text: 'Drone tanks are dug in across the yard. Use the cannon.', site: 'aceYard',
     lines: [g('alfred', 'Motion in the yard, and none of it is friendly. Batmobile cannon, if you would.')],
   },
-  { id: 'toBruteFight', text: 'Get clear of the Batmobile. A brute is still standing.', site: 'aceYard', radius: 16, checkpoint: 'aceYard' },
+  { id: 'toBruteFight', text: 'Get clear of the Batmobile. A brute is still standing.', site: 'aceYard', radius: 16, checkpoint: 'aceYard', onFoot: true, tutorial: ['exitVehicle'] },
   { id: 'a1', type: 'fight', fight: 'aceYard', text: 'A brute. Stun it with your cape, then pile on.', tutorial: ['brute'] },
   { id: 'toFactory', text: 'Get up onto the factory roof.', site: 'factoryRoof', radius: 18, checkpoint: 'aceYard' },
   { id: 'a2', type: 'fight', fight: 'factory', text: 'Clear the factory roof.' },

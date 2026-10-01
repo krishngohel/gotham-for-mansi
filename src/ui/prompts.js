@@ -35,6 +35,7 @@ const ENTRIES = [
   ['lowPower', () => (/Mac/.test(globalThis.navigator?.platform || globalThis.navigator?.userAgent || '')
     ? 'Your Mac is holding the game to 30 frames a second, which usually means Low Power Mode is on. Plug in, or turn it off in System Settings, Battery, for smoother play.'
     : 'Your browser is holding the game to 30 frames a second, usually a battery or energy saver mode. Plug in or turn it off for smoother play.')],
+  ['exitVehicle', (k) => `Press ${k('vehicle')} to get out of the car.`],
   ['drive', (k) => `Driving: ${k('forward')} gas, ${k('back')} brake and reverse, ${k('left')} ${k('right')} steer. Hold ${k('jump')} to drift round corners, ${k('sprint')} to boost. ${k('vehicle')} gets out, and at speed it launches you into a glide.`],
   ['fly', (k) => `Flying: steer with the mouse or ${k('left')} ${k('right')}, ${k('forward')} climbs and ${k('back')} dives. ${k('sprint')} boosts, ${k('jump')} brakes, ${k('punch')} fires. ${k('batwing')} bails out.`],
   ['ladder', (k) => `Walk into a ladder to climb it. ${k('forward')} and ${k('back')} climb, ${k('sprint')} slides down, ${k('jump')} kicks off.`],

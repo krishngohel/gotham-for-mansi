@@ -354,6 +354,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       if (id === 'drive') return driving ? true : 'drop';
       if (id === 'fly') return flying ? true : 'drop';
       if (id === 'vehicle') return driving ? 'drop' : true;
+      if (id === 'exitVehicle') return driving ? true : 'drop';
       if (id === 'lowPower') return true;
       return driving || flying ? 'wait' : true;
     };
