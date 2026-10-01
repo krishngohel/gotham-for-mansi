@@ -126,6 +126,9 @@ export function buildMapData(seed = 11) {
 export const SITES = {
   start: { x: 6, y: 42, z: 10 },
   signal: { x: -12, y: 42, z: -12 },
+  // 9 m south of the Batsignal lamp, facing south toward the Docks: the lamp sits behind her and
+  // the camera (the beat after the playing card, see flow.js placeAt).
+  signalView: { x: -12, y: 42, z: -3, yaw: 0 },
   wh3Roof: { x: -60, y: 16, z: 180 },
   yard: { x: 0, y: 0.15, z: 178 },
   freighter: { x: -44, y: 9, z: 238 },

@@ -46,8 +46,8 @@ export const STEPS = [
   { id: 'signal', text: 'Something is stuck to the Batsignal. Go and look.', site: 'signal', radius: 4.5, tutorial: ['move', 'look'], checkpoint: 'start' },
   { id: 'card', type: 'cutscene', scene: 'card' },
   {
-    // After the card: two steps back from the Batsignal lamp she walked up to, facing the city.
-    id: 'gordonRadio', type: 'radio', text: 'Gordon is on the radio.', checkpoint: 'signal', faceAwayFrom: 'signal', stepBack: 2.5,
+    // After the card: out from under the Batsignal lamp, facing the city and the Docks.
+    id: 'gordonRadio', type: 'radio', text: 'Gordon is on the radio.', checkpoint: 'signal', placeAt: 'signalView',
     lines: [
       g('gordon', 'Gordon here. Sorry to spoil the surprise, but the surprise is already spoiled.'),
       g('gordon', 'We had a whole night planned for Mansi. Gifts, the band, a cake the size of a squad car.'),

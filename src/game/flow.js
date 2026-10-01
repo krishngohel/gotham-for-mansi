@@ -230,22 +230,18 @@ export function createFlow(d) {
       hero.bat.face(yaw);
       d.follow?.snapBehind(yaw, 0.22);
     }
-    // faceAwayFrom: step her back from something she walked right up to (the Batsignal lamp) and
-    // turn her to the open view beyond it, so it isn't looming over the camera for the next beats.
-    if (s.faceAwayFrom && SITES[s.faceAwayFrom]) {
-      const p = SITES[s.faceAwayFrom];
-      let dx = hero.pos.x - p.x, dz = hero.pos.z - p.z;
-      const len = Math.hypot(dx, dz) || 1;
-      dx /= len; dz /= len;
-      const back = s.stepBack ?? 0;
-      if (back > 0) {
-        const x = hero.pos.x + dx * back, z = hero.pos.z + dz * back;
-        const gy = collision.groundBelow(x, hero.pos.y + 1.5, z, 0.3);
-        if (gy > -Infinity && Math.abs(gy - hero.pos.y) < 0.6) hero.teleport({ x, y: gy, z });
+    // placeAt: stand her at a fixed vantage point (a site with a yaw) as the step begins, e.g. away
+    // from the Batsignal lamp she just walked up to, with it behind her and the camera, so it isn't
+    // filling the view for the next beats. A fixed spot, not "a step back from wherever she is":
+    // standing right on the lamp's own spot left no direction to step back in. Only on ground.
+    if (s.placeAt && SITES[s.placeAt]) {
+      const p = SITES[s.placeAt];
+      const gy = collision.groundBelow(p.x, p.y + 1.5, p.z, 0.3);
+      if (gy > -Infinity) {
+        hero.teleport({ x: p.x, y: gy, z: p.z }, p.yaw ?? hero.bat.yaw);
+        hero.bat.face(p.yaw ?? hero.bat.yaw);
+        d.follow?.snapBehind(p.yaw ?? hero.bat.yaw, 0.22);
       }
-      const yaw = Math.atan2(dx, dz);
-      hero.bat.face(yaw);
-      d.follow?.snapBehind(yaw, 0.22);
     }
     prompts.newStep?.();
     const tips = tutorialFor(s, progress.moves);
