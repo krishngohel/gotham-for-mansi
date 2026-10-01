@@ -593,7 +593,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     events.on('upgradeBought', ({ id }) => { if (id === 'swarm') prompts.show(['swarm']); });
     events.on('gadgetUnlocked', ({ id }) => {
       const g = gadgetById(id);
-      hud.card(`NEW GADGET: ${g.name.toUpperCase()}`, g.cardText, 7000);
+      hud.card(`NEW GADGET: ${g.name.toUpperCase()}`, g.cardText, 5000);
       prompts.show(['gadgetWheel', g.promptId]);
     });
     // A returning save: one card for every gadget it already earned (the popper follows on its own).
@@ -604,6 +604,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       prompts.show(['gadgetWheel']);
     });
     events.on('gadgetWheelTip', () => prompts.show(['gadgetWheel']));
+    // A card (a new gadget, a level up) steps aside once the action starts.
+    for (const ev of ['fightStart', 'vehicleEnter', 'wingEnter', 'swarmStart']) events.on(ev, () => hud.dismissCard());
     events.on('swing', ({ kind, finisher }) => { prompts.done(kind === 'kick' ? 'kick' : 'punch'); if (finisher) prompts.done('finisher'); });
     events.on('step', ({ step }) => {
       if (step.id === 'toDocks') {

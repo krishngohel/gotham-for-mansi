@@ -141,8 +141,11 @@ export function createHud(root) {
   const wordSizeCache = new Map();
   window.addEventListener('resize', () => wordSizeCache.clear());
   // The objective card, a showing hint, the combo and chain icons and the health ring.
+  // The objective marker (src/ui/waypoint.js, outside this HUD) is on the list too: a word like
+  // SCREEECH! landing on it hid where to go.
   const uiBoxes = () => [captionEl.getBoundingClientRect(), hintEl.classList.contains('show') ? hintEl.getBoundingClientRect() : null,
-    combo.getBoundingClientRect(), chainsEl.getBoundingClientRect(), healthEl.getBoundingClientRect()];
+    combo.getBoundingClientRect(), chainsEl.getBoundingClientRect(), healthEl.getBoundingClientRect(),
+    document.querySelector('.waypoint')?.getBoundingClientRect() ?? null];
   const flashEl = el.querySelector('.hud-flash');
   const speedEl = el.querySelector('.hud-speed');
   let hintTimer = null;
@@ -150,7 +153,7 @@ export function createHud(root) {
   const bossEl = el.querySelector('.hud-boss');
   const bossFill = el.querySelector('.boss-fill');
   const speechEl = el.querySelector('.hud-speech');
-  let cardTimer = null;
+  let cardTimer = null, cardShownAt = 0;
 
   return {
     setHealth(f) { bar.setAttribute('stroke-dasharray', arcDash(f)); },
@@ -189,8 +192,17 @@ export function createHud(root) {
       cardEl.querySelector('.card-title').textContent = title;
       cardEl.querySelector('.card-text').textContent = text;
       cardEl.classList.add('show');
+      cardShownAt = performance.now();
       clearTimeout(cardTimer);
       cardTimer = setTimeout(() => cardEl.classList.remove('show'), ms);
+    },
+    // The action is starting (a fight, getting into a vehicle): a card that has had its moment
+    // (minMs on screen) comes down now instead of covering the view for the rest of its time.
+    dismissCard(minMs = 1500) {
+      if (!cardEl.classList.contains('show')) return;
+      const left = Math.max(0, minMs - (performance.now() - cardShownAt));
+      clearTimeout(cardTimer);
+      cardTimer = setTimeout(() => cardEl.classList.remove('show'), left);
     },
     get cardShowing() { return cardEl.classList.contains('show'); },
     setBalloons(n, total) { balloons.textContent = `${n}/${total}`; },
