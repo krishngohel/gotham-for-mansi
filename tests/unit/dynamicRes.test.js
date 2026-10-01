@@ -116,3 +116,34 @@ describe('capTo (the browser holding the page to a lower rate)', () => {
     expect(d.scale).toBe(1);
   });
 });
+
+describe('aiming for a steady refresh, not "mostly on time"', () => {
+  const hz60 = 1000 / 60;
+  // One second at 60 Hz where `late` of every 100 frames misses a refresh (arrives a frame late).
+  const second = (d, late) => { for (let i = 0; i < 100; i++) d.update(late && i % Math.round(100 / late) === 0 ? hz60 * 2 : hz60); };
+  it('steps down when one frame in twelve is late (about 55 fps), which it used to tolerate', () => {
+    const d = createDynamicRes({ missLimit: 0.03 });
+    for (let i = 0; i < 2; i++) second(d, 0); // learn the refresh, settle
+    for (let i = 0; i < 4; i++) second(d, 8);
+    expect(d.scale).toBeLessThan(1);
+    // The old 10% allowance sat at full scale through the same judder.
+    const old = createDynamicRes();
+    for (let i = 0; i < 2; i++) second(old, 0);
+    for (let i = 0; i < 4; i++) second(old, 8);
+    expect(old.scale).toBe(1);
+  });
+  it('ignores the odd late frame', () => {
+    const d = createDynamicRes({ missLimit: 0.03 });
+    for (let i = 0; i < 2; i++) second(d, 0);
+    for (let i = 0; i < 10; i++) second(d, 1);
+    expect(d.scale).toBe(1);
+  });
+  it('can start below full resolution and climbs to full when there is headroom', () => {
+    const changes = [];
+    const d = createDynamicRes({ start: 0.8, onChange: (s) => changes.push(s) });
+    expect(d.scale).toBeCloseTo(0.8);
+    for (let i = 0; i < 30; i++) second(d, 0);
+    expect(d.scale).toBe(1);
+    expect(changes.every((s, i) => i === 0 || s > changes[i - 1])).toBe(true);
+  });
+});

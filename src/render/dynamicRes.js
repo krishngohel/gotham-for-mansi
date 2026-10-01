@@ -31,9 +31,13 @@ export function sanitizeResScale(renderScale, dynResScale, floor = 0.5) {
   return Math.max(floor, renderScale * dynResScale);
 }
 
-export function createDynamicRes({ min = 0.6, max = 1, step = 0.05, onChange = () => {} } = {}) {
+// missLimit: the share of a second's frames allowed to miss the refresh before a step down. At
+// 60 Hz a 10% allowance tolerated about 54 fps of visible judder forever; a few percent aims at a
+// steady refresh while still ignoring the odd hitch. start: the scale to begin at (a high-DPI
+// screen starts a little low and climbs while there is headroom, instead of stuttering first).
+export function createDynamicRes({ min = 0.6, max = 1, step = 0.05, missLimit = 0.1, start = max, onChange = () => {} } = {}) {
   let enabled = true;
-  let scale = max;
+  let scale = Math.min(max, Math.max(min, start));
   let period = 1000 / 60;
   let refreshKnown = false;
   const early = [];
@@ -54,7 +58,7 @@ export function createDynamicRes({ min = 0.6, max = 1, step = 0.05, onChange = (
   function judge() {
     const missRatio = frames ? misses / frames : 0;
     sinceUp += 1;
-    if (missRatio > 0.1) {
+    if (missRatio > missLimit) {
       quiet = 0;
       if (sinceUp <= 2) {
         // The last step up went one step too far: back to the last good scale, and wait twice

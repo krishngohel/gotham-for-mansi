@@ -160,7 +160,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   let gpuHintBox = maybeShowGpuHint(document.body, gpu, storage);
   // Dynamic resolution rides on top of the Render scale setting (?dynres=0 turns it off, for
   // benchmarks run with vsync off, where there is no refresh budget to aim for).
-  const dynRes = createDynamicRes({ min: 0.6, onChange: () => applyResolution() });
+  // A Retina / high-DPI screen starts at 80% and climbs while frames stay on time.
+  const dynRes = createDynamicRes({ min: 0.6, missLimit: 0.03, start: window.devicePixelRatio >= 2 ? 0.8 : 1, onChange: () => applyResolution() });
   // The browser capping play at 30 fps (Low Power Mode / Energy Saver): told once, see frameCap.js.
   const frameCap = createFrameCapDetector();
   function applyResolution() {
