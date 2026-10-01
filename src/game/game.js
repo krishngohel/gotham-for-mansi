@@ -1,6 +1,7 @@
 // Game shell: boot, title screen, the frame loop and the wiring between systems.
 import '../gadgets/gadgetSave.js';
 import '../progress/wayneSave.js';
+import './vanChaseSave.js';
 import { upgradeEffects } from '../progress/upgrades.js';
 import { createWayneTech } from '../progress/wayneTech.js';
 import { gadgetById, gadgetNewsCard } from '../gadgets/gadgetDefs.js';

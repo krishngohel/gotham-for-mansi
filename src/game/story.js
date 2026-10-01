@@ -139,6 +139,29 @@ export const STEPS = [
   { id: 'toFactory', text: 'Get up onto the factory roof.', site: 'factoryRoof', radius: 18, checkpoint: 'aceYard' },
   { id: 'a2', type: 'fight', fight: 'factory', text: 'Clear the factory roof.' },
   {
+    id: 'aceVanRadio', type: 'radio', text: 'Alfred is on the radio.', checkpoint: 'factoryRoof', face: 'aceGate',
+    lines: [
+      g('alfred', "One of Harley's crew just peeled out of the yard with the fireworks case for tonight's finale."),
+      g('gordon', 'Cannot have midnight without the big finish. Get the Batmobile and run them down.'),
+    ],
+  },
+  {
+    // SITES.aceGate: the same real street just south of the compound the first Ace Chemicals
+    // board step used. The Batmobile slides back in and waits (src/vehicles/vehicles.js's park(),
+    // called from flow.js's 'board' handling); the step only ends once she walks up and gets in.
+    id: 'boardBatmobileAce2', type: 'board', text: 'The Batmobile screeches back up to the gate. Get in.', site: 'aceGate', checkpoint: 'factoryRoof',
+  },
+  {
+    // The real street outside the Ace Chemicals gate (z -90, clear of the compound's own merged
+    // super-block, the same line SITES.aceGate sits on), running east past Neon Row's edge. She is
+    // already driving by the time this starts (the board step above put her in the car herself),
+    // so the van simply appears on the street and comes to her.
+    id: 'aceVanChase', type: 'chase', text: "Run down Harley's van before it clears the block. Ram it 3 times.", site: 'aceHallDoor', checkpoint: 'factoryRoof',
+    path: [{ x: 95, z: -90 }, { x: 150, z: -90 }, { x: 195, z: -90 }, { x: 150, z: -90 }, { x: 95, z: -90 }],
+    lines: [g('alfred', 'There it goes, past the gate and east along the block. After it.')],
+  },
+  { id: 'toHarleyDoorAfterChase', text: "Get back to the loading dock. Harley's crew is waiting.", site: 'aceHallDoor', radius: 14, checkpoint: 'factoryRoof' },
+  {
     id: 'harleyRadio', type: 'radio', text: 'Someone is on the Joker\'s open channel.', checkpoint: 'factoryRoof',
     lines: [
       g('harley', "Aw, is it somebody's birthday? Puddin' never lets ME have a party."),
