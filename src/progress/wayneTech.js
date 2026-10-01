@@ -6,7 +6,7 @@ import { XP, comboXp, chainXp, medalXp, levelOf, pointsFree, toNext, levelsCross
 import { TREES, UPGRADE_IDS, upgradeEffects, canBuy, upgradeStatus, regenStep } from './upgrades.js';
 
 // Events that pay a flat XP amount (the XP table key is the event name).
-const FLAT = ['ko', 'takedown', 'special', 'fightDone', 'objectiveDone', 'balloon', 'crimeStopped', 'glassBroken', 'wallBroken', 'crateOpened', 'missionDone'];
+const FLAT = ['ko', 'takedown', 'special', 'fightDone', 'objectiveDone', 'balloon', 'crimeStopped', 'glassBroken', 'wallBroken', 'crateOpened', 'missionDone', 'vanChaseStopped'];
 
 export function createWayneTech({ events, progress, save, hero, combat, hud, effects, baseHealth, dev = false }) {
   // A dev run (?gadgets=all) still earns XP, levels and purchases for the session so testing

@@ -13,6 +13,8 @@ import { attachArena } from './arenaChallenge.js';
 import { attachVehicleChallenges } from './vehicleChallenges.js';
 import { CRIME_SPOTS, isCrimeId, crimeBlocked } from './crimes.js';
 import { createCrimeDirector } from './crimeDirector.js';
+import { vanChaseBlocked } from './sideVanChase.js';
+import { createVanChaseDirector } from './vanChaseDirector.js';
 import { BALLOONS } from '../config/balloonSpots.js';
 import { mapModel } from './mapModel.js';
 
@@ -48,6 +50,9 @@ export function createSideContent(deps) {
     blocked: () => crimeBlocked({ mode: flow.mode, stepType: stepType(), challenge: challenges.active, fightId: encounters.id }),
     avoid: () => flow.target,
   });
+  const vanChase = createVanChaseDirector({ vehicles, events, ui, progress, save, rng });
+  const vanChaseVehicleBusy = () => !!(vehicles.chase?.active || vehicles.battle?.active || vehicles.sideChase?.active);
+  const vanChaseMarker = () => { const c = vehicles.sideChase; return c?.active ? c.van.group.position : null; };
   const MARKER_RANGE = 60;
   const tmp = new THREE.Vector3();
   let pillarHint = false;
@@ -70,7 +75,7 @@ export function createSideContent(deps) {
     save();
     dirty = true;
   });
-  for (const ev of ['balloon', 'objectiveDone', 'challengeDone', 'crimeStopped']) events.on(ev, () => { dirty = true; });
+  for (const ev of ['balloon', 'objectiveDone', 'challengeDone', 'crimeStopped', 'vanChaseStopped']) events.on(ev, () => { dirty = true; });
 
   // Captions at 25, 50, 75 and 100%. progress.milestone remembers the highest one shown, so a
   // new post-game category that lowers the percentage never replays them.
@@ -113,19 +118,24 @@ export function createSideContent(deps) {
       if (districtT <= 0) { districtT = 0.5; visitDistrict(); }
       challenges.update(dt); markers(view.toScreen);
       crimes.update(dt, hero.pos, progress.districts);
+      vanChase.update(dt, hero.pos, () => vanChaseBlocked({ mode: flow.mode, stepType: stepType(), vehicleBusy: vanChaseVehicleBusy(), challenge: challenges.active }));
       if (dirty) checkMilestones();
       saveT += real;
       if (saveT > 20) { saveT = 0; save(); }
     },
     challenges,
     crimes,
+    vanChase,
     data: { CHALLENGES, CRIME_SPOTS, pillarPos },
     flowHooks: {
       holdStory: () => challenges.active || crimes.holdStory(),
-      marker: () => (challenges.active ? challenges.nextMarker() : crimes.marker()),
+      marker: () => (challenges.active ? challenges.nextMarker() : crimes.marker() ?? vanChaseMarker()),
       onRespawn: (opts) => { crimes.onRespawn(opts); return challenges.takeRespawn(); },
     },
-    pauseInfo: () => ({ challenge: challenges.current?.name ?? null, crimesStopped: progress.crimes.stopped, percent: tracker.score(progress).percent }),
+    pauseInfo: () => ({
+      challenge: challenges.current?.name ?? null, crimesStopped: progress.crimes.stopped,
+      vanChasesStopped: progress.vanChases.stopped, percent: tracker.score(progress).percent,
+    }),
     photoTaken() { stats.photo(); save(); },
     challengesPage: () => ({
       list: CHALLENGES.map((ch) => {

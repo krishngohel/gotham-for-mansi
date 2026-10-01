@@ -17,8 +17,39 @@ import { createBatmobile, createStreetCar, createJokerVan, createDroneTank, crea
 // wide streets): known-safe points to spawn a stationary car on. Duplicated here on purpose: the
 // city's own rng (ctx.rng in cityBuilder) must never be redrawn from, so street cars use their
 // own seeded rng instead (see the module rule below).
-const LINES = [-210, -150, -90, -30, 30, 90, 150, 210];
+export const LINES = [-210, -150, -90, -30, 30, 90, 150, 210];
 const CAR_COLORS = [0x6d2f2f, 0x2f3f5a, 0x39473a, 0x5a5146, 0x1e2026, 0x7a6a44];
+
+// ---------------- free-roam side van chase: route picking (pure) ----------------
+// Picks a short there-and-back route along whichever real street line (see LINES above) is
+// nearest `near`, a few hundred metres off in a random direction, and confirms every point on it
+// is real, walkable-for-a-van ground (never inside a merged compound or off the world). Pure given
+// an injected rng (createRng's shape: .chance/.range) and groundOk(x, z) predicate, so it's
+// testable without a live scene or collision world. Exported for src/game/sideVanChase.js's tests.
+export const SIDE_VAN_MIN = 110, SIDE_VAN_MAX = 320; // metres from `near`
+export function pickSideVanRoute(near, rng, groundOk, bounds = WORLD, tries = 4) {
+  let axisIsX = true, line = LINES[0], bestD = Infinity;
+  for (const L of LINES) {
+    const dx = Math.abs(near.x - L);
+    if (dx < bestD) { bestD = dx; line = L; axisIsX = true; }
+    const dz = Math.abs(near.z - L);
+    if (dz < bestD) { bestD = dz; line = L; axisIsX = false; }
+  }
+  const span = SIDE_VAN_MAX - SIDE_VAN_MIN;
+  for (let t = 0; t < tries; t++) {
+    const dir = rng.chance(0.5) ? 1 : -1;
+    const base = axisIsX ? near.z : near.x;
+    const nearT = base + dir * (SIDE_VAN_MIN + rng.range(0, span * 0.5));
+    const farT = base + dir * (SIDE_VAN_MIN + span * 0.5 + rng.range(0, span * 0.5));
+    const lo = axisIsX ? bounds.minZ + 12 : bounds.minX + 12;
+    const hi = axisIsX ? bounds.waterZ - 12 : bounds.maxX - 12;
+    const clampT = (v) => Math.max(lo, Math.min(hi, v));
+    const mk = (v) => (axisIsX ? { x: line, z: clampT(v) } : { x: clampT(v), z: line });
+    const path = [mk(nearT), mk(farT), mk(nearT)];
+    if (path.every((p) => groundOk(p.x, p.z))) return { path, spot: path[0] };
+  }
+  return null;
+}
 
 const BATMOBILE_TUNING = mergeTuning({});
 const STREET_CAR_TUNING = mergeTuning({
@@ -497,9 +528,10 @@ export function createVehicles(deps) {
     }
   }
 
-  // One potential ram target: no allocation, so the two call sites below can run every frame
-  // without building a temporary list.
-  function tryRamOther(inst, other, dt) {
+  // One potential ram target: no allocation, so the call sites below can run every frame without
+  // building a temporary list. `tracked` (the story chase, or the free-roam side chase below) is
+  // whichever of the two `other` belongs to, or null for an ordinary street car.
+  function tryRamOther(inst, other, dt, tracked = null) {
     if (!other || other === inst || other.driven) return;
     other.ramCd = Math.max(0, (other.ramCd ?? 0) - dt);
     const pos = inst.group.position;
@@ -507,12 +539,11 @@ export function createVehicles(deps) {
     const d = Math.hypot(dx, dz);
     if (d < inst.radius + other.radius + 0.3 && other.ramCd <= 0) {
       events.emit('vehicleImpact', { speed: Math.abs(inst.v.speed) });
-      const isChaseVan = chase?.active && other === chase.van;
       // A parked or borrowed car spins off however it was hit: fun, arcade, doesn't matter where
-      // it ends up. The chase van keeps its own path-following yaw instead: a full contact-normal
-      // spin can knock it sideways off a narrow street and out of updateChase's own steering
+      // it ends up. A tracked chase van keeps its own path-following yaw instead: a full
+      // contact-normal spin can knock it sideways off a narrow street and out of its own steering
       // range, turning one lucky ram into an unwinnable (or just tedious) game of catch-up.
-      if (!isChaseVan) {
+      if (!tracked) {
         const nx = d > 1e-4 ? dx / d : 1, nz = d > 1e-4 ? dz / d : 0;
         other.v.yaw = Math.atan2(nx, nz);
       }
@@ -522,18 +553,24 @@ export function createVehicles(deps) {
       // A shove off its lane, not a takeover: moving traffic rides the knock out (see
       // updateTrafficCar) and rejoins its lane afterward, same as real comic-book traffic.
       if (other.traffic) other.knockT = 1.2;
-      if (isChaseVan && chase.ramCounter.ram()) {
+      if (tracked && tracked.ramCounter.ram()) {
         fx?.impact(other.group.position.clone(), 1.1);
         events.emit('word', { text: 'KRUNCH!', pos: other.group.position.clone().setY(other.group.position.y + 1.2), big: true });
-        meter.set(`CHASE  ${chase.ramCounter.hits}/${chase.hitsNeeded}`);
-        if (chase.ramCounter.done) endChase(true);
+        if (tracked === chase) {
+          meter.set(`CHASE  ${chase.ramCounter.hits}/${chase.hitsNeeded}`);
+          if (chase.ramCounter.done) endChase(true);
+        } else {
+          events.emit('sideChaseHit', { hits: tracked.ramCounter.hits, hitsNeeded: tracked.hitsNeeded });
+          if (tracked.ramCounter.done) endSideChase(true);
+        }
       }
     }
   }
   function ramVehicles(inst, dt) {
     if (Math.abs(inst.v.speed) < RAM_MIN_SPEED) return;
     for (const other of streetCars) tryRamOther(inst, other, dt);
-    if (chase?.active) tryRamOther(inst, chase.van, dt);
+    if (chase?.active) tryRamOther(inst, chase.van, dt, chase);
+    if (sideVan?.active) tryRamOther(inst, sideVan.van, dt, sideVan);
   }
 
   // ---------------- the Joker chase ----------------
@@ -579,15 +616,15 @@ export function createVehicles(deps) {
     chase.active = false;
     chase = null;
   }
-  function updateChase(dt) {
-    if (!chase?.active) return;
-    chase.t += dt;
-    if (chase.t > 90) { endChase(false); return; } // a safety timeout so a missed chase can't hang the story
-    const van = chase.van, path = chase.path;
-    const target = path[chase.idx];
+  // Shared by the story chase and the free-roam side chase below: steers `c.van` toward
+  // `c.path[c.idx]`, advances to the next point within 3 m of it (wrapping, so a short there-and-
+  // back route just loops), and snaps it to the ground. Pure movement; `c` is mutated in place.
+  function advanceOnPath(c, dt) {
+    const van = c.van, path = c.path;
+    const target = path[c.idx];
     const dx = target.x - van.group.position.x, dz = target.z - van.group.position.z;
     const d = Math.hypot(dx, dz);
-    if (d < 3) chase.idx = (chase.idx + 1) % path.length;
+    if (d < 3) c.idx = (c.idx + 1) % path.length;
     else {
       const wantYaw = Math.atan2(dx, dz);
       const delta = Math.atan2(Math.sin(wantYaw - van.v.yaw), Math.cos(wantYaw - van.v.yaw));
@@ -600,8 +637,66 @@ export function createVehicles(deps) {
     if (groundY > -Infinity) van.group.position.y = groundY;
     van.group.rotation.y = van.v.yaw;
     if (van.beacon) van.beacon.rotation.y += dt * 6;
+  }
+  function updateChase(dt) {
+    if (!chase?.active) return;
+    chase.t += dt;
+    if (chase.t > 90) { endChase(false); return; } // a safety timeout so a missed chase can't hang the story
+    advanceOnPath(chase, dt);
     chase.ramCounter.update(dt);
   }
+
+  // ---------------- free-roam side van chase (optional, repeatable, never during a story mission)
+  // A lighter-weight sibling of the story chase above: the same "ram it 3 times" rule and the same
+  // van, but she finds it herself out in the city, nothing forces her into the Batmobile, and
+  // ignoring it just lets it drive off (it despawns after `expiry` seconds). src/game/sideVanChase.js
+  // decides *when* to try (pure timing); trySpawnSideChase below decides *where* (a real nearby
+  // street, via pickSideVanRoute above) and does the actual spawning. Only one at a time.
+  const SIDE_CHASE_EXPIRY = 65; // seconds: "drives off and despawns after a while"
+  let sideVan = null;
+  function startSideChase({ spot, path, hitsNeeded = 3, expiry = SIDE_CHASE_EXPIRY } = {}) {
+    if (sideVan?.active || !Array.isArray(path) || path.length < 2) return false;
+    const van = createJokerVan();
+    van.kind = 'sideVan';
+    van.radius = 1.9;
+    const startYaw = Math.atan2(path[1].x - path[0].x, path[1].z - path[0].z);
+    van.v = { speed: JOKER_TUNING.maxSpeed * 0.6, yaw: startYaw, drift: 0 };
+    van.tuning = JOKER_TUNING;
+    const groundY0 = collision.groundBelow(path[0].x, (spot?.y ?? 3) + 3, path[0].z, 0.3);
+    van.group.position.set(path[0].x, groundY0 > -Infinity ? groundY0 : 0, path[0].z);
+    van.group.rotation.y = startYaw;
+    scene.add(van.group);
+    sideVan = { van, path, idx: 1, active: true, ramCounter: createRamCounter(hitsNeeded, 0.6), hitsNeeded, t: 0, expiry };
+    events.emit('sideChaseStart', { x: path[0].x, z: path[0].z });
+    return true;
+  }
+  // `silent`: true for a cancellation (a story mission needs the Batmobile, say) that shouldn't
+  // read as a result at all, false for a real outcome (won, or drove off unchallenged).
+  function endSideChase(ok, { silent = false } = {}) {
+    if (!sideVan) return;
+    scene.remove(sideVan.van.group);
+    sideVan.active = false;
+    sideVan = null;
+    if (!silent) events.emit('sideChaseDone', { ok });
+  }
+  function updateSideChase(dt) {
+    if (!sideVan?.active) return;
+    sideVan.t += dt;
+    if (sideVan.t > sideVan.expiry) { endSideChase(false); return; }
+    advanceOnPath(sideVan, dt);
+    sideVan.ramCounter.update(dt);
+  }
+  // Tries to spawn a side chase on a real street a few hundred metres from `near` (own rng, own
+  // street-picking: never touches the city's build-time rng). False (nothing spawned, caller
+  // retries soon) when one's already running or no clear nearby street was found in a few tries.
+  function trySpawnSideChase(near, opts = {}) {
+    if (sideVan?.active) return false;
+    const groundOk = (x, z) => collision.groundBelow(x, (near.y ?? 0) + 4, z, 0.3) > -Infinity;
+    const route = pickSideVanRoute(near, rng, groundOk);
+    if (!route) return false;
+    return startSideChase({ spot: route.spot, path: route.path, ...opts });
+  }
+  function cancelSideChase() { if (sideVan?.active) endSideChase(false, { silent: true }); }
 
   // ---------------- the Ace Chemicals battle ----------------
   const SHELL_DAMAGE = 16;    // armour hp lost per shell that connects: about 7 hits to destroy
@@ -869,6 +964,7 @@ export function createVehicles(deps) {
       else integrateVehicle(v, NEUTRAL_INPUT, dt);
     }
     updateChase(dt);
+    updateSideChase(dt);
     updateBattle(dt);
     updateFleeingFigures(dt);
   }
@@ -879,6 +975,7 @@ export function createVehicles(deps) {
   function debugWin() {
     if (chase?.active) { endChase(true); return true; }
     if (battle?.active) { endBattle(true); return true; }
+    if (sideVan?.active) { endSideChase(true); return true; }
     return false;
   }
 
@@ -887,6 +984,10 @@ export function createVehicles(deps) {
     get active() { return active; },
     update,
     startChase, startBattle, debugWin,
+    // Free-roam side content (src/game/sideVanChase.js decides *when*; this decides *where* and
+    // does the spawning/ramming/despawning, same rules as the story chase above).
+    trySpawnSideChase, cancelSideChase,
+    get sideChase() { return sideVan; },
     // Dev/story helpers, not part of the frozen contract above.
     get batmobile() { return bm; },
     get streetCars() { return streetCars; },

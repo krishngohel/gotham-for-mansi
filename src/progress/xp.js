@@ -7,6 +7,7 @@ export const XP = {
   ko: 10, takedown: 40, special: 25, counter: 5, fightDone: 100, objectiveDone: 25,
   balloon: 150, crimeStopped: 200, glassBroken: 50, wallBroken: 50,
   chainPerGoon: 50, swarmPerGoon: 60, crateOpened: 200, missionDone: 500,
+  vanChaseStopped: 200, // a free-roam side chase won: the same payout as a street crime stopped
 };
 // A medal's worth; a better medal pays the difference.
 export const MEDAL_XP = { bronze: 150, silver: 300, gold: 500 };
