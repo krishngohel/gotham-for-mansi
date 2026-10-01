@@ -160,7 +160,6 @@ export const STEPS = [
     path: [{ x: 95, z: -90 }, { x: 150, z: -90 }, { x: 195, z: -90 }, { x: 150, z: -90 }, { x: 95, z: -90 }],
     lines: [g('alfred', 'There it goes, past the gate and east along the block. After it.')],
   },
-  { id: 'toHarleyDoorAfterChase', text: "Get back to the loading dock. Harley's crew is waiting.", site: 'aceHallDoor', radius: 14, checkpoint: 'factoryRoof' },
   {
     id: 'harleyRadio', type: 'radio', text: 'Someone is on the Joker\'s open channel.', checkpoint: 'factoryRoof',
     lines: [
