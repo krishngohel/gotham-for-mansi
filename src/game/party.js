@@ -269,6 +269,11 @@ export function createParty({ scene, assets, events, gfx, finale }) {
       decorate();
       const slots = guestSlots(id);
       const made = build(slots.length > 1 ? slots : slots[0]);
+      // The guests' ink outline shells come off: a dozen skinned characters, each drawn twice,
+      // made the finale the slowest scene in the game (about 7 ms of GPU time on an RTX 4060;
+      // draw-bound, so fewer triangles did not help). The ink pass still draws their edges, and
+      // side by side they look the same. Only skinned shells: the props keep theirs.
+      group.traverse((o) => { if (o.isSkinnedMesh && o.material?.userData?.outline) o.visible = false; });
       guests.push({ id, made });
       events?.emit?.('partyGuest', { id });
       return true;
