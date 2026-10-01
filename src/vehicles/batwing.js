@@ -250,9 +250,11 @@ export function createBatwing({ scene, camera, hero, follow, collision, events, 
       if (mode === 'flyoff') updateFlyoff(dt);
     },
     // startArmada({ balloons, onDone }): balloons is the count to spawn (the story contract).
-    startArmada({ balloons = 12, onDone } = {}) {
+    // region (optional): a fixed { cx, cy, cz, rx, ry, rz } box for the balloons, such as the
+    // story's field over the clock plaza; without one they spawn 70 m ahead of the plane.
+    startArmada({ balloons = 12, onDone, region: fixed = null } = {}) {
       mesh.getWorldDirection(fwd);
-      const region = {
+      const region = fixed ? { ...fixed } : {
         cx: mesh.position.x + fwd.x * 70,
         cy: Math.min(WING_TUNING.ceiling - 25, Math.max(30, mesh.position.y)),
         cz: mesh.position.z + fwd.z * 70,

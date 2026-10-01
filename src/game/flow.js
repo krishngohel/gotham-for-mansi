@@ -86,7 +86,13 @@ export function createFlow(d) {
       case 'armada':
         if (!G.batwing?.startArmada) return false;
         G.batwing.call?.();
-        G.batwing.startArmada({ balloons: step.balloons ?? 12, onDone: (r) => done(r?.ok !== false) });
+        // The balloons fill a fixed box around the step's site (where the text says they are and
+        // the marker points), when the step gives one; otherwise ahead of the plane.
+        {
+          const c = step.field && SITES[step.site];
+          const region = c ? { cx: c.x, cy: c.y, cz: c.z, ...step.field } : null;
+          G.batwing.startArmada({ balloons: step.balloons ?? 12, region, onDone: (r) => done(r?.ok !== false) });
+        }
         return true;
       case 'crasher': {
         if (!G.nightwing?.spawn || !G.nightwing?.crasherFlee) return false;

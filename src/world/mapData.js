@@ -149,7 +149,12 @@ export const SITES = {
   vatDeck: { x: 180, y: 10, z: -118 },
   cake: { x: 184, y: 10, z: -112 },
   arena: { x: -62, y: 58, z: -154 },
-  balcony: { x: -62, y: 68, z: -176 },
+  // The Joker's balcony is on the tower's arena (south) face. It used to say z -176, which is
+  // inside the tower itself (the tower spans z -180 to -166).
+  balcony: { x: -62, y: 68, z: -163.5 },
+  // The middle of the balloon field for the Batwing run: over the clock plaza, above the
+  // cathedral spires (64 m) and clear of the clock tower (src/vehicles/batwing.js startArmada).
+  balloonField: { x: -90, y: 82, z: -120 },
   // The clock plaza's own ground: open sidewalk south of the tower, clear of the fountain,
   // statues, lamp posts and buttress pillars (verified against real collision: every spawn and
   // the respawn point sit on solid ground with a clear ring out to the fight's own radius).
