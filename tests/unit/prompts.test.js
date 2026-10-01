@@ -276,3 +276,39 @@ describe('the chain copy carries the stealth clause', () => {
     }
   });
 });
+
+describe('createPromptQueue: cards arrive while they still apply', () => {
+  const makeHud = () => { const calls = []; return { hint: (text) => calls.push(text), hideHint: () => calls.push('hide'), calls }; };
+  const text = (id) => promptText(id, DEFAULT_BINDINGS);
+  it("puts a new step's tips in front of older cards", () => {
+    const hud = makeHud();
+    const q = createPromptQueue(hud, () => DEFAULT_BINDINGS, () => true);
+    q.show(['glide', 'dive']);
+    q.update(0.1);                   // glide goes up
+    q.newStep();
+    q.show(['punch'], { first: true });
+    q.update(7);                     // glide's time is up: punch next, not dive
+    expect(hud.calls.at(-1)).toBe(text('punch'));
+  });
+  it('drops cards queued two steps ago instead of showing them out of context', () => {
+    const hud = makeHud();
+    const free = createPromptQueue(hud, () => DEFAULT_BINDINGS, () => true);
+    free.show(['grappleBoost']); free.newStep(); free.newStep(); free.update(0.1);
+    expect(hud.calls).not.toContain(text('grappleBoost'));
+  });
+  it('holds on-foot tips while she drives, shows the driving card, and drops it once she is out', () => {
+    const hud = makeHud();
+    let driving = true;
+    const relevance = (id) => (id === 'drive' ? (driving ? true : 'drop') : driving ? 'wait' : true);
+    const q = createPromptQueue(hud, () => DEFAULT_BINDINGS, () => true, () => false, () => null, relevance);
+    q.show(['punch']);
+    q.show(['drive'], { first: true });
+    q.update(0.1);
+    expect(hud.calls.at(-1)).toBe(text('drive'));
+    driving = false;
+    q.update(0.1);                   // out of the car: the driving card comes straight down
+    expect(hud.calls).toContain('hide');
+    q.update(0.1);
+    expect(hud.calls.at(-1)).toBe(text('punch'));
+  });
+});

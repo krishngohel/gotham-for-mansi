@@ -130,11 +130,36 @@ export function createFlow(d) {
       const C = theGame()?.cinematic;
       if (!C) { resolve(); return; }
       const opts = { lines: spec.lines ?? [], onDone: resolve };
+      const shots = spec.reveal === 'nightwing' ? revealShots() : spec.shots;
       const started = spec.orbit
         ? C.orbit(spec.orbit.center, spec.orbit.radius, spec.orbit.height, spec.orbit.dur, { ...(spec.orbit.opts ?? {}), ...opts })
-        : C.play(spec.shots, opts);
+        : shots ? C.play(shots, opts) : false;
       if (!started) resolve();
     });
+  }
+
+  // The reveal: Nightwing steps out in front of her, unmasked, on ground at her own height (tried
+  // ahead, then to either side, then behind, so never off the edge of a deck), and the camera
+  // frames the pair over her right shoulder, with the follow camera already behind her, so the
+  // hand-back never sweeps through her. Returns the shots, or null if he can't appear.
+  function revealShots() {
+    const G = theGame();
+    if (!G?.nightwing?.spawn) return null;
+    const h = hero.pos;
+    let spot = null, yaw = hero.bat.yaw;
+    for (const turn of [0, Math.PI / 2, -Math.PI / 2, Math.PI]) {
+      const a = hero.bat.yaw + turn;
+      const x = h.x + Math.sin(a) * 4.5, z = h.z + Math.cos(a) * 4.5;
+      const gy = collision.groundBelow(x, h.y + 1.5, z, 0.3);
+      if (gy > -Infinity && Math.abs(gy - h.y) < 0.6) { spot = { x, y: gy, z }; yaw = a; break; }
+    }
+    if (!spot) return null;
+    hero.bat.face(yaw);
+    d.follow?.snapBehind(yaw, 0.22);
+    G.nightwing.spawn(spot, 'pose');
+    const fx = Math.sin(yaw), fz = Math.cos(yaw), rx = -fz, rz = fx;
+    const at = (back, side, up) => ({ x: h.x - fx * back + rx * side, y: h.y + up, z: h.z - fz * back + rz * side });
+    return [{ from: at(2.6, 1.7, 2.1), to: at(1.5, 1.2, 1.8), look: { x: spot.x, y: spot.y + 1.45, z: spot.z }, dur: 5 }];
   }
 
   // Plays a step's radio lines (if any), then either lets the real part run or, when it (or the
@@ -144,7 +169,13 @@ export function createFlow(d) {
     const done = (ok = true) => finishAsync(step, ok);
     const afterCinematic = () => {
       const proceed = () => {
-        if (step.type === 'radio') { done(true); return; }
+        if (step.type === 'radio') {
+          // He walks off with the reveal: Act 3's title card covers it, and the plaza beat spawns him
+          // again as an ally where he is needed.
+          if (step.cinematic?.reveal === 'nightwing') theGame()?.nightwing?.despawn?.();
+          done(true);
+          return;
+        }
         if (tryReal(step, done)) return;
         setTimeout(() => done(true), DEGRADE_MS);
       };
@@ -183,8 +214,19 @@ export function createFlow(d) {
     fightStarted = false;
     waypoint.update(null);
     beacon.set(target);
+    // A step's own tips go to the front, and anything queued two steps ago is dropped: a tip
+    // should arrive while it still applies (see createPromptQueue).
+    // face: turn her (and the camera behind her) toward a site as the step begins, e.g. away
+    // from the Batsignal lamp she walked up to and toward the Docks she is about to head for.
+    if (s.face && SITES[s.face]) {
+      const p = SITES[s.face];
+      const yaw = Math.atan2(p.x - hero.pos.x, p.z - hero.pos.z);
+      hero.bat.face(yaw);
+      d.follow?.snapBehind(yaw, 0.22);
+    }
+    prompts.newStep?.();
     const tips = tutorialFor(s, progress.moves);
-    if (tips) prompts.show(tips);
+    if (tips) prompts.show(tips, { first: true });
     events.emit('step', { step: s, index: objectives.index });
     if (s.type === 'fight') encounters.begin(s.fight);
     if (s.type === 'cutscene' && s.scene === 'finale') {

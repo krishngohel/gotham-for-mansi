@@ -33,7 +33,9 @@ const CINEMATIC = {
   actTwo: { orbit: { center: { x: 140, y: 20, z: -150 }, radius: 58, height: 28, dur: 6 }, lines: [c('gordon', 'Ace Chemicals. Whatever he is cooking up in there, it will not be subtle.')] },
   actThree: { orbit: { center: { x: -95, y: 24, z: -155 }, radius: 68, height: 32, dur: 6 }, lines: [c('gordon', 'The clock plaza. Midnight is close, and so is he.')] },
   // The Crasher's mask comes off: a push toward Nightwing by the Ace Chemicals gate.
-  crasherReveal: { shots: [{ from: { x: 194, y: 15, z: -102 }, to: { x: 183, y: 11, z: -113 }, look: { x: 184, y: 10.5, z: -112 }, dur: 5 }], lines: [c('nightwing', 'Surprise. Sort of.')] },
+  // Built around wherever she stands when the step begins (flow.js revealShots): Nightwing appears
+  // in front of her, unmasked, framed over her shoulder.
+  crasherReveal: { reveal: 'nightwing', lines: [c('nightwing', 'Surprise. Sort of.')] },
   // The finale: a push over the GCPD roof party before the fireworks take it from here.
   finale: { shots: [{ from: { x: -6, y: 50, z: 26 }, to: { x: 6, y: 43.5, z: 12 }, look: { x: 6, y: 42, z: 6 }, dur: 5 }], lines: [c('gordon', 'Happy birthday, Mansi. Gotham owes you one.')] },
 };
@@ -44,7 +46,8 @@ export const STEPS = [
   { id: 'signal', text: 'Something is stuck to the Batsignal. Go and look.', site: 'signal', radius: 4.5, tutorial: ['move', 'look'], checkpoint: 'start' },
   { id: 'card', type: 'cutscene', scene: 'card' },
   {
-    id: 'gordonRadio', type: 'radio', text: 'Gordon is on the radio.', checkpoint: 'signal',
+    // face: after the card, turn from the lamp to the city and the Docks (where the Crasher runs).
+    id: 'gordonRadio', type: 'radio', text: 'Gordon is on the radio.', checkpoint: 'signal', face: 'wh3Roof',
     lines: [
       g('gordon', 'Gordon here. Sorry to spoil the surprise, but the surprise is already spoiled.'),
       g('gordon', 'We had a whole night planned for Mansi. Gifts, the band, a cake the size of a squad car.'),
@@ -123,7 +126,7 @@ export const STEPS = [
     // SITES.aceGate: the real street just south of the Ace Chemicals compound, where the
     // Batmobile parks and waits (the compound itself is a merged super-block with no streets
     // inside). Ends the moment she gets in, same as boardBatmobile in Act 1.
-    id: 'boardBatmobileAce', type: 'board', text: 'The Batmobile is waiting by the gate. Get in.', site: 'aceGate', tutorial: ['vehicle'], checkpoint: 'aceGate',
+    id: 'boardBatmobileAce', type: 'board', text: 'The Batmobile is waiting by the gate. Get in.', site: 'aceGateCar', tutorial: ['vehicle'], checkpoint: 'aceGate',
   },
   {
     // She drives herself in from the gate; startBattle no longer has to place her (she is already
@@ -135,7 +138,6 @@ export const STEPS = [
   { id: 'a1', type: 'fight', fight: 'aceYard', text: 'A brute. Stun it with your cape, then pile on.', tutorial: ['brute'] },
   { id: 'toFactory', text: 'Get up onto the factory roof.', site: 'factoryRoof', radius: 18, checkpoint: 'aceYard' },
   { id: 'a2', type: 'fight', fight: 'factory', text: 'Clear the factory roof.' },
-  { id: 'toVat', text: 'The cake is on the deck over the vats.', site: 'vatDeck', radius: 11, checkpoint: 'factoryRoof' },
   {
     id: 'harleyRadio', type: 'radio', text: 'Someone is on the Joker\'s open channel.', checkpoint: 'factoryRoof',
     lines: [
@@ -148,12 +150,14 @@ export const STEPS = [
     lines: [g('alfred', 'The loading dock is open. That is either careless or a trap. Mind the difference.')],
   },
   { id: 'harleyFight', type: 'fight', fight: HARLEY_FIGHT, text: "Fight through Harley's crew." },
+  // Harley's crew first (the hall), then out to the vat deck for the cake: Act 2 runs one way.
+  { id: 'toVat', text: 'The cake is on the deck over the vats. Get out there.', site: 'vatDeck', radius: 11, checkpoint: 'aceHallDoor' },
   { id: 'a3', type: 'fight', fight: 'vats', text: 'Protect the cake, no matter what she throws at you!' },
   { id: 'aceCatwalks', type: 'fight', fight: 'aceCatwalks', text: 'Rifle goons on the vat hall catwalks have the cake in their sights. Take them out quietly.', tutorial: ['distract', 'vent', 'ledgeStealth'], checkpoint: 'aceCatwalksEntry' },
   { id: 'cake', type: 'collect', item: 'cake', site: 'cake', radius: 3, text: "Save the baker's cake.", checkpoint: 'vatDeck' },
   { id: 'rewardCake', type: 'cutscene', scene: 'cake' },
   {
-    id: 'crasherReveal', type: 'radio', text: 'The masked man is waiting by the gate, mask in hand.', checkpoint: 'cake', cinematic: CINEMATIC.crasherReveal,
+    id: 'crasherReveal', type: 'radio', text: 'The masked man has caught up with you, mask in hand.', checkpoint: 'cake', cinematic: CINEMATIC.crasherReveal,
     lines: [
       g('crasher', 'Before you swing at me again, you should probably see who you have been chasing.'),
       g('nightwing', "Nightwing. Surprise. Well, it WAS supposed to be a surprise, before I kept grabbing your gifts on camera."),

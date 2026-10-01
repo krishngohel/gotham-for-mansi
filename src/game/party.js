@@ -307,6 +307,9 @@ export function createParty({ scene, assets, events, gfx, finale }) {
         for (const c of group.children) if (!c.userData.keepFar) c.visible = near;
       }
       if (!near) return;
+      // Nobody else advances these guests' animations (they are not fighters): without this they
+      // stand in the rig's bind pose, arms out, through the whole finale.
+      for (const ch of dancers) ch?.animator?.update?.(dt);
       const now = performance.now() / 1000;
       for (const p of pulsers) p.mesh.material.color.copy(p.base).multiplyScalar(0.6 + Math.sin(now * p.k) * 0.4);
       if (djKit) djKit.userData.ball.rotation.y += dt * 1.2;

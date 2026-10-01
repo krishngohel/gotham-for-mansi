@@ -250,6 +250,13 @@ export function createNightwing({ assets, scene, collision, events, combat, hero
       if (!ch) return;
       if (mode === 'ally') updateAlly(dt);
       else if (mode === 'crasher') updateCrasher(dt);
+      else if (mode === 'pose') {
+        // 'pose' (a story moment, the reveal): stays exactly where he was put, unmasked, idling and
+        // turning to keep facing Batman. No following, no fighting.
+        faceTowards(hero.pos.x - pos.x, hero.pos.z - pos.z, 6, dt);
+        ch.animator.play(IDLE, { fade: 0.25 });
+        ch.animator.update(dt);
+      }
     },
   };
   return api;
