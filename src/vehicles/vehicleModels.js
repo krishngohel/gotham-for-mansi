@@ -291,13 +291,15 @@ function mergeStaticParts(group) {
 export function createStreetCar(color = 0x2f3f5a, kind = 'sedan') {
   const group = new THREE.Group();
   const paint = toonMaterial({ color });
-  const glass = new THREE.MeshBasicMaterial({ color: 0x1c2433 });
+  // Night glass: a cool sky blue, light enough to read against any paint.
+  const glass = new THREE.MeshBasicMaterial({ color: 0x5b7a9c });
+  const trimMat = toonMaterial({ color: 0x1a1b20 });
   const dark = toonMaterial({ color: 0x101114 });
   const hubMat = toonMaterial({ color: 0x45484e });
   const capMat = toonMaterial({ color: 0x6a6e76 });
   const headMat = glowMaterial(0xf4f6ff, 1, false);
   const tailMat = glowMaterial(0xc41c2c, 1, false);
-  const archMat = toonMaterial({ color: 0x0e0f12 });
+  const archMat = toonMaterial({ color: 0x0e0f12, side: THREE.DoubleSide });
 
   const isVan = kind === 'van';
   // Side profile: x = length (nose at +x), y = height. A van keeps a boxier cabin; a sedan has a
@@ -311,30 +313,67 @@ export function createStreetCar(color = 0x2f3f5a, kind = 'sedan') {
   addHullOutline(body, 0.024);
   group.add(body);
 
-  // Glass: a windscreen, a rear screen, and a thin side-window band on each flank.
-  const wsAngle = isVan ? -0.35 : -0.55;
-  const windshield = new THREE.Mesh(new THREE.BoxGeometry(width - 0.14, isVan ? 1.1 : 0.5, 0.04), glass);
-  windshield.position.set(0, isVan ? 1.0 : 1.15, isVan ? 1.3 : 1.05);
-  windshield.rotation.x = wsAngle;
-  group.add(windshield);
-  const rearGlass = new THREE.Mesh(new THREE.BoxGeometry(width - 0.14, isVan ? 0.9 : 0.4, 0.04), glass);
-  rearGlass.position.set(0, isVan ? 1.05 : 1.12, isVan ? -1.55 : -0.75);
-  rearGlass.rotation.x = isVan ? 0.15 : 0.5;
-  group.add(rearGlass);
-  for (const s of [-1, 1]) {
-    const side = new THREE.Mesh(new THREE.BoxGeometry(0.03, isVan ? 0.55 : 0.32, isVan ? 2.9 : 1.35), glass);
-    side.position.set(s * (width / 2 - 0.01), isVan ? 1.15 : 1.05, isVan ? -0.15 : 0.1);
+  // Glass, laid on the body's own surface (it used to sit just inside it, hidden: the cars had no
+  // windows at all). Windscreen and rear screen follow the profile's own slopes (`profile` points
+  // are [length, height] with the body lifted 0.4), nudged out along the slope's normal; the side
+  // windows are one flat pane per flank following the greenhouse, just proud of the flank.
+  const slopePane = (p0, p1, inset = 0.82) => {
+    const z0 = p0[0], y0 = p0[1] + 0.4, z1 = p1[0], y1 = p1[1] + 0.4;
+    const len = Math.hypot(z1 - z0, y1 - y0) * inset;
+    const pane = new THREE.Mesh(new THREE.BoxGeometry(width - 0.3, len, 0.03), glass);
+    let nz = -(y1 - y0), ny = z1 - z0; // a normal of the segment; make it point up and out
+    if (ny < 0) { nz = -nz; ny = -ny; }
+    const nl2 = Math.hypot(nz, ny) || 1;
+    pane.position.set(0, (y0 + y1) / 2 + (ny / nl2) * 0.05, (z0 + z1) / 2 + (nz / nl2) * 0.05);
+    pane.rotation.x = -Math.atan2(y1 - y0, z1 - z0) + Math.PI / 2;
+    group.add(pane);
+  };
+  if (isVan) {
+    slopePane(profile[0], profile[1], 0.7);                 // the steep van windscreen
+    const back = new THREE.Mesh(new THREE.BoxGeometry(width - 0.5, 0.6, 0.03), glass);
+    back.position.set(0, 1.55, -2.1);
+    group.add(back);
+  } else {
+    slopePane(profile[1], profile[2]);                      // windscreen (hood to roof)
+    slopePane(profile[3], profile[4]);                      // rear screen (roof to boot)
+  }
+  for (const sx of [-1, 1]) {
+    const shape = new THREE.Shape();
+    const pts = isVan
+      ? [[1.75, 1.05], [1.62, 1.75], [0.7, 1.78], [0.7, 1.05]]
+      : [[0.95, 1.08], [0.72, 1.48], [-0.32, 1.52], [-0.86, 1.1]];
+    shape.moveTo(pts[0][0], pts[0][1]);
+    for (const [z, y] of pts.slice(1)) shape.lineTo(z, y);
+    const side = new THREE.Mesh(new THREE.ShapeGeometry(shape), glass);
+    side.material.side = THREE.DoubleSide;
+    side.rotation.y = -Math.PI / 2; // shape x (length) along +z
+    side.position.x = sx * (width / 2 + 0.06);
     group.add(side);
   }
 
-  // Wheel arches: a dark flattened half-cylinder proud of the hull above each wheel.
-  const archGeo = new THREE.CylinderGeometry(0.55, 0.55, 0.16, 12, 1, false, 0, Math.PI);
+  // Bumpers front and back, a dark grille between the headlamps, and a door seam on each flank.
+  for (const z of [isVan ? 2.12 : 2.1, isVan ? -2.12 : -2.1]) {
+    const bumper = new THREE.Mesh(new THREE.BoxGeometry(width + 0.06, 0.18, 0.16), trimMat);
+    bumper.position.set(0, 0.42, z);
+    group.add(bumper);
+  }
+  const grille = new THREE.Mesh(new THREE.BoxGeometry(width * 0.42, 0.16, 0.04), trimMat);
+  grille.position.set(0, 0.62, isVan ? 2.1 : 2.08);
+  group.add(grille);
+  for (const sx of [-1, 1]) {
+    const seam = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.55, 0.02), trimMat);
+    seam.position.set(sx * (width / 2 + 0.045), 0.8, isVan ? 0.6 : 0.05);
+    group.add(seam);
+  }
+
+  // Wheel arches: a dark half-ring proud of the flank over each wheel, its axis across the car
+  // (rotated about z only: the extra y turn laid it along the car, a black blade over each tyre).
+  const archGeo = new THREE.CylinderGeometry(0.55, 0.55, 0.12, 14, 1, true, 0, Math.PI);
   const wheelPos = isVan ? [[-0.98, 1.35], [0.98, 1.35], [-0.98, -1.35], [0.98, -1.35]] : [[-0.9, 1.25], [0.9, 1.25], [-0.9, -1.2], [0.9, -1.2]];
   for (const [x, z] of wheelPos) {
     const arch = new THREE.Mesh(archGeo, archMat);
     arch.rotation.z = Math.PI / 2;
-    arch.rotation.y = Math.PI / 2;
-    arch.position.set(Math.sign(x) * (width / 2 - 0.05), 0.55, z);
+    arch.position.set(Math.sign(x) * (width / 2 + 0.02), 0.42, z);
     group.add(arch);
     const w = createWheel(false, dark, hubMat, capMat);
     w.pivot.scale.setScalar(0.86);
@@ -374,30 +413,84 @@ export function createJokerVan() {
   return car;
 }
 
-// A Joker drone tank: tracked box hull with a turret and a barrel that can be aimed at Batman.
+// A Joker drone tank: an unmanned, armoured little tank in the Joker's purple and green. A sloped
+// hull (lofted, like the Batmobile's body), tracks with road wheels and a track guard, a faceted
+// turret with a glowing red sensor eye where a crew hatch would be, a long barrel with a muzzle
+// brake, an antenna with a blinking tip, and a painted grin on the glacis. The hull and the turret
+// are each merged (mergeStaticParts) so a squad of six stays cheap; the turret keeps its own
+// pivot so it can still turn to aim at Batman. Returns { group, turretPivot, barrel, radius, ... }.
 export function createDroneTank() {
   const group = new THREE.Group();
-  const hullMat = toonMaterial({ color: 0x4a2a5a });
-  const trackMat = toonMaterial({ color: 0x14151a });
+  const hullMat = toonMaterial({ color: 0x4f2a66 });
+  const trackMat = toonMaterial({ color: 0x15161b });
+  const wheelMat = toonMaterial({ color: 0x3a3d45 });
   const turretMat = toonMaterial({ color: 0x3fae4a });
-  const hull = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.7, 3.2), hullMat);
-  hull.position.y = 0.55;
-  addHullOutline(hull, 0.026);
-  group.add(hull);
-  for (const s of [-1, 1]) {
-    const track = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.55, 3.5), trackMat);
-    track.position.set(s * 1.15, 0.32, 0);
+  const trim = toonMaterial({ color: 0x24262c });
+  const grinMat = toonMaterial({ color: 0xe8e2d4 });
+  const eyeMat = glowMaterial(0xff3040, 1, false);
+
+  const hullParts = new THREE.Group();
+  // Hull: a sloped glacis at the front, flat deck, a short sloped rear.
+  hullParts.add(loftPart([
+    { z: 1.7, y0: 0.35, hw: 0.8, ym: 0.5, yt: 0.58, tw: 0.62 },
+    { z: 1.1, y0: 0.3, hw: 0.98, ym: 0.72, yt: 0.95, tw: 0.82 },
+    { z: -1.2, y0: 0.3, hw: 0.98, ym: 0.72, yt: 0.95, tw: 0.82 },
+    { z: -1.65, y0: 0.35, hw: 0.86, ym: 0.62, yt: 0.78, tw: 0.66 },
+  ], hullMat, 0.026));
+  for (const sx of [-1, 1]) {
+    // Track: a dark belt with a guard over it and five road wheels showing on the outside.
+    const track = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.5, 3.5), trackMat);
+    track.position.set(sx * 1.12, 0.3, 0);
     addHullOutline(track, 0.02);
-    group.add(track);
+    hullParts.add(track);
+    const guard = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.08, 3.6), trim);
+    guard.position.set(sx * 1.12, 0.6, 0);
+    hullParts.add(guard);
+    for (let k = 0; k < 5; k++) {
+      const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.06, 12).rotateZ(Math.PI / 2), wheelMat);
+      wheel.position.set(sx * 1.36, 0.27, -1.3 + k * 0.65);
+      hullParts.add(wheel);
+    }
   }
+  // A painted grin across the glacis: a white crescent with teeth lines, the Joker's calling card.
+  const grin = new THREE.Shape();
+  grin.moveTo(-0.55, 0.08); grin.quadraticCurveTo(0, -0.32, 0.55, 0.08); grin.quadraticCurveTo(0, -0.12, -0.55, 0.08);
+  const grinGeo = new THREE.ShapeGeometry(grin);
+  grinGeo.rotateX(-0.62).translate(0, 0.78, 1.42);
+  hullParts.add(new THREE.Mesh(grinGeo, grinMat));
+  mergeStaticParts(hullParts);
+  group.add(hullParts);
+
   const turretPivot = new THREE.Group();
-  turretPivot.position.set(0, 0.9, 0);
-  const turret = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.85, 0.6, 10), turretMat);
-  turret.position.y = 0.3;
-  addHullOutline(turret, 0.02);
-  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 1.6, 10).rotateX(Math.PI / 2), hullMat);
-  barrel.position.set(0, 0.3, 1.1);
-  turretPivot.add(turret, barrel);
+  turretPivot.position.set(0, 0.95, -0.15);
+  const turretParts = new THREE.Group();
+  turretParts.add(loftPart([
+    { z: 0.75, y0: 0, hw: 0.45, ym: 0.18, yt: 0.32, tw: 0.32 },
+    { z: 0.3, y0: 0, hw: 0.7, ym: 0.3, yt: 0.5, tw: 0.5 },
+    { z: -0.75, y0: 0, hw: 0.72, ym: 0.3, yt: 0.48, tw: 0.52 },
+    { z: -0.95, y0: 0, hw: 0.55, ym: 0.22, yt: 0.36, tw: 0.4 },
+  ], turretMat, 0.02));
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 1.7, 12).rotateX(Math.PI / 2), trim);
+  barrel.position.set(0, 0.28, 1.5);
+  addHullOutline(barrel, 0.014);
+  turretParts.add(barrel);
+  const brake = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.16, 0.22), trim);
+  brake.position.set(0, 0.28, 2.38);
+  addHullOutline(brake, 0.012);
+  turretParts.add(brake);
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.025, 0.9, 6), trim);
+  mast.position.set(-0.42, 0.9, -0.6);
+  turretParts.add(mast);
+  mergeStaticParts(turretParts);
+  turretPivot.add(turretParts);
+  // The sensor eye and the antenna tip glow on their own (unmerged, unlit).
+  const eye = new THREE.Mesh(new THREE.CircleGeometry(0.11, 16), eyeMat);
+  eye.position.set(0.22, 0.36, 0.62);
+  eye.rotation.x = -0.35;
+  turretPivot.add(eye);
+  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), glowMaterial(0x6dff7a, 1, false));
+  tip.position.set(-0.42, 1.36, -0.6);
+  turretPivot.add(tip);
   group.add(turretPivot);
   return { group, turretPivot, barrel, radius: 1.9, health: 3, dead: false };
 }
