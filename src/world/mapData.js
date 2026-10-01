@@ -142,6 +142,9 @@ export const SITES = {
   // PI faces north (-z), toward the site she is about to drive to.
   dockBoard: { x: -90, y: 0.15, z: 165, yaw: Math.PI },
   aceGate: { x: 95, y: 0.15, z: -90, yaw: Math.PI },
+  // Where the Batmobile waits: 15 m down the street from where she arrives, so it parks in view
+  // ahead of her rather than on top of her (the gate-to-yard street, x 95, is clear).
+  aceGateCar: { x: 95, y: 0.15, z: -105, yaw: Math.PI },
   factoryRoof: { x: 140, y: 25.1, z: -172 },
   vatDeck: { x: 180, y: 10, z: -118 },
   cake: { x: 184, y: 10, z: -112 },

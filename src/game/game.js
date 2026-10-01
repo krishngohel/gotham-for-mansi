@@ -347,7 +347,17 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const comic = createComic(document.body, { onSound: (n) => audio.play(n), onVoice: (id) => voice.say(id) });
     // Tip cards wait out a takedown, a chain, the Bat Swarm or an action shot instead of covering
     // it (QUIET_CONTROLS, src/ui/prompts.js).
-    const prompts = createPromptQueue(hud, () => settings.bindings, () => settings.hints, (id) => follow.actionActive || (QUIET_CONTROLS.has(hero.control?.name) && id !== hero.control?.name), () => gadgets?.state.equipped ?? null);
+    // Which cards apply right now: a vehicle's controls only while in it, "get in" only while
+    // out, and every on-foot tip waits while she drives or flies (prompts.js createPromptQueue).
+    const promptRelevance = (id) => {
+      const driving = !!vehicles.active, flying = !!batwing.active;
+      if (id === 'drive') return driving ? true : 'drop';
+      if (id === 'fly') return flying ? true : 'drop';
+      if (id === 'vehicle') return driving ? 'drop' : true;
+      if (id === 'lowPower') return true;
+      return driving || flying ? 'wait' : true;
+    };
+    const prompts = createPromptQueue(hud, () => settings.bindings, () => settings.hints, (id) => follow.actionActive || (QUIET_CONTROLS.has(hero.control?.name) && id !== hero.control?.name), () => gadgets?.state.equipped ?? null, promptRelevance);
     const waypoint = createWaypoint(hudRoot.querySelector('.hud') ?? hudRoot);
     const beacon = createBeacon(scene);
     const boss = createBoss({ assets, scene, rng, combat, events, hud, spawn, despawn, hero, time, getDifficulty: () => settings.difficulty, collision: world.collision, effects });
@@ -712,7 +722,6 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
         batwing.update(dt, real);
         // ---- Part V1: ground vehicles hook (src/vehicles/vehicles.js) ----
         vehicles.update(dt, real);
-        party.update(dt, camera.position);
         gcpdLobby.update(dt, camera.position);
         side.update(dt, real, { toScreen });
         fx.update(dt, real);
@@ -784,6 +793,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
       ink.uniforms.uDetective.value = detective;
       if (flow.mode === 'finale') finale.update(real);
       else finale.update(state.paused ? 0 : real);
+      // Every frame, not only in play: the rooftop party is the finale's whole stage.
+      party.update(state.paused ? 0 : real, camera.position);
       flow.update(state.paused ? 0 : real, camera);
       sound.update(real, { hush: state.paused || comic.playing || photo.active || flow.mode !== 'play' });
     }

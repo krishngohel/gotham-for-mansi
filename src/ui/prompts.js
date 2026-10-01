@@ -110,40 +110,66 @@ export const QUIET_CONTROLS = new Set(['silent', 'perchDrop', 'chain', 'swarm', 
 // Queues prompts so they don't talk over each other. While isBusy() (a takedown, a chain, the
 // Bat Swarm or an action camera shot is on screen) nothing new appears, and a card already up is
 // taken down and shown again, in full, once the moment is over.
-export function createPromptQueue(hud, getBindings, isEnabled, isBusy = () => false, getEquipped = () => null) {
-  const queue = [];
+//
+// Cards must arrive while they still mean something. A step's own tips used to wait behind every
+// earlier card, six seconds each, and turned up whole steps later (the grapple-boost tip from the
+// freighter showing at Ace Chemicals). So: newStep() marks a story step change, and a card queued
+// more than one step ago is dropped rather than shown out of context (the controls page still has
+// everything); a step's own tips go to the front with { first: true }; and relevance(id) (optional)
+// can answer 'wait' (keep it queued, show it later: an on-foot tip while she drives) or 'drop' (it
+// can no longer apply: the driving card once she is out of the car). A card on screen that stops
+// applying comes down at once.
+export function createPromptQueue(hud, getBindings, isEnabled, isBusy = () => false, getEquipped = () => null, relevance = () => true) {
+  const queue = []; // { id, gen }
   const seen = new Set();
   let current = null;
-  let t = 0;
+  let t = 0, gen = 0;
+  const has = (id) => queue.some((q) => q.id === id);
+  const hide = () => { current = null; hud.hideHint(); };
   return {
-    // `first`: jump the queue (a vehicle's controls, needed the moment she gets in).
+    // `first`: jump the queue (this step's own tips; a vehicle's controls the moment she gets in).
     show(ids, { first = false } = {}) {
       for (const id of first ? [...ids].reverse() : ids) {
-        if (seen.has(id) || queue.includes(id) || current === id) continue;
-        if (first) queue.unshift(id); else queue.push(id);
+        if (seen.has(id) || has(id) || current === id) continue;
+        if (first) queue.unshift({ id, gen }); else queue.push({ id, gen });
       }
     },
+    // A new story step began: anything queued two or more steps ago is now stale.
+    newStep() { gen += 1; },
     // Marks a prompt as done early (the player already did the thing).
     done(id) {
       seen.add(id);
-      const i = queue.indexOf(id);
+      const i = queue.findIndex((q) => q.id === id);
       if (i >= 0) queue.splice(i, 1);
-      if (current === id) { current = null; hud.hideHint(); }
+      if (current === id) hide();
     },
     update(dt) {
-      if (!isEnabled()) { if (current) { current = null; hud.hideHint(); } return; }
+      if (!isEnabled()) { if (current) hide(); return; }
+      for (let i = queue.length - 1; i >= 0; i--) {
+        const q = queue[i];
+        if (gen - q.gen > 1 || relevance(q.id) === 'drop') queue.splice(i, 1);
+      }
+      if (current) {
+        const r = relevance(current);
+        if (r === 'drop') hide();
+        else if (r === 'wait') { queue.unshift({ id: current, gen }); hide(); }
+      }
+      // The next card that applies right now; 'wait' ones stay queued for later.
+      const nextIdx = current ? -1 : queue.findIndex((q) => relevance(q.id) === true);
+      const candidate = current ?? (nextIdx >= 0 ? queue[nextIdx].id : undefined);
       // isBusy is asked about the prompt that would be on screen: a vehicle's own controls card may
       // show while that vehicle is in use, when everything else waits.
-      if (isBusy(current ?? queue[0])) { if (current) { queue.unshift(current); current = null; hud.hideHint(); } return; }
+      if (isBusy(candidate)) { if (current) { queue.unshift({ id: current, gen }); hide(); } return; }
       t -= dt;
       if (current && t > 0) return;
       if (current) { seen.add(current); current = null; }
-      const next = queue.shift();
-      if (!next) return;
+      const i = queue.findIndex((q) => relevance(q.id) === true);
+      if (i < 0) return;
+      const next = queue.splice(i, 1)[0].id;
       current = next;
       t = 6.5;
       hud.hint(promptText(next, getBindings(), getEquipped()), 6200);
     },
-    reset() { queue.length = 0; seen.clear(); current = null; },
+    reset() { queue.length = 0; seen.clear(); current = null; gen = 0; },
   };
 }
