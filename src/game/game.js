@@ -77,6 +77,7 @@ import { createPhotoMode } from '../ui/photoMode.js';
 import { createWarmCast, createWarmCastLate } from './warmCast.js';
 import { drawEverything, uploadTextures, readyObjects } from '../render/prewarm.js';
 import { createDynamicRes, sanitizeResScale } from '../render/dynamicRes.js';
+import { createFrameCapDetector } from '../render/frameCap.js';
 import { createImpactTimeline } from '../render/impactTimeline.js';
 import { createImpactPanel } from '../ui/impactPanel.js';
 import { gpuRenderer, gpuShortName, maybeShowGpuHint } from '../ui/gpuInfo.js';
@@ -160,6 +161,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   // Dynamic resolution rides on top of the Render scale setting (?dynres=0 turns it off, for
   // benchmarks run with vsync off, where there is no refresh budget to aim for).
   const dynRes = createDynamicRes({ min: 0.6, onChange: () => applyResolution() });
+  // The browser capping play at 30 fps (Low Power Mode / Energy Saver): told once, see frameCap.js.
+  const frameCap = createFrameCapDetector();
   function applyResolution() {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.pixelRatioCap) * sanitizeResScale(settings.renderScale, dynRes.scale));
     resize();
@@ -786,7 +789,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
 
     const api = {
       hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, despawn, side,
-      batwing, nightwing, radio, vehicles, cinematic, interiors, party,
+      batwing, nightwing, radio, vehicles, cinematic, interiors, party, prompts,
       // Impact frames test hook: pin(ms) samples `ms` into the sequence the next fire() starts.
       impact: {
         fire: (tier, target) => fireImpact(tier, target),
@@ -976,6 +979,12 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const stepStart = performance.now();
     try { step(now); } catch (err) { if (errors++ < 5) console.error(err); }
     state.stepMs = performance.now() - stepStart; // JavaScript time this frame (read by ?bench=1)
+    if (game && state.phase === 'play' && !state.paused && game.flow.mode === 'play' && frameCap.frame(now - prevNow, state.stepMs)) {
+      dynRes.capTo(30);
+      state.frameCapped = true;
+      // Through the prompt queue (at the front), so a tutorial card can't write over it.
+      game.prompts.show(['lowPower'], { first: true });
+    }
     dynRes.update(now - prevNow);
     prevNow = now;
     if (state.frame === 1) mark('firstFrame');

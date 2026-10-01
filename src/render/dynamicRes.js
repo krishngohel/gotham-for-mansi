@@ -80,6 +80,15 @@ export function createDynamicRes({ min = 0.6, max = 1, step = 0.05, onChange = (
       settle = 1000;
       onChange(on ? scale : max);
     },
+    // The browser itself is holding the page to `hz` (Low Power Mode, Energy Saver): judge
+    // frames against that, and go back to full sharpness, since a lower resolution can't beat a
+    // cap and would only blur the picture.
+    capTo(hz) {
+      period = 1000 / hz;
+      refreshKnown = true;
+      quiet = 0;
+      set(max);
+    },
     // dt: ms since the last frame.
     update(dt) {
       if (!(dt > 0) || dt > 250) return; // tab switches, breakpoints, loading stalls

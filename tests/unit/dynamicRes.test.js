@@ -102,3 +102,17 @@ describe('sanitizeResScale', () => {
     expect(sanitizeResScale(0.6, 0.6, 0.3)).toBeCloseTo(0.36);
   });
 });
+
+describe('capTo (the browser holding the page to a lower rate)', () => {
+  it('stops judging 30 fps frames as misses and goes back to full sharpness', () => {
+    const scales = [];
+    const d = createDynamicRes({ onChange: (s) => scales.push(s) });
+    for (let i = 0; i < 90; i++) d.update(16.7);           // a 60 Hz display
+    for (let i = 0; i < 400; i++) d.update(33.3);          // then capped at 30: it drops resolution
+    expect(d.scale).toBeLessThan(1);
+    d.capTo(30);
+    expect(d.scale).toBe(1);
+    for (let i = 0; i < 400; i++) d.update(33.3);          // judged against 30 now: no more drops
+    expect(d.scale).toBe(1);
+  });
+});
