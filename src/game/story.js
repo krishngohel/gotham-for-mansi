@@ -175,6 +175,9 @@ export const STEPS = [
   // Harley's crew first (the hall), then out to the vat deck for the cake: Act 2 runs one way.
   { id: 'toVat', text: 'The cake is on the deck over the vats. Get out there.', site: 'vatDeck', radius: 11, checkpoint: 'aceHallDoor' },
   { id: 'a3', type: 'fight', fight: 'vats', text: 'Protect the cake, no matter what she throws at you!' },
+  // Off the vat deck to the hall's catwalk entrance: the stealth room is 57 m away, and its fight
+  // otherwise began with no marker leading there.
+  { id: 'toCatwalks', text: 'Rifle goons on the vat hall catwalks. Get to the catwalk entrance, quietly.', site: 'aceCatwalksEntry', radius: 8, checkpoint: 'vatDeck' },
   { id: 'aceCatwalks', type: 'fight', fight: 'aceCatwalks', text: 'Rifle goons on the vat hall catwalks have the cake in their sights. Take them out quietly.', tutorial: ['distract', 'vent', 'ledgeStealth'], checkpoint: 'aceCatwalksEntry' },
   { id: 'cake', type: 'collect', item: 'cake', site: 'cake', radius: 3, text: "Save the baker's cake.", checkpoint: 'vatDeck' },
   { id: 'rewardCake', type: 'cutscene', scene: 'cake' },
