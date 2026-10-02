@@ -6,6 +6,7 @@
 // is farthest forward, and the reach is that hand's position relative to the root.
 import * as THREE from 'three';
 import { MOCAP_DATA } from '../config/mocapData.js';
+import { STRIKE_BEATS } from '../actors/strikes.js';
 
 // Punch clips and their candidate hands.
 const PUNCHES = { Punch_Jab: ['hand_l', 'hand_r'], Punch_Cross: ['hand_r', 'hand_l'], Melee_Hook: ['hand_r', 'hand_l'] };
@@ -45,6 +46,20 @@ export function buildReachTable(model, clips, fwd = 1) {
     if (best.z === -Infinity) best = any;
     if (best.z === -Infinity) continue;
     table[name] = { contact: +best.t.toFixed(3), limb: best.limb, reach: { x: +best.x.toFixed(3), y: +best.y.toFixed(3), z: +best.z.toFixed(3) }, root: null, fps: 0, duration: clip.duration };
+  }
+  // The code-authored strikes (src/actors/strikes.js) know their own contact frame and limb:
+  // just read where that limb is on that frame.
+  for (const [name, b] of Object.entries(STRIKE_BEATS)) {
+    const clip = clips.get(name);
+    if (!clip || table[name]) continue;
+    const action = mixer.clipAction(clip);
+    action.play();
+    mixer.setTime(b.contact);
+    model.updateMatrixWorld(true);
+    model.worldToLocal(model.getObjectByName(b.limb).getWorldPosition(p));
+    action.stop();
+    mixer.uncacheClip(clip);
+    table[name] = { contact: b.contact, limb: b.limb, reach: { x: +p.x.toFixed(3), y: +p.y.toFixed(3), z: +(p.z * fwd).toFixed(3) }, root: null, fps: 0, duration: b.duration };
   }
   mixer.uncacheRoot(model);
   return table;

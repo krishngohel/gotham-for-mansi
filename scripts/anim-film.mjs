@@ -70,6 +70,42 @@ const MOVES = {
   land: async () => { await clearGoons(); await place(6, 52, 10, Math.PI); await cam({ side: 5, up: 1.2, back: 0, look: 0.6 }); await film('land', 12, 90); },
   punch: async () => { await clearGoons(); await place(6, 42.2, 10, Math.PI); await goons(1); await cam({ side: 4.5, up: 1.4, back: -0.8 }); await film('punch', 12, 80, async () => { for (let i = 0; i < 3; i++) { await p.mouse.click(640, 360); await p.waitForTimeout(260); } }); },
   kick: async () => { await clearGoons(); await place(6, 42.2, 10, Math.PI); await goons(1); await cam({ side: 4.5, up: 1.4, back: -0.8 }); await film('kick', 12, 80, async () => { for (let i = 0; i < 2; i++) { await p.keyboard.press('KeyE'); await p.waitForTimeout(380); } }); },
+  // Every new strike, played straight on a goon (not through the combo, which picks at random).
+  strikes: async () => {
+    for (const clip of ['Punch_Uppercut', 'Punch_Hook_L', 'Elbow_Strike', 'Punch_Backfist', 'Punch_Hammer', 'Kick_Side', 'Kick_Axe', 'Kick_Low']) {
+      await clearGoons(); await place(6, 42.2, 10, Math.PI); await goons(1); await cam({ side: 4.2, up: 1.3, back: -0.9 });
+      console.log(clip, 'reach', JSON.stringify(await p.evaluate((c) => window.__game.reach?.[c] ? { contact: window.__game.reach[c].contact, z: window.__game.reach[c].reach.z } : null, clip)));
+      await film(clip, 8, 330, () => p.evaluate((c) => { const G = window.__game; let t = 0; G.hero.control = { name: 'film', update(dt) { t += dt; return t > 5; } }; G.hero.bat.animator.play(c, { once: true, timeScale: 0.22, fade: 0.05 }); }, clip));
+    }
+  },
+  punches: async () => {
+    for (const clip of ['Punch_Uppercut', 'Punch_Hook_L', 'Elbow_Strike']) {
+      await clearGoons(); await place(6, 42.2, 10, Math.PI); await cam({ side: 2.2, up: 1.4, back: -3.2, look: 1.2 });
+      await film(clip + '-front', 8, 300, () => p.evaluate((c) => { const G = window.__game; let t = 0; G.hero.control = { name: 'film', update(dt) { t += dt; return t > 5; } }; G.hero.bat.animator.play(c, { once: true, timeScale: 0.22, fade: 0.05 }); }, clip));
+    }
+  },
+  // A real combo with the real buttons: records which clip each strike played.
+  combo: async () => {
+    await clearGoons(); await place(6, 42.2, 10, Math.PI); await goons(3); await cam({ side: 4.5, up: 1.6, back: -1.5 });
+    await p.evaluate(() => { const G = window.__game, a = G.hero.bat.animator, o = a.play.bind(a); window.__clips = []; a.play = (n, opt) => { if (/Punch|Kick|Elbow|Knee|Melee|Hammer|Backfist/.test(n)) window.__clips.push(n); return o(n, opt); }; });
+    await film('combo', 18, 160, async () => {
+      for (let i = 0; i < 6; i++) { await p.mouse.click(640, 360); await p.waitForTimeout(330); }
+      for (let i = 0; i < 4; i++) { await p.keyboard.press('KeyE'); await p.waitForTimeout(420); }
+    });
+    console.log('clips played:', JSON.stringify(await p.evaluate(() => window.__clips)));
+  },
+  finishers: async () => {
+    for (let r = 0; r < 3; r++) {
+      await clearGoons(); await place(6, 42.2, 10, Math.PI);
+      await p.evaluate(() => { const G = window.__game, h = G.hero.pos; const list = [0, 1, 2].map((i) => G.spawn('grunt', { x: h.x - 1.5 + i * 1.5, y: h.y, z: h.z - 2.2 })); G.combat.setEnemies(list); list.forEach((e) => e.wake()); });
+      const seen = [];
+      const grab = async () => { await p.waitForTimeout(120); seen.push(await p.evaluate(() => window.__game.hero.bat.animator.currentName)); };
+      for (let i = 0; i < 4; i++) { await p.mouse.click(640, 360); await grab(); await p.waitForTimeout(260); }
+      await p.waitForTimeout(600);
+      for (let i = 0; i < 3; i++) { await p.keyboard.press('KeyE'); await grab(); await p.waitForTimeout(330); }
+      console.log('round', r, JSON.stringify(seen));
+    }
+  },
   roll: async () => { await clearGoons(); await place(6, 42.2, 10, Math.PI); await cam({ side: 4.5, up: 1.2, back: 0 }); await film('roll', 10, 70, async () => { await p.keyboard.down('KeyW'); await p.keyboard.press('KeyC'); await p.waitForTimeout(600); await p.keyboard.up('KeyW'); }); },
   ledge: async () => { await clearGoons(); const l = await p.evaluate(() => { const G = window.__game; const pts = G.world.grapplePoints.filter((g) => !g.perch && g.y > 8 && g.y < 30); const g = pts[3]; G.hero.teleport({ x: g.x + g.nx * 0.6, y: g.y + 1.2, z: g.z + g.nz * 0.6 }, Math.atan2(-g.nx, -g.nz)); return g; }); await cam({ side: 3.5, up: 0.4, back: -1.8, look: 0.6 }); await film('ledge', 12, 140, async () => { await p.waitForTimeout(600); await key('KeyA', 700); await key('KeyW', 300); }); },
   zip: async () => { await clearGoons(); await p.evaluate(() => { const G = window.__game; const z = G.world.grapplePoints.find((g) => g.zip); if (z) { G.hero.teleport({ x: z.x, y: z.y + 0.2, z: z.z }); } }); await cam({ side: 5, up: 0.5, back: 0, look: 0 }); await film('zip', 8, 150, async () => { await p.keyboard.press('KeyF'); }); },

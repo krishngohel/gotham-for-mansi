@@ -10,22 +10,25 @@ import { rootMotionAt } from './reach.js';
 import { CHAIN_RULES, chainForAction, chainAvailability, selectChainTargets, chainCost, tiedGroup, chainOutcome } from './chains.js';
 import { SWARM, swarmTargets, swarmAvailability, swarmTimeline, createSwarmControl } from './batSwarm.js';
 import { buildChainTimeline } from './chainTimeline.js';
+import { createStrikeChooser } from './strikeChoice.js';
 import { createChainControl, CHAIN_SHOTS } from './chainControl.js';
 import { BASE_EFFECTS, hurtDamage } from '../progress/upgrades.js';
 
 const PUNCHES = ['Punch_Jab', 'Punch_Cross', 'Punch_Jab'];
+// Which punch or kick plays next (variety, finishers): src/combat/strikeChoice.js. The
+// code-authored strikes themselves live in src/actors/strikes.js.
+// Playback speed for the code-authored strikes (authored at real time; freeflow wants them snappy).
+const STRIKE_SPEED = { Punch_Uppercut: 1.45, Punch_Hook_L: 1.4, Elbow_Strike: 1.45, Punch_Backfist: 1.35, Punch_Hammer: 1.3, Kick_Side: 1.35, Kick_Axe: 1.3, Kick_Low: 1.4 };
 // Regular kicks alternate the front push kick and the roundhouse (the front kick alone at
 // point-blank range, where the roundhouse's step would only slide); the chain finisher is
 // the lunge spin kick. All are mocap clips from public/assets/anims_mocap.glb.
-const KICKS = ['Kick_Front', 'Kick_Round'];
+
 const KICK_SPEED = MOCAP_SPEED;
-// Closer than this, a kick that steps in has nowhere to step.
-const POINT_BLANK = 1.3;
 // Hit-stop per kind of blow (seconds of frozen time for both fighters).
 const STOP = { punch: 0.05, kick: 0.065, heavy: 0.11, finisher: 0.13, counter: 0.1 };
 const WORDS = {
   counter: ['KRAK!', 'WHAM!'], kick: ['THWACK!', 'WHUMP!'], ko: ['POW!', 'BLAM!', 'KAPOW!'], special: ['THWAMP!'],
-  dive: ['KRUNCH!'], heavy: ['KA-BOOM!', 'WHAMMO!'], spin: ['SWOOSH-THWACK!', 'KRAKOOM!'], slam: ['BADOOM!'], throw: ['WHEEE-CRASH!', 'YOINK!'],
+  dive: ['KRUNCH!'], uppercut: ['UPPERCUT!', 'KA-POW!'], heavy: ['KA-BOOM!', 'WHAMMO!'], spin: ['SWOOSH-THWACK!', 'KRAKOOM!'], slam: ['BADOOM!'], throw: ['WHEEE-CRASH!', 'YOINK!'],
 };
 // Strikes in a row on the same chain before the finisher lands.
 const CHAIN = 4;
@@ -40,7 +43,8 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
   const inputBuffer = createInputBuffer(0.3);
   let punchChain = 0, kickChain = 0, chainT = 0;
   // Which regular kick and which beatdown strike comes next (variety only; not chain state).
-  let kickIdx = 0, beatIdx = 0;
+  let beatIdx = 0;
+  const choose = createStrikeChooser({ has: (c) => !!reach[c], random: () => rng.next() });
   const tmp = new THREE.Vector3(), dir = new THREE.Vector3(), chest = new THREE.Vector3();
   const push = new THREE.Vector3();
   // What the chain icons show; refreshed every 0.1 s of game time or when the combo changes.
@@ -289,11 +293,11 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     const range = Math.hypot(target.pos.x - hero.pos.x, target.pos.z - hero.pos.z);
     let clip, speed;
     if (ground) { clip = 'Sword_Attack'; speed = 1.8; }
-    else if (move === 'heavy') { clip = 'Melee_Hook'; speed = 1.35; }
-    else if (move === 'spinKick') { clip = 'Kick_Spin'; speed = KICK_SPEED.Kick_Spin; }
-    else if (isKick) { clip = range < POINT_BLANK ? 'Kick_Front' : KICKS[kickIdx++ % KICKS.length]; speed = KICK_SPEED[clip]; }
+    else if (move === 'heavy') { clip = choose.punchFinisher(); speed = STRIKE_SPEED[clip] ?? 1.35; }
+    else if (move === 'spinKick') { clip = choose.kickFinisher(); speed = STRIKE_SPEED[clip] ?? KICK_SPEED[clip]; }
+    else if (isKick) { clip = choose.kick(range); speed = STRIKE_SPEED[clip] ?? KICK_SPEED[clip]; }
     else if (beatdown) { clip = beatIdx++ % 2 ? 'Knee_Strike' : PUNCHES[(beatIdx >> 1) % PUNCHES.length]; speed = clip === 'Knee_Strike' ? KICK_SPEED.Knee_Strike : 2.6; }
-    else { clip = PUNCHES[(punchChain - 1 + PUNCHES.length) % PUNCHES.length]; speed = 1.8; }
+    else { clip = choose.punch(punchChain, range); speed = STRIKE_SPEED[clip] ?? 1.8; }
     const start = MOCAP_START[clip] ?? 0;
     const spin = move === 'spinKick';
     const ap = approach(target, clip, speed, start, { fallbackReach: 1.0 * target.scale, fallbackContact: 0.11 });
@@ -319,10 +323,19 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
         if (!hit && t >= impactAt) {
           hit = true;
           if (!target.alive) return false;
-          if (move === 'heavy') landHit('heavy', target, { word: word('heavy'), power: 1.8, launch: 3, crit: true, stopTime: STOP.heavy });
-          else if (spin) landHit('spinKick', target, { word: word('spin'), power: 2.2, launch: 6.5, crit: true, stopTime: STOP.finisher });
+          // Each finisher lands its own way: the hammer and the axe kick drive the goon straight
+          // down, the backfist and the spin kick send him flying, the haymaker lifts him.
+          if (move === 'heavy') {
+            const f = clip === 'Punch_Hammer' ? { word: 'BADOOM!', launch: 0.4 } : clip === 'Punch_Backfist' ? { word: word('spin'), launch: 4.5 } : { word: word('heavy'), launch: 3 };
+            landHit('heavy', target, { ...f, power: 1.8, crit: true, stopTime: STOP.heavy });
+          }
+          else if (spin) landHit('spinKick', target, clip === 'Kick_Axe'
+            ? { word: 'KRUNCH!', power: 2.2, launch: 0.5, crit: true, stopTime: STOP.finisher }
+            : { word: word('spin'), power: 2.2, launch: 6.5, crit: true, stopTime: STOP.finisher });
           else if (juggle) landHit(isKick ? 'kick' : 'punch', target, { word: rng.chance(0.4) ? 'JUGGLE!' : null, power: 1.2, stopTime: isKick ? STOP.kick : STOP.punch });
-          else landHit(move, target, { word: isKick && rng.chance(0.4) ? word('kick') : null, power: isKick ? 1.6 : 1, launch: isKick ? 2 : 0, stopTime: isKick ? STOP.kick : STOP.punch });
+          // The uppercut pops the goon up off his feet, ready for a juggle; an elbow hits a bit harder.
+          else if (clip === 'Punch_Uppercut') landHit(move, target, { word: rng.chance(0.6) ? word('uppercut') : null, power: 1.3, launch: 3.4, stopTime: STOP.kick });
+          else landHit(move, target, { word: isKick && rng.chance(0.4) ? word('kick') : clip === 'Elbow_Strike' && rng.chance(0.5) ? 'KRAK!' : null, power: isKick ? 1.6 : clip === 'Elbow_Strike' ? 1.2 : 1, launch: isKick ? (clip === 'Kick_Low' ? 1 : clip === 'Kick_Side' ? 3 : 2) : 0, stopTime: isKick ? STOP.kick : STOP.punch });
         }
         return t >= end;
       },
