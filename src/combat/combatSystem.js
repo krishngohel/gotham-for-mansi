@@ -43,7 +43,8 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
   const inputBuffer = createInputBuffer(0.3);
   let punchChain = 0, kickChain = 0, chainT = 0;
   // Which regular kick and which beatdown strike comes next (variety only; not chain state).
-  let beatIdx = 0;
+  let beatIdx = 0, counterIdx = 0;
+  const COUNTERS = ['Melee_Hook', 'Elbow_Strike', 'Kick_Front', 'Punch_Uppercut'];
   const choose = createStrikeChooser({ has: (c) => !!reach[c], random: () => rng.next() });
   const tmp = new THREE.Vector3(), dir = new THREE.Vector3(), chest = new THREE.Vector3();
   const push = new THREE.Vector3();
@@ -292,7 +293,9 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     const move = ground ? 'punch' : beatdown ? 'beatdown' : finisher ?? kind;
     const range = Math.hypot(target.pos.x - hero.pos.x, target.pos.z - hero.pos.z);
     let clip, speed;
-    if (ground) { clip = 'Sword_Attack'; speed = 1.8; }
+    // A goon on the floor: the two-fisted hammer straight down onto him (it used to borrow a
+    // sword swing, with no sword).
+    if (ground) { clip = reach.Punch_Hammer ? 'Punch_Hammer' : 'Sword_Attack'; speed = clip === 'Punch_Hammer' ? 1.7 : 1.8; }
     else if (move === 'heavy') { clip = choose.punchFinisher(); speed = STRIKE_SPEED[clip] ?? 1.35; }
     else if (move === 'spinKick') { clip = choose.kickFinisher(); speed = STRIKE_SPEED[clip] ?? KICK_SPEED[clip]; }
     else if (isKick) { clip = choose.kick(range); speed = STRIKE_SPEED[clip] ?? KICK_SPEED[clip]; }
@@ -357,11 +360,13 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     let ap = null, hitAt = 0.12, stepEnd = 0.3;
     const setup = () => {
       const target = targets[i];
-      // Alternate a fast front kick and a hook, each lunging so it connects on its contact frame.
-      const clip = i % 2 ? 'Kick_Front' : 'Melee_Hook';
-      const speed = i % 2 ? 2.2 : 1.9;
+      // Rotate through a hook, an elbow, an uppercut and a front kick (a fresh one each counter),
+      // each lunging so it connects on its contact frame.
+      const usable = COUNTERS.filter((c) => c === 'Kick_Front' || c === 'Melee_Hook' || reach[c]);
+      const clip = usable[counterIdx++ % usable.length];
+      const speed = clip === 'Kick_Front' ? 2.2 : clip === 'Melee_Hook' ? 1.9 : (STRIKE_SPEED[clip] ?? 1.6) * 1.2;
       // The mocap front kick starts past its wind-up; the code-authored fallback has none.
-      const start = i % 2 && reach.Kick_Front?.root ? 0.3 : 0;
+      const start = clip === 'Kick_Front' && reach.Kick_Front?.root ? 0.3 : 0;
       ap = approach(target, clip, speed, start, { fallbackReach: 1.1 * target.scale, fallbackContact: 0.12 });
       hitAt = ap.impactAt;
       stepEnd = Math.max(0.3, hitAt + 0.14);

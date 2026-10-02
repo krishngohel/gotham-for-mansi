@@ -106,6 +106,37 @@ const MOVES = {
       console.log('round', r, JSON.stringify(seen));
     }
   },
+  // Goons: each type's attack and hit reactions, played straight on the goon at quarter speed.
+  goons: async () => {
+    const shots = [['grunt', 'attack'], ['knife', 'attack'], ['brute', 'attack'], ['brute', 'charge'], ['grunt', 'hit'], ['grunt', 'ko']];
+    for (const [type, act] of shots) {
+      await clearGoons(); await place(6, 42.2, 10, Math.PI);
+      await p.evaluate((type) => { const G = window.__game, h = G.hero.pos; const e = G.spawn(type, { x: h.x, y: h.y, z: h.z - 3 }); G.combat.setEnemies([e]); window.__g = e; e.ch.root.rotation.y = 0; }, type);
+      await p.evaluate(() => { const G = window.__game; G.hero.bat.root.visible = false; G.hero.cape.mesh.visible = false; });
+      await cam({ at: [9.5, 43.6, 7], look3: [6, 43, 7] });
+      const name = `goon-${type}-${act}`;
+      await film(name, 8, 260, () => p.evaluate(([type, act]) => {
+        const e = window.__g, a = e.ch.animator;
+        const clip = act === 'hit' ? 'Hit_Chest' : act === 'ko' ? 'Death01' : type === 'grunt' ? 'Punch_Cross' : type === 'knife' ? 'Sword_Regular_A' : act === 'charge' ? 'Shield_Dash' : 'Sword_Heavy_Combo';
+        e.update = () => {}; a.play(clip, { once: true, timeScale: 0.3, fade: 0.05 });
+        const tick = () => { a.update(1 / 60); if (!window.__stopG) requestAnimationFrame(tick); }; window.__stopG = false; tick();
+      }, [type, act]));
+      await p.evaluate(() => { window.__stopG = true; });
+    }
+  },
+  // Nightwing and Harley: idle from the front and side, then each one's attack.
+  allies: async () => {
+    await clearGoons(); await place(6, 42.2, 10, Math.PI);
+    await p.evaluate(() => { const G = window.__game, h = G.hero.pos; G.hero.bat.root.visible = false; G.hero.cape.mesh.visible = false; G.nightwing.spawn({ x: h.x, y: h.y, z: h.z - 3 }, 'ally'); const e = G.spawn('harley', { x: h.x + 2.4, y: h.y, z: h.z - 3 }); G.combat.setEnemies([]); window.__h = e; });
+    await p.waitForTimeout(1500);
+    await cam({ at: [7.2, 43.4, 2.5], look3: [7.2, 43.1, 7] });
+    await film('allies-front', 2, 300);
+    await cam({ at: [12, 43.4, 7], look3: [7.2, 43, 7] });
+    await film('allies-side', 2, 300);
+    await p.evaluate(() => { const G = window.__game; const nw = G.nightwing.actor; nw.animator.play('Punch_Cross', { once: true, timeScale: 0.3 }); window.__h.ch.animator.play('Sword_Heavy_Combo', { once: true, timeScale: 0.3 }); });
+    await cam({ at: [7.2, 43.4, 2.5], look3: [7.2, 43.1, 7] });
+    await film('allies-attack', 6, 260);
+  },
   roll: async () => { await clearGoons(); await place(6, 42.2, 10, Math.PI); await cam({ side: 4.5, up: 1.2, back: 0 }); await film('roll', 10, 70, async () => { await p.keyboard.down('KeyW'); await p.keyboard.press('KeyC'); await p.waitForTimeout(600); await p.keyboard.up('KeyW'); }); },
   ledge: async () => { await clearGoons(); const l = await p.evaluate(() => { const G = window.__game; const pts = G.world.grapplePoints.filter((g) => !g.perch && g.y > 8 && g.y < 30); const g = pts[3]; G.hero.teleport({ x: g.x + g.nx * 0.6, y: g.y + 1.2, z: g.z + g.nz * 0.6 }, Math.atan2(-g.nx, -g.nz)); return g; }); await cam({ side: 3.5, up: 0.4, back: -1.8, look: 0.6 }); await film('ledge', 12, 140, async () => { await p.waitForTimeout(600); await key('KeyA', 700); await key('KeyW', 300); }); },
   zip: async () => { await clearGoons(); await p.evaluate(() => { const G = window.__game; const z = G.world.grapplePoints.find((g) => g.zip); if (z) { G.hero.teleport({ x: z.x, y: z.y + 0.2, z: z.z }); } }); await cam({ side: 5, up: 0.5, back: 0, look: 0 }); await film('zip', 8, 150, async () => { await p.keyboard.press('KeyF'); }); },
