@@ -134,7 +134,7 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
     h.glide.speed = Math.max(14, hs);
     h.glide.heading = hs > 1 ? Math.atan2(vel.x, vel.z) : bat.yaw;
     cape.setWings(true);
-    bat.animator.play('A_TPose', { fade: 0.2 });
+    bat.animator.play('Glide', { fade: 0.25 });
     events.emit('glideStart');
   }
 
@@ -203,7 +203,9 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
       h.coyote = Math.max(0, h.coyote - dt);
       if (mag > 0.05) faceTowards(wish.x, wish.z, 6, dt);
       if (h.airT > 0.2 && vel.y < 3 && input.down('jump') && heightAboveGround() > 2.2) startGlide();
-      else if (h.airT > 0.35 && bat.animator.currentName !== 'Jump_Loop' && bat.animator.currentName !== 'Jump_Start') bat.animator.play('Jump_Loop', { fade: 0.2 });
+      // A long drop (falling fast) gets the fall pose; a hop keeps the jump loop.
+      else if (h.airT > 0.35 && vel.y < -9) { if (bat.animator.currentName !== 'Fall_Loop') bat.animator.play('Fall_Loop', { fade: 0.3 }); }
+      else if (h.airT > 0.35 && bat.animator.currentName !== 'Jump_Loop' && bat.animator.currentName !== 'Jump_Start' && bat.animator.currentName !== 'Fall_Loop') bat.animator.play('Jump_Loop', { fade: 0.2 });
     } else if (h.state === 'glide') {
       const g = h.glide;
       // Pitch control: sprint key or looking down dives, back key or looking up pulls up.

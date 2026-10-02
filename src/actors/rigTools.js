@@ -33,6 +33,20 @@ export function axisToward(model, bone, child, dir) {
   return best;
 }
 
+// Like track(), but each key turns the bone about several axes in turn: keys are
+// [t, angleA, angleB, ...] for axes [axisA, axisB, ...] (e.g. an arm raised out AND swept back).
+export function trackMulti(name, rest, axes, keys) {
+  const times = [], values = [];
+  const q = new THREE.Quaternion(), r = new THREE.Quaternion();
+  for (const [t, ...angles] of keys) {
+    q.copy(rest);
+    axes.forEach((axis, i) => q.multiply(r.setFromAxisAngle(axis, angles[i] ?? 0)));
+    times.push(t);
+    values.push(q.x, q.y, q.z, q.w);
+  }
+  return new THREE.QuaternionKeyframeTrack(`${name}.quaternion`, times, values);
+}
+
 export function track(name, rest, axis, keys) {
   const times = [], values = [];
   const q = new THREE.Quaternion();

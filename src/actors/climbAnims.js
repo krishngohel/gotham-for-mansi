@@ -2,13 +2,17 @@
 // Same approach as src/actors/kicks.js: bone axes are discovered numerically so the
 // clips don't depend on the rig's conventions.
 import * as THREE from 'three';
-import { samplePose, axisToward, track } from './rigTools.js';
+import { samplePose, axisToward, track, trackMulti } from './rigTools.js';
 
 export function buildClimbClips(model, clips, fwd = 1) {
   const idle = clips.get('Idle_Loop');
   const { pose, dispose } = samplePose(model, idle, 0);
   const bone = (n) => model.getObjectByName(n);
   const forward = new THREE.Vector3(0, 0, fwd), up = new THREE.Vector3(0, 1, 0);
+  // Toward the body's midline from each hip (for drawing the legs together).
+  const hipR = model.worldToLocal(bone('thigh_r').getWorldPosition(new THREE.Vector3()));
+  const hipL = model.worldToLocal(bone('thigh_l').getWorldPosition(new THREE.Vector3()));
+  const toL = hipL.clone().sub(hipR).setY(0).normalize(), toR = toL.clone().negate();
   const ax = {
     armUpR: axisToward(model, bone('upperarm_r'), bone('lowerarm_r'), up),
     armUpL: axisToward(model, bone('upperarm_l'), bone('lowerarm_l'), up),
@@ -20,6 +24,11 @@ export function buildClimbClips(model, clips, fwd = 1) {
     kneeL: axisToward(model, bone('calf_l'), bone('foot_l'), forward.clone().negate()),
     spineFwd: axisToward(model, bone('spine_02'), bone('neck_01'), forward),
     spineSide: axisToward(model, bone('spine_02'), bone('neck_01'), new THREE.Vector3(1, 0, 0)),
+    armBackR: axisToward(model, bone('upperarm_r'), bone('lowerarm_r'), forward.clone().negate()),
+    armBackL: axisToward(model, bone('upperarm_l'), bone('lowerarm_l'), forward.clone().negate()),
+    neckUp: axisToward(model, bone('neck_01'), bone('Head'), forward),
+    legInR: axisToward(model, bone('thigh_r'), bone('calf_r'), toL),
+    legInL: axisToward(model, bone('thigh_l'), bone('calf_l'), toR),
   };
   dispose();
   const r = (n) => pose.get(n);
@@ -44,6 +53,30 @@ export function buildClimbClips(model, clips, fwd = 1) {
     T('thigh_r', 'thighFwdR', [[0, 0.9], [1, 0.9]]), T('thigh_l', 'thighFwdL', [[0, 0.9], [1, 0.9]]),
     T('calf_r', 'kneeR', [[0, 1.2], [1, 1.2]]), T('calf_l', 'kneeL', [[0, 1.2], [1, 1.2]]),
     T('spine_02', 'spineFwd', [[0, 0.1], [1, 0.1]]),
+  ]);
+  const M = (n, axes, keys) => trackMulti(n, r(n), axes.map((a) => ax[a]), keys);
+  // Gliding (Arkham style): arms out wide and swept back, holding the cape's edges open as
+  // wings, elbows soft, chest up and head lifted to look ahead, legs together and trailing with
+  // a slight bend. A slow breath of movement so it never freezes. Replaces the A_TPose it used.
+  const glide = clip('Glide', 2, [
+    M('upperarm_r', ['armUpR', 'armBackR'], [[0, 1.3, 0.55], [1, 1.36, 0.5], [2, 1.3, 0.55]]),
+    M('upperarm_l', ['armUpL', 'armBackL'], [[0, 1.3, 0.55], [1, 1.36, 0.5], [2, 1.3, 0.55]]),
+    T('lowerarm_r', 'elbowR', [[0, -0.5], [2, -0.5]]), T('lowerarm_l', 'elbowL', [[0, 0.25], [2, 0.25]]),
+    T('spine_02', 'spineFwd', [[0, -0.18], [1, -0.22], [2, -0.18]]),
+    T('neck_01', 'neckUp', [[0, -0.35], [2, -0.35]]),
+    M('thigh_r', ['thighFwdR', 'legInR'], [[0, -0.12, 0.28], [1, -0.08, 0.28], [2, -0.12, 0.28]]),
+    M('thigh_l', ['thighFwdL', 'legInL'], [[0, -0.08, 0.28], [1, -0.12, 0.28], [2, -0.08, 0.28]]),
+    T('calf_r', 'kneeR', [[0, 0.3], [2, 0.3]]), T('calf_l', 'kneeL', [[0, 0.2], [2, 0.2]]),
+  ]);
+  // A long fall: arms out for balance (one higher), one knee drawn up and the other leg trailing,
+  // a slow tumble of the limbs. Short hops keep the library's Jump_Loop.
+  const fall = clip('Fall_Loop', 1.6, [
+    M('upperarm_r', ['armUpR', 'armBackR'], [[0, 1.9, 0.3], [0.8, 1.7, 0.4], [1.6, 1.9, 0.3]]),
+    M('upperarm_l', ['armUpL', 'armBackL'], [[0, 1.4, 0.35], [0.8, 1.6, 0.25], [1.6, 1.4, 0.35]]),
+    T('lowerarm_r', 'elbowR', [[0, 0.1], [1.6, 0.1]]), T('lowerarm_l', 'elbowL', [[0, 0.6], [1.6, 0.6]]),
+    T('thigh_r', 'thighFwdR', [[0, 0.95], [0.8, 0.8], [1.6, 0.95]]), T('calf_r', 'kneeR', [[0, 1.3], [1.6, 1.3]]),
+    T('thigh_l', 'thighFwdL', [[0, -0.15], [0.8, 0.05], [1.6, -0.15]]), T('calf_l', 'kneeL', [[0, 0.45], [1.6, 0.45]]),
+    T('spine_02', 'spineFwd', [[0, 0.12], [1.6, 0.12]]),
   ]);
   // Both arms straight up, legs dangling with a slight sway.
   const hang = clip('Hang_Idle', 2, [
@@ -85,5 +118,5 @@ export function buildClimbClips(model, clips, fwd = 1) {
     T('lowerarm_r', 'elbowR', [[0, -0.61], [0.25, -0.66], [0.55, 0.64], [0.9, -0.61]]), T('lowerarm_l', 'elbowL', [[0, 0.15], [0.25, 0.1], [0.55, 1.4], [0.9, 0.15]]),
     T('spine_02', 'spineFwd', [[0, 0], [0.55, 0.45], [0.9, 0]]),
   ]);
-  return [ladderHold, hang, shimmy, zip, wallRun, dive, yank];
+  return [ladderHold, glide, fall, hang, shimmy, zip, wallRun, dive, yank];
 }

@@ -413,6 +413,33 @@ export function createVehicles(deps) {
     events.emit('vehicleEnter', { kind: v.kind });
   }
 
+  // Getting in by the vehicle key: a short leap from where she stands up and over into the seat
+  // (it used to be an instant vanish), then the real enter(). The story and the scripts still call
+  // enter() directly, which stays instant. Returns false if a leap is already under way.
+  const VAULT_T = 0.42;
+  let vault = null;
+  function vaultIn(v) {
+    if (!v || active || vault || !v.group.visible || v.arriving) return false;
+    const from = hero.pos.clone();
+    vault = { v, t: 0, from };
+    hero.vel.set(0, 0, 0);
+    hero.bat.face(Math.atan2(v.group.position.x - from.x, v.group.position.z - from.z));
+    hero.bat.animator.play('Jump_Start', { once: true, timeScale: 1.3, fade: 0.06 });
+    hero.control = {
+      name: 'boardCar', camera: 'ground', keepCrouch: false,
+      update(dt) {
+        if (!vault) return true;
+        vault.t += dt;
+        const k = Math.min(1, vault.t / VAULT_T), e = k * k * (3 - 2 * k);
+        const to = vault.v.group.position;
+        hero.pos.set(from.x + (to.x - from.x) * e, from.y + (to.y + 0.9 - from.y) * e + Math.sin(Math.PI * k) * 1.6, from.z + (to.z - from.z) * e);
+        if (k >= 1) { const car = vault.v; vault = null; hero.control = null; enter(car); }
+        return false;
+      },
+    };
+    return true;
+  }
+
   function exit() {
     if (!active) return;
     const v = active;
@@ -423,7 +450,17 @@ export function createVehicles(deps) {
     hero.bat.root.visible = true;
     hero.cape.mesh.visible = true;
     hero.control = null;
-    hero.teleport({ x: ex, y: groundY > -Infinity ? groundY : v.group.position.y, z: ez }, v.v.yaw);
+    // Out of the seat and over the side in a hop (it used to be a teleport to the kerb): she starts
+    // at the seat and the jump carries her clear, landing about where the old teleport put her.
+    const gy = groundY > -Infinity ? groundY : v.group.position.y;
+    hero.teleport({ x: v.group.position.x + fx2 * (v.radius - 0.6), y: v.group.position.y + 1.1, z: v.group.position.z + fz2 * (v.radius - 0.6) }, v.v.yaw);
+    hero.vel.set(fx2 * 3.6, 4.6, fz2 * 3.6);
+    hero.grounded = false;
+    hero.setState('air');
+    hero.airT = 0.36;
+    hero.bat.face(Math.atan2(fx2, fz2));
+    hero.bat.animator.play('Jump_Start', { once: true, timeScale: 1.4, fade: 0.06 });
+    if (gy > v.group.position.y + 1) hero.teleport({ x: ex, y: gy, z: ez }, v.v.yaw); // a kerb higher than the seat: just step out
     v.driven = false;
     // Once commandeered, a traffic car stays exactly where it's left, like any other borrowed
     // car; without this its stale lane.t (frozen since the moment it was entered) would snap it
@@ -908,6 +945,7 @@ export function createVehicles(deps) {
 
   // ---------------- per-frame driving key + input ----------------
   function handleVehicleKey() {
+    if (vault) return; // mid-leap into a seat
     // At speed the same key ejects Batman up into a glide (the Arkham exit); slower, she steps out.
     if (active) { if (Math.abs(active.v.speed) >= EJECT_MIN_SPEED) eject(); else exit(); return; }
     let nearest = null, nearestD = Infinity;
@@ -916,7 +954,7 @@ export function createVehicles(deps) {
       const d = Math.hypot(hero.pos.x - v.group.position.x, hero.pos.z - v.group.position.z);
       if (d < (v === bm ? BATMOBILE_ENTER_RANGE : ENTER_RANGE) && d < nearestD) { nearestD = d; nearest = v; }
     }
-    if (nearest) enter(nearest);
+    if (nearest) vaultIn(nearest);
     else summon('batmobile');
   }
 
