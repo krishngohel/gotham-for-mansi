@@ -137,6 +137,19 @@ const MOVES = {
     await cam({ at: [7.2, 43.4, 2.5], look3: [7.2, 43.1, 7] });
     await film('allies-attack', 6, 260);
   },
+  reactions: async () => {
+    for (const [who, clip] of [['hero', 'Gadget_Aim'], ['hero', 'Gadget_Toss'], ['goon', 'Hit_Head_Snap'], ['goon', 'Hit_Gut_Fold'], ['goon', 'Hit_Spin']]) {
+      await clearGoons(); await place(6, 42.2, 10, Math.PI);
+      await p.evaluate((who) => { const G = window.__game, h = G.hero.pos; if (who === 'goon') { const e = G.spawn('grunt', { x: h.x, y: h.y, z: h.z - 3 }); G.combat.setEnemies([e]); window.__g = e; G.hero.bat.root.visible = false; G.hero.cape.mesh.visible = false; } else { G.hero.bat.root.visible = true; } }, who);
+      if (who === 'goon') await cam({ at: [9.8, 43.5, 6.2], look3: [6, 43, 7] }); else await cam({ at: [10, 43.5, 8.5], look3: [6, 43.1, 10] });
+      await film(clip, 8, 260, () => p.evaluate(([who, c]) => {
+        const G = window.__game;
+        if (who === 'goon') { const e = window.__g, a = e.ch.animator; e.update = () => {}; a.play(c, { once: true, timeScale: 0.28, fade: 0.04 }); window.__stopG = false; const tick = () => { a.update(1 / 60); if (!window.__stopG) requestAnimationFrame(tick); }; tick(); }
+        else { let t = 0; G.hero.control = { name: 'film', update(dt) { t += dt; return t > 5; } }; G.hero.bat.animator.play(c, { once: true, timeScale: 0.28, fade: 0.04 }); }
+      }, [who, clip]));
+      await p.evaluate(() => { window.__stopG = true; });
+    }
+  },
   roll: async () => { await clearGoons(); await place(6, 42.2, 10, Math.PI); await cam({ side: 4.5, up: 1.2, back: 0 }); await film('roll', 10, 70, async () => { await p.keyboard.down('KeyW'); await p.keyboard.press('KeyC'); await p.waitForTimeout(600); await p.keyboard.up('KeyW'); }); },
   ledge: async () => { await clearGoons(); const l = await p.evaluate(() => { const G = window.__game; const pts = G.world.grapplePoints.filter((g) => !g.perch && g.y > 8 && g.y < 30); const g = pts[3]; G.hero.teleport({ x: g.x + g.nx * 0.6, y: g.y + 1.2, z: g.z + g.nz * 0.6 }, Math.atan2(-g.nx, -g.nz)); return g; }); await cam({ side: 3.5, up: 0.4, back: -1.8, look: 0.6 }); await film('ledge', 12, 140, async () => { await p.waitForTimeout(600); await key('KeyA', 700); await key('KeyW', 300); }); },
   zip: async () => { await clearGoons(); await p.evaluate(() => { const G = window.__game; const z = G.world.grapplePoints.find((g) => g.zip); if (z) { G.hero.teleport({ x: z.x, y: z.y + 0.2, z: z.z }); } }); await cam({ side: 5, up: 0.5, back: 0, look: 0 }); await film('zip', 8, 150, async () => { await p.keyboard.press('KeyF'); }); },

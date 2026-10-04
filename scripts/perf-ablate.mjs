@@ -26,7 +26,9 @@ const toggles = {
 };
 const only = process.env.TOGGLES ? process.env.TOGGLES.split(',') : Object.keys(toggles);
 
-const b = await chromium.launch({ channel: 'msedge', headless: false, args: ['--mute-audio', '--start-maximized', '--disable-gpu-vsync', '--disable-frame-rate-limit'] });
+// Headless by default so it never takes over the screen or the mouse; HEADED=1 opens the old
+// visible maximized window (it grabs focus and the pointer while it runs).
+const b = await chromium.launch({ channel: 'msedge', headless: !process.env.HEADED, args: ['--mute-audio', ...(process.env.HEADED ? ['--start-maximized'] : ['--window-size=1600,900', '--use-angle=d3d11', '--ignore-gpu-blocklist']), '--disable-gpu-vsync', '--disable-frame-rate-limit'] });
 const p = await (await b.newContext({ viewport: null })).newPage();
 await p.goto(`${base}?at=start&god=1&dynres=0&gputime=1&q=${q}`);
 await p.waitForFunction(() => window.__game?.comic, null, { timeout: 120000 });

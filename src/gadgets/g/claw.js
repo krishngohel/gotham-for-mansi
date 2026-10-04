@@ -26,7 +26,7 @@ export function createClawHandler() {
         range: RANGE, maxAngle: 0.3, filter: (e) => clawable(e) && api.canSee(e),
       });
       if (goons.length) {
-        sys.pose('Spell_Simple_Shoot', 0.3, 2.2);
+        sys.pose('Gadget_Aim', 0.3, 1.6);
         // A goon in the batch can be a brute (stripped, not pulled), so the "you yanked someone"
         // word/event below only fires when at least one of them actually got pulled in.
         let yankedAny = false;
@@ -61,7 +61,7 @@ export function createClawHandler() {
       }
       const b = sys.breakables.aimed(eye, dir, RANGE, ['vent', 'railing']);
       if (b) {
-        sys.pose('Spell_Simple_Shoot', 0.3, 2.2);
+        sys.pose('Gadget_Aim', 0.3, 1.6);
         if (b.kind === 'railing') {
           for (const e of sys.combat.enemies) {
             // Frozen, tied, chained or held goons stay put: they aren't standing at the rail.

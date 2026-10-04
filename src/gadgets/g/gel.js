@@ -26,7 +26,7 @@ export function createGelHandler() {
     if (slot < 0) return;
     blobs.push({ x: spot.x, y: spot.y, z: spot.z, slot });
     sys.state.use('gel');
-    sys.pose('Spell_Simple_Shoot', 0.25, 2.2);
+    sys.pose('Gadget_Aim', 0.25, 1.6);
     c.set(spot.x, spot.y, spot.z);
     sys.events.emit('gelSpray', { pos: c.clone() });
     sys.events.emit('word', { text: 'SPLUT!', pos: c.clone(), big: false });

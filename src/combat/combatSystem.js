@@ -18,6 +18,12 @@ const PUNCHES = ['Punch_Jab', 'Punch_Cross', 'Punch_Jab'];
 // Which punch or kick plays next (variety, finishers): src/combat/strikeChoice.js. The
 // code-authored strikes themselves live in src/actors/strikes.js.
 // Playback speed for the code-authored strikes (authored at real time; freeflow wants them snappy).
+// Where each strike lands, for the goon's reaction (src/actors/reactions.js).
+const REACT = {
+  Punch_Jab: 'head', Punch_Cross: 'head', Elbow_Strike: 'head', Punch_Uppercut: 'head',
+  Punch_Hook_L: 'spin', Melee_Hook: 'spin', Kick_Round: 'spin', Kick_Side: 'gut', Kick_Low: 'spin',
+  Kick_Front: 'gut', Knee_Strike: 'gut',
+};
 const STRIKE_SPEED = { Punch_Uppercut: 1.45, Punch_Hook_L: 1.4, Elbow_Strike: 1.45, Punch_Backfist: 1.35, Punch_Hammer: 1.3, Kick_Side: 1.35, Kick_Axe: 1.3, Kick_Low: 1.4 };
 // Regular kicks alternate the front push kick and the roundhouse (the front kick alone at
 // point-blank range, where the roundhouse's step would only slide); the chain finisher is
@@ -103,11 +109,11 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     events.emit('critical', { target, variant, impact });
   }
 
-  function landHit(move, target, { word: w, power = 1, stopTime = 0.06, launch = 0, crit = false } = {}) {
+  function landHit(move, target, { word: w, power = 1, stopTime = 0.06, launch = 0, crit = false, react = null } = {}) {
     if (target.state === 'tied') return breakTied(target);
     if (target.state === 'frozen') return shatter(target);
     const result = resolveHit(move, target);
-    const wasAttacking = target.applyHit(result, hero.pos, { power, launch });
+    const wasAttacking = target.applyHit(result, hero.pos, { power, launch, react });
     if (wasAttacking) director.release(target.id);
     target.ch.headWorld(chest, -0.3);
     events.emit('impact', { pos: chest.clone(), move, outcome: result.outcome, target, crit });
@@ -337,8 +343,8 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
             : { word: word('spin'), power: 2.2, launch: 6.5, crit: true, stopTime: STOP.finisher });
           else if (juggle) landHit(isKick ? 'kick' : 'punch', target, { word: rng.chance(0.4) ? 'JUGGLE!' : null, power: 1.2, stopTime: isKick ? STOP.kick : STOP.punch });
           // The uppercut pops the goon up off his feet, ready for a juggle; an elbow hits a bit harder.
-          else if (clip === 'Punch_Uppercut') landHit(move, target, { word: rng.chance(0.6) ? word('uppercut') : null, power: 1.3, launch: 3.4, stopTime: STOP.kick });
-          else landHit(move, target, { word: isKick && rng.chance(0.4) ? word('kick') : clip === 'Elbow_Strike' && rng.chance(0.5) ? 'KRAK!' : null, power: isKick ? 1.6 : clip === 'Elbow_Strike' ? 1.2 : 1, launch: isKick ? (clip === 'Kick_Low' ? 1 : clip === 'Kick_Side' ? 3 : 2) : 0, stopTime: isKick ? STOP.kick : STOP.punch });
+          else if (clip === 'Punch_Uppercut') landHit(move, target, { word: rng.chance(0.6) ? word('uppercut') : null, power: 1.3, launch: 3.4, stopTime: STOP.kick, react: 'head' });
+          else landHit(move, target, { word: isKick && rng.chance(0.4) ? word('kick') : clip === 'Elbow_Strike' && rng.chance(0.5) ? 'KRAK!' : null, power: isKick ? 1.6 : clip === 'Elbow_Strike' ? 1.2 : 1, launch: isKick ? (clip === 'Kick_Low' ? 1 : clip === 'Kick_Side' ? 3 : 2) : 0, stopTime: isKick ? STOP.kick : STOP.punch, react: REACT[clip] ?? null });
         }
         return t >= end;
       },

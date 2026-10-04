@@ -8,6 +8,8 @@ import { chooseHarleyMove, shouldCartwheel, harleyGlyph, harleyWindup, HARLEY_CO
 
 const IDLE_POSES = ['Idle_Talking_Loop', 'Idle_TalkingPhone_Loop', 'Idle_FoldArms_Loop', 'Idle_Loop'];
 const GRUNT_ATTACKS = ['Punch_Cross', 'Punch_Jab', 'Melee_Hook'];
+// Hit reactions by where the blow landed (src/actors/reactions.js).
+const REACTIONS = { head: 'Hit_Head_Snap', gut: 'Hit_Gut_Fold', spin: 'Hit_Spin' };
 // Clips a chain takedown plays straight onto a held goon's mixer (chainControl.js: the daze while
 // waiting for a turn, the head grab, the yank, and enemy.tie's knockback into the tied pose).
 // Primed here, at spawn, so the first chain of a fight doesn't build an action mid-chain.
@@ -263,7 +265,9 @@ export function createEnemy({ id, type, assets, scene, collision, rng, events = 
 
   // Called by the combat system with the result of resolveHit.
   // launch: vertical launch speed for knockdowns/KOs (0 = slide along the ground).
-  e.applyHit = (result, from, { power = 1, launch = 0 } = {}) => {
+  // react: which reaction a plain hit plays ('head', 'gut' or 'spin', from the strike that
+  // landed); without one, the library's small flinches.
+  e.applyHit = (result, from, { power = 1, launch = 0, react = null } = {}) => {
     if (!e.alive) return;
     // A hit on ice shatters it: out cold, whatever the move was.
     if (e.state === 'frozen') { e.shattered = true; e.frozenT = 0; e.health = 0; result = { outcome: 'ko', damage: 0, stun: 0 }; }
@@ -277,7 +281,7 @@ export function createEnemy({ id, type, assets, scene, collision, rng, events = 
         e.knock.copy(tmp).multiplyScalar(2.2 * power);
         if (e.air) { e.vel.y = Math.max(e.vel.y, 4.5); e.vel.x = tmp.x * 2; e.vel.z = tmp.z * 2; }
         else if (launch) e.launch(tmp.x * 2.5 * power, launch, tmp.z * 2.5 * power);
-        play(rng.chance(0.5) ? 'Hit_Chest' : 'Hit_Head', { once: true, timeScale: 1.4, fade: 0.05 });
+        play(REACTIONS[react] ?? (rng.chance(0.5) ? 'Hit_Chest' : 'Hit_Head'), { once: true, timeScale: react ? 1.15 : 1.4, fade: 0.04 });
         if (result.stun) { e.stunned = true; e.stunT = result.stun; }
         break;
       case 'knockdown':

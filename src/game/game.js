@@ -26,6 +26,7 @@ import { createHero } from '../actors/hero.js';
 import { buildReachTable } from '../combat/reach.js';
 import { buildClimbClips } from '../actors/climbAnims.js';
 import { buildStrikeClips } from '../actors/strikes.js';
+import { buildReactionClips } from '../actors/reactions.js';
 import { buildChainClips } from '../actors/chainAnims.js';
 import { chainClipNames } from '../combat/chainTimeline.js';
 import { buildStealthClips } from '../actors/stealthAnims.js';
@@ -127,6 +128,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   for (const c of buildStealthClips(SkeletonUtils.clone(assets.bodies.m), assets.clips)) assets.clips.set(c.name, c);
   // More punches and kicks for freeflow (src/actors/strikes.js); mocap clips of the same name win.
   for (const c of buildStrikeClips(SkeletonUtils.clone(assets.bodies.m), assets.clips)) if (!assets.clips.has(c.name)) assets.clips.set(c.name, c);
+  // Gadget poses and goon hit reactions (src/actors/reactions.js).
+  for (const c of buildReactionClips(SkeletonUtils.clone(assets.bodies.m), assets.clips)) if (!assets.clips.has(c.name)) assets.clips.set(c.name, c);
   // Where each strike's fist or foot is on its contact frame, so lunges connect.
   const reach = buildReachTable(SkeletonUtils.clone(assets.bodies.m), assets.clips);
   mark('clips');

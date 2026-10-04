@@ -15,7 +15,7 @@ export function createSmokeHandler() {
       const { hero, api } = sys;
       c.copy(hero.pos);
       sys.gfx.smoke.burst(c, R, LIFE);
-      sys.pose('Sword_Regular_B', 0.35, 1.7);
+      sys.pose('Gadget_Toss', 0.35, 1.5);
       let n = 0;
       for (const e of sys.combat.enemies) {
         if (!e.alive || e.def.boss) continue;

@@ -5,7 +5,9 @@
 import { chromium } from 'playwright-core';
 const base = process.argv[2] ?? 'http://localhost:5208/';
 const draws = Number(process.argv[3] ?? 40);
-const b = await chromium.launch({ channel: 'msedge', headless: false, args: ['--mute-audio', '--start-maximized'] });
+// Headless by default so it never takes over the screen or the mouse; HEADED=1 opens the old
+// visible maximized window (it grabs focus and the pointer while it runs).
+const b = await chromium.launch({ channel: 'msedge', headless: !process.env.HEADED, args: ['--mute-audio', ...(process.env.HEADED ? ['--start-maximized'] : ['--window-size=1600,900', '--use-angle=d3d11', '--ignore-gpu-blocklist'])] });
 const p = await (await b.newContext({ viewport: null })).newPage();
 await p.goto(`${base}?at=start&god=1&gputime=1`);
 await p.waitForFunction(() => window.__game?.comic, null, { timeout: 120000 });

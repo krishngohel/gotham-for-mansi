@@ -4,7 +4,9 @@
 import { chromium } from 'playwright-core';
 const url = process.argv[2] ?? 'https://krishngohel.github.io/gotham-for-mansi/?at=start&god=1';
 const channel = process.argv[3] ?? 'msedge';
-const b = await chromium.launch({ channel, headless: false, args: ['--mute-audio', '--start-maximized'] });
+// Headless by default so it never takes over the screen or the mouse; HEADED=1 opens the old
+// visible maximized window (it grabs focus and the pointer while it runs).
+const b = await chromium.launch({ channel, headless: !process.env.HEADED, args: ['--mute-audio', ...(process.env.HEADED ? ['--start-maximized'] : ['--window-size=1600,900', '--use-angle=d3d11', '--ignore-gpu-blocklist'])] });
 const ctx = await b.newContext({ viewport: null });
 const p = await ctx.newPage();
 await p.goto(url);
