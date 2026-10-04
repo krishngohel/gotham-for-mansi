@@ -1,3 +1,4 @@
+import { createCardQueue } from './cardQueue.js';
 import { batSvgPath } from '../config/batShape.js';
 import { chainHudKey } from '../combat/chains.js';
 
@@ -154,7 +155,17 @@ export function createHud(root) {
   const bossEl = el.querySelector('.hud-boss');
   const bossFill = el.querySelector('.boss-fill');
   const speechEl = el.querySelector('.hud-speech');
-  let cardTimer = null, cardShownAt = 0;
+  const cards = createCardQueue({
+    render(title, text) {
+      cardEl.querySelector('.card-title').textContent = title;
+      cardEl.querySelector('.card-text').textContent = text;
+      // A card following another re-runs the drop-in, so the change of card reads.
+      cardEl.classList.remove('show');
+      void cardEl.offsetWidth;
+      cardEl.classList.add('show');
+    },
+    hide: () => cardEl.classList.remove('show'),
+  });
 
   return {
     setHealth(f) { bar.setAttribute('stroke-dasharray', arcDash(f)); },
@@ -189,22 +200,11 @@ export function createHud(root) {
       void cap.offsetWidth;
       cap.classList.add('new');
     },
-    card(title, text, ms = 7000) {
-      cardEl.querySelector('.card-title').textContent = title;
-      cardEl.querySelector('.card-text').textContent = text;
-      cardEl.classList.add('show');
-      cardShownAt = performance.now();
-      clearTimeout(cardTimer);
-      cardTimer = setTimeout(() => cardEl.classList.remove('show'), ms);
-    },
+    // One card at a time: one arriving over another waits its turn (src/ui/cardQueue.js).
+    card(title, text, ms = 7000) { cards.push(title, text, ms); },
     // The action is starting (a fight, getting into a vehicle): a card that has had its moment
     // (minMs on screen) comes down now instead of covering the view for the rest of its time.
-    dismissCard(minMs = 1500) {
-      if (!cardEl.classList.contains('show')) return;
-      const left = Math.max(0, minMs - (performance.now() - cardShownAt));
-      clearTimeout(cardTimer);
-      cardTimer = setTimeout(() => cardEl.classList.remove('show'), left);
-    },
+    dismissCard(minMs = 1500) { cards.dismiss(minMs); },
     get cardShowing() { return cardEl.classList.contains('show'); },
     setBalloons(n, total) { balloons.textContent = `${n}/${total}`; },
     // edgeAngle: he is off screen and (x, y) is pinned to the screen edge (src/ui/edgeGlyph.js);
