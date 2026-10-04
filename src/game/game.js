@@ -71,6 +71,7 @@ import { STEPS } from './story.js';
 import { migrateProgress } from './storyMigrate.js';
 import { wireAudio } from './sound.js';
 import { createBoss } from './boss.js';
+import { edgeGlyph } from '../ui/edgeGlyph.js';
 import { createVehicles } from '../vehicles/vehicles.js';
 import { tracker } from './progressTracker.js';
 import { goldStandardPages, fromKrishnPages } from './rewardPages.js';
@@ -768,7 +769,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
           glyphIds.add(e.id);
           e.ch.root.visible = e.pos.distanceTo(camera.position) > 2.4;
           const show = !!e.glyph && (e.state === 'windup' || e.state === 'throw');
-          if (show) { const p = toScreen(e.ch.headWorld(new THREE.Vector3(), 0.45)); hud.glyph(e.id, p.x, p.y, !p.behind, e.glyph); }
+          // A goon winding up off screen (behind her, most often) gets his bolt on the screen edge.
+          if (show) { const p = toScreen(e.ch.headWorld(new THREE.Vector3(), 0.45)); const g = edgeGlyph(p.x, p.y, p.behind, innerWidth, innerHeight, 56, 84); hud.glyph(e.id, g.x, g.y, true, e.glyph, g.edge ? g.angle : null); }
           else hud.glyph(e.id, 0, 0, false);
         }
         hud.pruneGlyphs(glyphIds);

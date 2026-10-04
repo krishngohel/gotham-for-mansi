@@ -78,7 +78,10 @@ export function createFollowCamera(camera, collision) {
     forward(out = new THREE.Vector3()) { return out.set(Math.sin(s.yaw), 0, Math.cos(s.yaw)); },
     right(out = new THREE.Vector3()) { return out.set(-Math.cos(s.yaw), 0, Math.sin(s.yaw)); },
     lookDir(out = new THREE.Vector3()) { return camera.getWorldDirection(out); },
-    snapBehind(yaw, pitch = 0.22) { s.yaw = yaw; s.pitch = pitch; first = true; },
+    snapBehind(yaw, pitch = 0.22) { s.yaw = yaw; s.pitch = pitch; first = true; s.settle = null; },
+    // After `after` seconds the pitch eases to `pitch` (an opening shot tilted up at something,
+    // then back to a playing view). Any mouse look first cancels it: the view is hers then.
+    settlePitch(pitch, after) { s.settle = { pitch, t: after }; },
     // A perch drop is starting from `from` onto a goon at `to`: frame it from the side.
     dropShot(from, to) { dropFrom.copy(from); dropTo.copy(to); dropSet = true; },
     // Action shot for critical hits: the camera swings low and to the side of the blow,
@@ -122,6 +125,11 @@ export function createFollowCamera(camera, collision) {
         s.yaw += wrapAngle(s.heading - s.yaw) * (1 - Math.exp(-dt * FLY_FOLLOW));
         s.pitch += (FLY_PITCH - s.pitch) * (1 - Math.exp(-dt * 2));
       } else {
+        if (looking) s.settle = null;
+        else if (s.settle && (s.settle.t -= dt) <= 0) {
+          s.pitch += (s.settle.pitch - s.pitch) * (1 - Math.exp(-dt * 2.2));
+          if (Math.abs(s.settle.pitch - s.pitch) < 0.01) s.settle = null;
+        }
         s.yaw -= look.dx * 0.0022 * s.sensitivity;
         s.pitch += look.dy * 0.0022 * s.sensitivity * (s.invertY ? -1 : 1);
         if (vehicle && s.lookIdle > DRIVE_LOOK_HOLD) {

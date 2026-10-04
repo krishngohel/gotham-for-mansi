@@ -271,7 +271,19 @@ export function createFlow(d) {
         advance({ type: 'cutsceneDone', scene: s.scene });
       });
     }
-    if (s.type === 'boss') playScene('bossIntro').then(() => d.boss?.begin());
+    // He opens the fight from his balcony ten meters up, above the top of the usual view (the
+    // level 0.22 pitch put him a full screen off the top): face him and tilt the camera up so he
+    // sits under the boss bar; after a moment it settles back to a playing view of the floor and
+    // its buzzer tiles, unless she has already taken the camera.
+    if (s.type === 'boss') playScene('bossIntro').then(() => {
+      d.boss?.begin();
+      const j = d.boss?.joker?.pos;
+      if (!j) return;
+      const yaw = Math.atan2(j.x - hero.pos.x, j.z - hero.pos.z);
+      hero.bat.face(yaw);
+      d.follow?.snapBehind(yaw, -0.2);
+      d.follow?.settlePitch?.(0.12, 2.5);
+    });
     if (ASYNC_TYPES.has(s.type)) startAsync(s);
     if (s.type === 'interior' && s.lines?.length) radio?.say(s.lines);
     if (s.type === 'credits') {

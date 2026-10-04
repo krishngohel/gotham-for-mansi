@@ -77,8 +77,14 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0 6px; margin: 0 2px; bo
 .comic-page.layout-single { grid-template-columns: 1fr; grid-template-rows: 1fr; }
 .comic-page.layout-duo { grid-template-columns: 1.3fr 1fr; grid-template-rows: 1fr; }
 .comic-page.layout-trio { grid-template-columns: repeat(3, 1fr); grid-template-rows: 1fr; }
-.panel { position: relative; overflow: hidden; background: #1a2436; border: 5px solid var(--ink); opacity: 0; transform: translateY(18px) scale(0.97); transition: opacity 0.35s, transform 0.35s; }
-.panel.in { opacity: 1; transform: rotate(var(--tilt, 0deg)); }
+/* A panel still to come is a faint pencilled frame, so a half-told page never reads as empty;
+   it inks in and lands, with a small overshoot, when its turn comes. */
+.panel { position: relative; overflow: hidden; background: transparent; border: 5px dashed rgba(17, 17, 17, 0.16); transition: background 0.3s, border-color 0.3s; }
+.panel > * { opacity: 0; }
+.panel.in { background: #1a2436; border: 5px solid var(--ink); transform: rotate(var(--tilt, 0deg)); animation: panelIn 0.38s cubic-bezier(0.2, 0.9, 0.3, 1.25) both; }
+.panel.in > * { opacity: 1; transition: opacity 0.3s; }
+.panel.in > .caption, .panel.in > .balloon, .panel.in > .panel-sfx { transition-delay: 0.18s; }
+@keyframes panelIn { from { opacity: 0; transform: translateY(16px) scale(0.96) rotate(var(--tilt, 0deg)); } to { opacity: 1; transform: rotate(var(--tilt, 0deg)); } }
 .panel.wide { grid-column: span 2; }
 .panel.full { grid-column: 1 / -1; }
 .panel.tall { grid-row: span 2; }
@@ -105,6 +111,11 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0 6px; margin: 0 2px; bo
 
 .glyph.yellow path { fill: var(--signal); }
 .glyph.yellow { filter: drop-shadow(0 0 10px var(--signal)) drop-shadow(2px 2px 0 var(--ink)); }
+/* Off screen: pinned to the edge, centred on its point, with an ink pointer facing the goon. */
+.glyph.edge { margin: -34px 0 0 -24px; transform: scale(0.82); animation: glyphEdge 0.5s ease-in-out infinite alternate; }
+.glyph.edge::after { content: ''; position: absolute; left: 50%; top: 50%; width: 0; height: 0; margin: -11px 0 0 -9px; border: 11px solid transparent; border-left: 18px solid var(--ink);
+  transform: rotate(var(--a, 0rad)) translateX(36px); transform-origin: 9px 11px; }
+@keyframes glyphEdge { from { transform: scale(0.78); } to { transform: scale(0.9); } }
 .hud-boss { position: absolute; left: 50%; top: 22px; width: min(560px, 60vw); transform: translateX(-50%); opacity: 0; transition: opacity 0.4s; }
 .hud-boss.show { opacity: 1; }
 .boss-name { font: 30px 'Bangers', cursive; letter-spacing: 3px; text-align: center; color: #9be07a; -webkit-text-stroke: 1.5px var(--ink); text-shadow: 3px 3px 0 var(--ink); }

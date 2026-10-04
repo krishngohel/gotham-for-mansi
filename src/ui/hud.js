@@ -206,7 +206,9 @@ export function createHud(root) {
     },
     get cardShowing() { return cardEl.classList.contains('show'); },
     setBalloons(n, total) { balloons.textContent = `${n}/${total}`; },
-    glyph(id, x, y, visible, color = 'blue') {
+    // edgeAngle: he is off screen and (x, y) is pinned to the screen edge (src/ui/edgeGlyph.js);
+    // the bolt shrinks a little and a pointer faces him. null: over his head as usual.
+    glyph(id, x, y, visible, color = 'blue', edgeAngle = null) {
       let g = glyphs.get(id);
       if (!visible) { if (g) { g.remove(); glyphs.delete(id); } return; }
       if (g && g.dataset.color !== color) { g.remove(); glyphs.delete(id); g = null; }
@@ -220,6 +222,8 @@ export function createHud(root) {
       }
       g.style.left = `${x}px`;
       g.style.top = `${y}px`;
+      g.classList.toggle('edge', edgeAngle !== null);
+      if (edgeAngle !== null) g.style.setProperty('--a', `${edgeAngle}rad`);
     },
     clearGlyphs() { for (const g of glyphs.values()) g.remove(); glyphs.clear(); },
     // Removes glyphs for enemies that no longer exist (restarts, new waves).

@@ -535,8 +535,17 @@ function clockPlaza(ctx) {
   // Joker's balcony above the arena.
   const by = SITES.balcony.y;
   solid(ctx, 'painted', box(12, 0.5, 5, hx, by - 0.25, hz + 9.5), { color: PALETTE.stone });
-  solid(ctx, 'steel', box(12, 1.1, 0.12, hx, by + 0.55, hz + 11.95));
-  for (const s of [-1, 1]) solid(ctx, 'steel', box(0.12, 1.1, 5, hx + s * 5.95, by + 0.55, hz + 9.5));
+  // An open railing, not a solid sheet: from the arena floor a 1.1 m steel parapet hid him to the
+  // eyebrows, so the fight's first phase was a voice and a speech balloon over an empty ledge.
+  // Posts, a mid rail and a top rail; the mid rail still keeps anyone from slipping underneath.
+  solid(ctx, 'steel', box(12, 0.12, 0.14, hx, by + 1.04, hz + 11.95));
+  solid(ctx, 'steel', box(12, 0.07, 0.07, hx, by + 0.52, hz + 11.95));
+  for (let i = 0; i <= 8; i++) solid(ctx, 'steel', box(0.09, 1.0, 0.09, hx - 5.95 + i * 1.4875, by + 0.5, hz + 11.95));
+  for (const s of [-1, 1]) {
+    solid(ctx, 'steel', box(0.14, 0.12, 5, hx + s * 5.95, by + 1.04, hz + 9.5));
+    solid(ctx, 'steel', box(0.07, 0.07, 5, hx + s * 5.95, by + 0.52, hz + 9.5));
+    for (let i = 0; i < 3; i++) solid(ctx, 'steel', box(0.09, 1.0, 0.09, hx + s * 5.95, by + 0.5, hz + 7.2 + i * 1.6));
+  }
   // Arena lanterns and gargoyles on the hall corners.
   for (const [gx, gz] of [[-81, -141], [-43, -141], [-81, -179], [-43, -179]]) {
     gargoyle(ctx, gx, 58.9, gz, Math.atan2(gx + 62, gz + 160));
