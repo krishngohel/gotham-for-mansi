@@ -2,7 +2,7 @@
 // the team-takedown conditions, the dodge/stagger threat scan, and the Party Crasher flee path.
 // No three.js and no game harness: these take plain numbers and enemy-shaped records only.
 import { describe, it, expect } from 'vitest';
-import { pickAllyTarget, canTeamTakedown, nearestThreat, fleeStep } from '../../src/allies/nightwingLogic.js';
+import { pickAllyTarget, canTeamTakedown, nearestThreat, fleeStep, withinLeash } from '../../src/allies/nightwingLogic.js';
 
 function goon(id, x, z, o = {}) {
   return { id, type: 'grunt', def: {}, pos: { x, y: 0, z }, alive: true, down: false, state: 'engage', ...o };
@@ -27,6 +27,21 @@ describe('pickAllyTarget', () => {
   it('skips a boss (def.boss) even if nearest', () => {
     const enemies = [goon('boss', 0.5, 0, { def: { boss: true } }), goon('a', 3, 0)];
     expect(pickAllyTarget(0, 0, enemies).id).toBe('a');
+  });
+
+  it('ignores goons beyond the leash around Batman', () => {
+    const enemies = [goon('far', 2, 0), goon('near', 30, 0)];
+    // Nightwing is at the origin; Batman (the leash centre) is at x 30.
+    expect(pickAllyTarget(0, 0, enemies, { leash: { x: 30, z: 0, r: 18 } }).id).toBe('near');
+    expect(pickAllyTarget(0, 0, [goon('far', 2, 0)], { leash: { x: 30, z: 0, r: 18 } })).toBeNull();
+  });
+
+  it('withinLeash: inside, on the edge, outside, and no leash at all', () => {
+    const L = { x: 0, z: 0, r: 18 };
+    expect(withinLeash(goon('a', 10, 0), L)).toBe(true);
+    expect(withinLeash(goon('a', 18, 0), L)).toBe(true);
+    expect(withinLeash(goon('a', 13, 13), L)).toBe(false);
+    expect(withinLeash(goon('a', 900, 0), null)).toBe(true);
   });
 
   it('avoids Batman\'s current target when another goon is available', () => {

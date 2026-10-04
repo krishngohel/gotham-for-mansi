@@ -83,6 +83,11 @@ export function createCape(ch, color, {
   // floorAt(x, z): ground height under a cloth point (world y, -Infinity for none), which the hem
   // may rest on but not pass; null lets the cloth fall free.
   const floors = new Float32Array(cloth.n);
+  // The shoulder line's back plane (stepCloth's back): set each frame for the cape, off for the
+  // coat tails and while the hands hold the corners out as wings.
+  // Its top is a ceiling at the shoulders: a jump's take-off pulls the cloth up and the apex lets
+  // it carry on, whipping the hem over the head, where it landed folded and stayed (every jump).
+  const backPlane = { x: 0, z: 0, nx: 0, nz: 1, d: 0.02, top: Infinity };
   function update(dt, wind = [0.6, 0, 0.3], floorAt = null) {
     ch.root.updateMatrixWorld(true);
     // Follow the torso, not the root: idle stances twist the shoulders well off the root's facing.
@@ -138,7 +143,9 @@ export function createCape(ch, color, {
     // Ground under each point, sampled once per frame (a hair above it, clear of the depth test).
     if (floorAt) for (let i = 0; i < cloth.n; i++) floors[i] = floorAt(cloth.pos[i * 3], cloth.pos[i * 3 + 2]) + 0.01;
     const steps = Math.min(4, Math.ceil(dt / (1 / 120)));
-    for (let s = 0; s < steps; s++) stepCloth(cloth, dt / steps, { wind, damping: 0.04, iterations: 8, colliders, pins, floor: floorAt ? floors : null });
+    const back = mode === 'shoulders' && !wings ? backPlane : null;
+    if (back) { back.x = anchor.x; back.z = anchor.z; back.nx = fwd.x; back.nz = fwd.z; back.top = anchor.y + 0.05; }
+    for (let s = 0; s < steps; s++) stepCloth(cloth, dt / steps, { wind, damping: 0.04, iterations: 8, colliders, pins, floor: floorAt ? floors : null, back });
     geo.attributes.position.needsUpdate = true;
     geo.computeVertexNormals();
     // Lining: the winding whose normal points at the wearer's back is the inner face.
@@ -157,5 +164,11 @@ export function createCape(ch, color, {
       if (!on) { cloth.pinned[cornerL] = 0; cloth.pinned[cornerR] = 0; }
     },
     reset() { placed = false; },
+    // World height of the hem (the bottom row's average): how the hero spots a cape left folded.
+    hemY() {
+      let y = 0;
+      for (let i = cloth.n - COLS; i < cloth.n; i++) y += cloth.pos[i * 3 + 1];
+      return y / COLS;
+    },
   };
 }

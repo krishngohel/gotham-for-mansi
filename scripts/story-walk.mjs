@@ -51,6 +51,15 @@ await page.evaluate(() => {
     }
     last = { x: p.x, y: p.y, z: p.z };
   }, 250);
+  // A combo hit outside a story fight is something a player would notice: the counter ticking
+  // up after the fight is over. Logged with the goons still up and where it came from.
+  window.__strayCombo = [];
+  const c = G.combat.combo, hit = c.hit.bind(c);
+  c.hit = () => {
+    const st = G.flow.objectives.step;
+    if (st?.type !== 'fight' && st?.type !== 'boss') window.__strayCombo.push({ step: st?.id, alive: G.combat.enemies.filter((e) => e.alive).map((e) => `${e.type}@${Math.round(e.pos.distanceTo(G.hero.pos))}m`), from: new Error().stack.split(String.fromCharCode(10)).slice(2, 7).map((l) => l.trim()).join(' < ') });
+    hit();
+  };
   for (const ev of ['heroDown', 'vehicleEnter', 'vehicleExit', 'wingEnter', 'wingExit', 'chaseDone', 'battleDone', 'armadaDone']) G.events.on(ev, () => window.__events.push([ev, G.flow.objectives.step?.id]));
 });
 // Marks a window in which a big move is this script's doing, not the game's.
@@ -149,10 +158,11 @@ for (let guard = 0; guard < 900; guard++) {
   }
 }
 const end = await state();
-const extra = await page.evaluate(() => ({ cuts: window.__cuts, events: window.__events }));
+const extra = await page.evaluate(() => ({ cuts: window.__cuts, events: window.__events, strayCombo: window.__strayCombo }));
 writeFileSync(`${out}/walk.json`, JSON.stringify({ end, steps: log, ...extra, errors }, null, 1));
 console.log('ended at', end.id, end.mode, '| shots', n, '| steps', log.length);
 console.log('cuts (hero jumps the script did not make):', JSON.stringify(extra.cuts));
 console.log('events:', JSON.stringify(extra.events));
+console.log('combo hits outside a fight:', extra.strayCombo.length ? JSON.stringify(extra.strayCombo, null, 1) : 'none');
 console.log(errors.length ? 'ERRORS:\n' + errors.join('\n') : 'no console errors');
 await browser.close();

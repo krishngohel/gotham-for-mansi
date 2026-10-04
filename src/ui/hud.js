@@ -142,10 +142,11 @@ export function createHud(root) {
   window.addEventListener('resize', () => wordSizeCache.clear());
   // The objective card, a showing hint, the combo and chain icons and the health ring.
   // The objective marker (src/ui/waypoint.js, outside this HUD) is on the list too: a word like
-  // SCREEECH! landing on it hid where to go.
+  // SCREEECH! landing on it hid where to go. So is a showing vehicle message (vehicles.js).
   const uiBoxes = () => [captionEl.getBoundingClientRect(), hintEl.classList.contains('show') ? hintEl.getBoundingClientRect() : null,
     combo.getBoundingClientRect(), chainsEl.getBoundingClientRect(), healthEl.getBoundingClientRect(),
-    document.querySelector('.waypoint')?.getBoundingClientRect() ?? null];
+    document.querySelector('.waypoint')?.getBoundingClientRect() ?? null,
+    document.querySelector('.vehicle-toast.show')?.getBoundingClientRect() ?? null];
   const flashEl = el.querySelector('.hud-flash');
   const speedEl = el.querySelector('.hud-speed');
   let hintTimer = null;

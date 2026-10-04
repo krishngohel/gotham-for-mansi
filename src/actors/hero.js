@@ -421,7 +421,15 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
   };
 
   const groundUnderHem = (x, z) => collision.groundBelow(x, pos.y + 0.3, z, 0.02);
+  // Hidden (in the Batmobile, in the Batwing), the cloth was still simulated, dragged along behind
+  // her position at driving and flying speed, and an eject or a bail-out showed it in whatever
+  // state that left it: streaming, bunched, snapping back. Skip it while hidden and hang it fresh
+  // the frame it is seen again.
+  let capeHidden = false, capeFoldT = 0;
+  const CAPE_FOLDED = 0.6, CAPE_BUNCHED = 1.1; // hem height above her feet (m); it rests near 0.25
   h.updateCape = (dt) => {
+    if (!cape.mesh.visible) { capeHidden = true; return; }
+    if (capeHidden) { capeHidden = false; cape.reset(); }
     // Air rushing past the cape.
     const wind = [-vel.x * 0.8 + 0.6, -vel.y * 0.5 + (h.state === 'glide' ? 6 : 0), -vel.z * 0.8 + 0.3];
     // While the hero stands, the hem rests on whatever is within a step of the feet under each of
@@ -429,6 +437,14 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
     // the whole cloth falls free.
     const standing = !h.control && h.grounded && (h.state === 'ground' || h.state === 'roll');
     cape.update(dt, wind, standing ? groundUnderHem : null);
+    // A jump or a drop (out of the Batmobile, off a ledge) can leave the cape folded up on her
+    // back, and it stayed that way, piling higher with every jump. Standing still with the hem
+    // held up above her hips for a second means it is stuck: hang it fresh. Up at her shoulders
+    // it can only be a fold, so that is caught sooner, before she sees it crumpled there.
+    const still = standing && h.state === 'ground' && Math.hypot(vel.x, vel.z) < 0.5;
+    const hem = cape.hemY() - pos.y;
+    if (still && hem > CAPE_FOLDED) capeFoldT += dt; else capeFoldT = 0;
+    if (capeFoldT > (hem > CAPE_BUNCHED ? 0.35 : 1)) { capeFoldT = 0; cape.reset(); }
   };
 
   h.teleport = (p, yaw = bat.yaw) => {

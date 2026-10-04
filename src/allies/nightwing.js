@@ -5,7 +5,7 @@
 // existing hit/critical/event pipeline so Nightwing's blows land exactly like Batman's.
 import { createNightwingCharacter } from '../actors/nightwingChar.js';
 import { footGround } from '../actors/characters.js';
-import { pickAllyTarget, canTeamTakedown, nearestThreat, fleeStep } from './nightwingLogic.js';
+import { pickAllyTarget, canTeamTakedown, nearestThreat, fleeStep, ALLY_LEASH, withinLeash } from './nightwingLogic.js';
 
 const WALK = 'Walk_Loop', JOG = 'Jog_Fwd_Loop', IDLE = 'Idle_Loop';
 const PUNCHES = ['Punch_Jab', 'Punch_Cross'];
@@ -176,9 +176,12 @@ export function createNightwing({ assets, scene, collision, events, combat, hero
       return;
     }
 
-    if (!target || !target.alive || target.down) {
+    // He fights beside her: a goon farther than ALLY_LEASH from Batman is not his to chase, and
+    // one he was on that she has left behind is dropped.
+    const leash = { x: hero.pos.x, z: hero.pos.z, r: ALLY_LEASH };
+    if (!target || !target.alive || target.down || !withinLeash(target, leash)) {
       const bt = nearestBatmanTarget();
-      target = pickAllyTarget(pos.x, pos.z, combat.enemies, { batmanTarget: bt });
+      target = pickAllyTarget(pos.x, pos.z, combat.enemies, { batmanTarget: bt, leash });
       if (state !== 'strike') state = target ? 'seek' : 'idle';
     }
 
@@ -212,7 +215,7 @@ export function createNightwing({ assets, scene, collision, events, combat, hero
       faceTowards(dx, dz, 8, dt);
       if (!hitDone && stateT > 0.22) {
         hitDone = true;
-        if (target.alive) combat.gadgetApi.landHit(strikeKind, target, { power: 1, launch: strikeKind === 'kick' ? 2 : 0, stopTime: 0.05 });
+        if (target.alive) combat.gadgetApi.landHit(strikeKind, target, { power: 1, launch: strikeKind === 'kick' ? 2 : 0, stopTime: 0.05, assist: true });
       }
       if (stateT > 0.5) state = 'seek';
     }

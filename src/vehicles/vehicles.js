@@ -70,6 +70,9 @@ const MAX_STEER = 0.55;       // radians, front wheel visual steer cap
 
 function tinyToast(hudRoot) {
   const el = document.createElement('div');
+  // The class is how hud.js's comic words find it while it shows (.show), and land elsewhere:
+  // SCREEECH! used to cover "The Batmobile is on its way." as the car pulled up.
+  el.className = 'vehicle-toast';
   el.style.cssText = 'position:absolute;left:50%;bottom:22%;transform:translateX(-50%);'
     + 'max-width:min(560px,80vw);padding:10px 18px;background:#fffdf5;border:3px solid #0b0b12;'
     + 'box-shadow:3px 3px 0 #0b0b12;color:#0b0b12;font:20px "Patrick Hand SC",cursive;text-align:center;'
@@ -80,8 +83,9 @@ function tinyToast(hudRoot) {
     show(text, ms = 3200) {
       el.textContent = text;
       el.style.opacity = '1';
+      el.classList.add('show');
       clearTimeout(timer);
-      timer = setTimeout(() => { el.style.opacity = '0'; }, ms);
+      timer = setTimeout(() => { el.style.opacity = '0'; el.classList.remove('show'); }, ms);
     },
   };
 }
@@ -288,8 +292,9 @@ export function createVehicles(deps) {
       bm.group.visible = true;
       bm.summoned = true;
       bm.arriving = null;
-      events.emit('word', { text: 'SCREEECH!', pos: bm.group.position.clone().setY(clear.y + 1), big: true });
+      // The message first, so the word (placed on emit) can see it and land elsewhere.
       toast.show('The Batmobile screeches in.', 2200);
+      events.emit('word', { text: 'SCREEECH!', pos: bm.group.position.clone().setY(clear.y + 1), big: true });
       return;
     }
     const park = nearestStreetSpawn(hero.pos, SUMMON_NEAR);
@@ -301,8 +306,9 @@ export function createVehicles(deps) {
     if (instant) {
       const groundY = collision.groundBelow(park.x, hero.pos.y + 4, park.z, 0.3);
       bm.group.position.set(park.x, groundY > -Infinity ? groundY : hero.pos.y, park.z);
-      events.emit('word', { text: 'SCREEECH!', pos: bm.group.position.clone().setY(bm.group.position.y + 1), big: true });
+      // The message first, so the word (placed on emit) can see it and land elsewhere.
       toast.show('The Batmobile screeches in.', 2200);
+      events.emit('word', { text: 'SCREEECH!', pos: bm.group.position.clone().setY(bm.group.position.y + 1), big: true });
       return;
     }
     const groundY = collision.groundBelow(spot.x, hero.pos.y + 4, spot.z, 0.3);
@@ -347,8 +353,9 @@ export function createVehicles(deps) {
       bm.group.position.set(spot.x, groundY > -Infinity ? groundY : (spot.y ?? 0), spot.z);
       bm.group.visible = true;
       bm.summoned = true;
-      events.emit('word', { text: 'SCREEECH!', pos: bm.group.position.clone().setY(bm.group.position.y + 1), big: true });
+      // The message first, so the word (placed on emit) can see it and land elsewhere.
       toast.show('The Batmobile screeches in.', 2200);
+      events.emit('word', { text: 'SCREEECH!', pos: bm.group.position.clone().setY(bm.group.position.y + 1), big: true });
       return;
     }
     const fromX = spot.x - Math.sin(yaw) * SUMMON_FAR, fromZ = spot.z - Math.cos(yaw) * SUMMON_FAR;

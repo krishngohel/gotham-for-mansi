@@ -56,8 +56,12 @@ function applyPins(cloth, pins) {
 // floor: a height no free point may drop below (the ground under the wearer), so a hem rests on
 // the roof instead of hanging through it; one number for every point, or an array with a height
 // per point (-Infinity where nothing is under that point, so it hangs over an edge).
+// back ({ x, z, nx, nz, d, top }, optional): a vertical plane through (x, z) with horizontal
+// normal (nx, nz), the wearer's facing. No free particle may sit more than d in front of it, or
+// above the height top: a cape stays behind and below the shoulder line instead of flipping over
+// the head and hanging down the front, where the body colliders would otherwise hold it for good.
 export function stepCloth(cloth, dt, {
-  gravity = [0, -9.8, 0], wind = [0, 0, 0], damping = 0.03, iterations = 6, colliders = [], pins = null, floor = -Infinity,
+  gravity = [0, -9.8, 0], wind = [0, 0, 0], damping = 0.03, iterations = 6, colliders = [], pins = null, floor = -Infinity, back = null,
 } = {}) {
   const { n, pos, prev, pinned, cons, rest } = cloth;
   const dt2 = dt * dt;
@@ -95,6 +99,22 @@ export function stepCloth(cloth, dt, {
           const m = s.r / (Math.sqrt(d2) || 1e-6);
           pos[k] = s.x + dx * m; pos[k + 1] = s.y + dy * m; pos[k + 2] = s.z + dz * m;
         }
+      }
+    }
+    if (back) {
+      for (let i = 0; i < n; i++) {
+        if (pinned[i]) continue;
+        const k = i * 3;
+        // Above the top: down to it, with no speed up or down left (it would only climb again).
+        if (pos[k + 1] > back.top) { pos[k + 1] = back.top; prev[k + 1] = back.top; }
+        const over = (pos[k] - back.x) * back.nx + (pos[k + 2] - back.z) * back.nz - back.d;
+        if (over <= 0) continue;
+        pos[k] -= back.nx * over; pos[k + 2] -= back.nz * over;
+        // No speed into or off the plane (prev onto it too): pushed out in one step it was flung
+        // back, and left its speed into the plane it climbed up it and over her head. Speed along
+        // the plane is kept, so it still slides and swings.
+        const pn = (prev[k] - back.x) * back.nx + (prev[k + 2] - back.z) * back.nz - back.d;
+        prev[k] -= back.nx * pn; prev[k + 2] -= back.nz * pn;
       }
     }
     if (floor !== null && floor !== -Infinity) {

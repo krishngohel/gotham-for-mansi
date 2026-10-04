@@ -60,6 +60,25 @@ describe('cloth', () => {
     expect(worst).toBeLessThan(1.1);
   });
 
+  it('keeps every free particle behind the back plane and under its top, even in a wind blowing it forward and up', () => {
+    const cloth = make();
+    const pins = pinsAt(cloth);
+    hangFrom(cloth, pins);
+    // The wearer faces +z from the pin line; a hard wind from behind tries to throw the cloth
+    // forward over the shoulders (the flip that left the cape hanging in front after a hop).
+    const back = { x: 0, z: 0, nx: 0, nz: 1, d: 0.02, top: 1.55 };
+    for (let i = 0; i < 300; i++) stepCloth(cloth, 1 / 120, { pins, wind: [0, 30, 40], back });
+    for (let i = cloth.cols; i < cloth.n; i++) {
+      expect(cloth.pos[i * 3 + 2]).toBeLessThanOrEqual(0.02 + 1e-6);
+      expect(cloth.pos[i * 3 + 1]).toBeLessThanOrEqual(1.55 + 1e-6); // and never over the pins' line
+    }
+    // Without the plane the same wind does carry it forward.
+    const free = make();
+    hangFrom(free, pins);
+    for (let i = 0; i < 300; i++) stepCloth(free, 1 / 120, { pins, wind: [0, 30, 40] });
+    expect(Math.max(...Array.from({ length: free.n }, (_, i) => free.pos[i * 3 + 2]))).toBeGreaterThan(0.3);
+  });
+
   it('pushes particles out of sphere colliders', () => {
     const cloth = make();
     const pins = pinsAt(cloth);

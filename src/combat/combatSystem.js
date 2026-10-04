@@ -109,7 +109,10 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     events.emit('critical', { target, variant, impact });
   }
 
-  function landHit(move, target, { word: w, power = 1, stopTime = 0.06, launch = 0, crit = false, react = null } = {}) {
+  // assist: an ally's blow (Nightwing). It adds to a combo she has going but never starts one,
+  // and the hit-stop, shake and last-goon action shot are hers: his get them only close to her.
+  const ASSIST_FEEL = 9;
+  function landHit(move, target, { word: w, power = 1, stopTime = 0.06, launch = 0, crit = false, react = null, assist = false } = {}) {
     if (target.state === 'tied') return breakTied(target);
     if (target.state === 'frozen') return shatter(target);
     const result = resolveHit(move, target);
@@ -123,14 +126,17 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
       events.emit('blocked', { move, target, outcome: result.outcome });
       return result;
     }
-    combo.hit();
+    if (!assist || combo.value > 0) combo.hit();
+    const felt = !assist || target.pos.distanceTo(hero.pos) < ASSIST_FEEL;
     const big = result.outcome === 'ko' || result.outcome === 'knockdown';
     // Freeze both fighters on the contact frame, longer for a knockdown or a critical.
-    time.hitStop(Math.max(stopTime, big ? 0.12 : 0, crit ? 0.14 : 0));
-    follow.addShake(result.outcome === 'hit' ? 0.07 : 0.16);
-    follow.hitKick?.(big || crit ? 5 : 2.5);
+    if (felt) {
+      time.hitStop(Math.max(stopTime, big ? 0.12 : 0, crit ? 0.14 : 0));
+      follow.addShake(result.outcome === 'hit' ? 0.07 : 0.16);
+      follow.hitKick?.(big || crit ? 5 : 2.5);
+    }
     if (w || result.outcome === 'ko') events.emit('word', { text: w ?? word('ko'), pos: chest.clone(), big: crit });
-    const lastOne = result.outcome === 'ko' && engaged().length === 0;
+    const lastOne = felt && result.outcome === 'ko' && engaged().length === 0;
     if (result.outcome === 'ko') events.emit('ko', { target });
     if (lastOne) { events.emit('lastHit', { target }); critical(target, { slow: 0.9, scale: 0.22 }); }
     else if (crit && result.outcome !== 'hit') critical(target);

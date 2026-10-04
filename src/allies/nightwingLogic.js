@@ -10,13 +10,22 @@ const ez = (e) => (typeof e.z === 'number' ? e.z : e.pos.z);
 // enemy, skipping whichever one Batman is currently on (his nearest aware enemy, computed by the
 // caller) unless that is the only one left standing, in which case sharing it is fine (the last
 // goon rule).
-export function pickAllyTarget(x, z, enemies, { batmanTarget = null } = {}) {
+// leash ({ x, z, r }, optional): only goons within r of that point, Batman. Without it he ran
+// off across the city to any street-crime goon still standing, every punch of his ticking her
+// combo up and shaking her camera while she stood somewhere else entirely.
+export const ALLY_LEASH = 18;
+export function withinLeash(e, leash) {
+  if (!leash) return true;
+  const dx = ex(e) - leash.x, dz = ez(e) - leash.z;
+  return dx * dx + dz * dz <= leash.r * leash.r;
+}
+export function pickAllyTarget(x, z, enemies, { batmanTarget = null, leash = null } = {}) {
   let bestAny = null, bestAnyD = Infinity;
   let bestOther = null, bestOtherD = Infinity;
   let aliveCount = 0;
   for (let i = 0; i < enemies.length; i++) {
     const e = enemies[i];
-    if (!e.alive || e.down || e.type === 'joker' || e.def?.boss) continue;
+    if (!e.alive || e.down || e.type === 'joker' || e.def?.boss || !withinLeash(e, leash)) continue;
     aliveCount += 1;
     const dx = ex(e) - x, dz = ez(e) - z;
     const d = dx * dx + dz * dz;

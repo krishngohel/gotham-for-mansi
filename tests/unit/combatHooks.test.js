@@ -171,3 +171,28 @@ describe('gadget hooks', () => {
     expect(seen).toEqual(['shatter', 'ko']);
   });
 });
+
+describe('ally assists (Nightwing)', () => {
+  it('an assist never starts a combo, but adds to one she has going', () => {
+    const { combat } = setup();
+    const g = makeGoon('g', 'grunt', 0, 1.5);
+    combat.setEnemies([g, makeGoon('h', 'grunt', 4, 4)]);
+    combat.gadgetApi.landHit('punch', g, { assist: true });
+    expect(combat.combo.value).toBe(0);
+    combat.combo.hit();
+    combat.gadgetApi.landHit('punch', g, { assist: true });
+    expect(combat.combo.value).toBe(2);
+  });
+  it('a far-off assist does not freeze time or shake her camera; a close one does', () => {
+    const shakes = [];
+    const hero = makeHero();
+    const f = { ...follow, addShake: (a) => shakes.push(a) };
+    const combat2 = createCombat({ hero, follow: f, time: createTimeControl(), events: createEvents(), rng: createRng(3), getDifficulty: () => 'normal', effects: upgradeEffects([]) });
+    const far = makeGoon('far', 'grunt', 30, 0), near = makeGoon('near', 'grunt', 2, 0);
+    combat2.setEnemies([far, near, makeGoon('x', 'grunt', 5, 5)]);
+    combat2.gadgetApi.landHit('punch', far, { assist: true });
+    expect(shakes.length).toBe(0);
+    combat2.gadgetApi.landHit('punch', near, { assist: true });
+    expect(shakes.length).toBe(1);
+  });
+});
