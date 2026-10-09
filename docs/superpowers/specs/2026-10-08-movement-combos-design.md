@@ -49,6 +49,23 @@ Kept as they are: counter (RMB), dodge, grab/throw (G), chain takedowns (1-4), g
 the 4-punch and 3-kick finisher counts, impact frames, hit-stop table (new moves map onto the
 existing STOP kinds: rotation = punch/kick, side = kick, away/running/air = heavy or finisher).
 
+## Easier combos and auto-attach
+
+Owner (2026-10-08): "make combos way easier to get and hit, make them auto attach".
+
+- **Auto-attach:** an attack press never whiffs while a goon is within 14 m (ground) or 16 m
+  (air). Target choice: the goon in the held direction if there is one (as now, range 14), else
+  the **focus** goon (the last one struck, if alive and within 6 m), else the nearest. The
+  approach lunge already closes up to 12 m; it gets 14.
+- **Direction is classified against the chosen target.** With a focus goon, holding S or A/D
+  keeps attacking him with the away/side move instead of retargeting behind you (the held
+  direction only retargets when it points at another goon within 70 degrees).
+- **Combo meter:** timeout 1.5 s to 3.0 s; one free hit taken per combo run (WayneTech Steady
+  Flow adds one more); a whiff no longer resets it.
+- **Finisher chains:** the punch/kick chain window 1.1 s to 2.0 s, so the 4th punch / 3rd kick
+  finisher comes while mixing in movement moves (movement moves count toward both chains).
+- **Input buffer:** 0.3 s to 0.45 s, so a press made during a strike queues the next one.
+
 ## Architecture
 
 - **`src/combat/moveSelect.js` (new, pure):** `classifyDir(moveVec, toTarget)` returns
