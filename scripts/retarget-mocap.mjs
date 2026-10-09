@@ -1,10 +1,19 @@
-// Retargets Meshy auto-rig mocap clips (24-bone Mixamo-style skeleton bound to the game's own
-// Batman body) onto the game's 65-bone Quaternius skeleton, and packs them into one GLB.
+// Retargets motion-capture clips onto the game's 65-bone Quaternius skeleton and packs them into
+// one GLB. Sources: Meshy auto-rig clips (24 bones, --map meshy, the five
+// kicks) and Mixamo clips on Y Bot (--map mixamo; FBX converted by scripts/fbx2glb.mjs). Both are
+// T-poses like ours, so rotations transfer as world-space deltas from the bind pose.
 //
-//   node scripts/retarget-mocap.mjs [--out public/assets/anims_mocap.glb] [--fps 30] [--keep-travel]
-//        Kick_Round=C:/path/roundhouse.glb[:ball_r] [Knee_Strike=C:/path/knee.glb:calf_r ...]
-// The optional :bone names the striking limb (default: whichever foot goes highest); its
-// highest frame is the contact frame. Horizontal hips travel is not baked into the clip: it
+//   node scripts/retarget-mocap.mjs [--map meshy|mixamo] [--append] [--fps 30] [--keep-travel]
+//        [--out file.glb] [--data file.js]   (trial runs: point both away from the game's files)
+//        Name=C:/path/clip.glb[:limb][@contact][!noaim][~mirror][^deg][%loop][%start][%end] ...
+// %loop keeps a looping clip whole (idles, strafes): no trim, no easing, no aim. %start / %end
+// keep its first / last frames as they are, uneased (a get-up starts on the floor, a
+// knockdown ends there), instead of easing them into the idle pose.
+// :limb names the striking limb (default: whichever foot goes highest; :hands, whichever hand); its highest frame is the
+// contact frame, unless @seconds (source clip time) sets it. !noaim keeps the clip's own heading
+// (evades, reactions) instead of turning it so the strike lands straight ahead. ~mirror also
+// writes Name_M, the same move with left and right swapped. --append keeps the clips already in
+// the output file and in src/config/mocapData.js. Horizontal hips travel is not baked into the clip: it
 // is written per frame to src/config/mocapData.js as root motion, which combat applies to
 // the hero's position, so planted feet do not slide and a stepping kick really steps. The
 // clip is turned so that the limb, root motion included, lands straight ahead at contact.
@@ -26,7 +35,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const inRepo = (p) => (path.isAbsolute(p) ? p : path.join(ROOT, p));
 const args = process.argv.slice(2);
-const opt = { out: 'public/assets/anims_mocap.glb', fps: 30, keepTravel: false, target: 'public/assets/hero_m.glb', idle: 'public/assets/anims1.glb' };
+const opt = { out: 'public/assets/anims_mocap.glb', fps: 30, keepTravel: false, target: 'public/assets/hero_m.glb', idle: 'public/assets/anims1.glb', map: 'meshy', append: false, data: 'src/config/mocapData.js' };
 const jobs = [];
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
@@ -34,20 +43,51 @@ for (let i = 0; i < args.length; i++) {
   else if (a === '--fps') opt.fps = Number(args[++i]);
   else if (a === '--keep-travel') opt.keepTravel = true;
   else if (a === '--target') opt.target = args[++i];
-  else if (a.includes('=')) { const [name, spec] = a.split('='); const m = spec.match(/^(.*?)(?::(\w+))?$/); jobs.push({ name, file: m[1], limb: m[2] ?? 'auto' }); }
+  else if (a === '--map') opt.map = args[++i];
+  else if (a === '--append') opt.append = true;
+  else if (a === '--data') opt.data = args[++i];
+  else if (a.includes('=')) {
+    const [name, spec0] = a.split('=');
+    let spec = spec0;
+    // %loop / %start / %end (any order, at the very end): see the usage notes at the top.
+    const flags = new Set();
+    for (let f; (f = spec.match(/%(loop|start|end)$/));) { flags.add(f[1]); spec = spec.slice(0, -f[0].length); }
+    // ^deg: turn the whole clip by a fixed angle about the vertical (a get-up that must start
+    // lying the same way round as the knockdown that put him there).
+    let turn = 0;
+    const tm = spec.match(/\^(-?[\d.]+)$/); if (tm) { turn = Number(tm[1]); spec = spec.slice(0, -tm[0].length); }
+    const mirror = spec.endsWith('~mirror'); if (mirror) spec = spec.slice(0, -7);
+    const noaim = spec.endsWith('!noaim') || flags.has('loop'); if (spec.endsWith('!noaim')) spec = spec.slice(0, -6);
+    const m = spec.match(/^(.*?)(?::(\w+))?(?:@([\d.]+))?$/);
+    const common = { turn, file: m[1], contactAt: m[3] ? Number(m[3]) : null, noaim, loop: flags.has('loop'), keepStart: flags.has('loop') || flags.has('start'), keepEnd: flags.has('loop') || flags.has('end') };
+    jobs.push({ ...common, name, limb: m[2] ?? 'auto', mirror: false });
+    if (mirror) jobs.push({ ...common, name: name + '_M', limb: m[2] ? swapLR(m[2]) : 'auto', mirror: true });
+  }
 }
 if (!jobs.length) { console.error('no clips given (Name=file.glb)'); process.exit(1); }
 opt.out = inRepo(opt.out); opt.target = inRepo(opt.target); opt.idle = inRepo(opt.idle);
 
+function swapLR(n) { return n.replace(/_l$/, '_R_').replace(/_r$/, '_l').replace(/_R_$/, '_r'); }
+
 // Source bone -> target bone. Meshy names its spine chain from the top down: Spine02 sits on
-// the hips and Spine carries the shoulders.
-const MAP = {
+// the hips and Spine carries the shoulders. Mixamo's runs bottom up (Spine on the hips).
+const MESHY = {
   Hips: 'pelvis', Spine02: 'spine_01', Spine01: 'spine_02', Spine: 'spine_03', neck: 'neck_01', Head: 'Head',
   LeftShoulder: 'clavicle_l', LeftArm: 'upperarm_l', LeftForeArm: 'lowerarm_l', LeftHand: 'hand_l',
   RightShoulder: 'clavicle_r', RightArm: 'upperarm_r', RightForeArm: 'lowerarm_r', RightHand: 'hand_r',
   LeftUpLeg: 'thigh_l', LeftLeg: 'calf_l', LeftFoot: 'foot_l', LeftToeBase: 'ball_l',
   RightUpLeg: 'thigh_r', RightLeg: 'calf_r', RightFoot: 'foot_r', RightToeBase: 'ball_r',
 };
+const MIXAMO = {
+  Hips: 'pelvis', Spine: 'spine_01', Spine1: 'spine_02', Spine2: 'spine_03', Neck: 'neck_01', Head: 'Head',
+  LeftShoulder: 'clavicle_l', LeftArm: 'upperarm_l', LeftForeArm: 'lowerarm_l', LeftHand: 'hand_l',
+  RightShoulder: 'clavicle_r', RightArm: 'upperarm_r', RightForeArm: 'lowerarm_r', RightHand: 'hand_r',
+  LeftUpLeg: 'thigh_l', LeftLeg: 'calf_l', LeftFoot: 'foot_l', LeftToeBase: 'ball_l',
+  RightUpLeg: 'thigh_r', RightLeg: 'calf_r', RightFoot: 'foot_r', RightToeBase: 'ball_r',
+};
+const MAP = opt.map === 'mixamo' ? MIXAMO : MESHY;
+// Mixamo bones arrive as "mixamorig:Hips", or "mixamorigHips" once three has sanitized the name.
+const norm = (n) => n.replace(/^mixamorig\d*:?/, '');
 
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
 const V = (a) => new THREE.Vector3(...a), Q = (a) => new THREE.Quaternion(...a);
@@ -66,7 +106,7 @@ function describeRig(doc) {
     const m = new THREE.Matrix4().fromArray(ibm.getElement(i, [])).invert();
     const bindPos = new THREE.Vector3(), bindRot = new THREE.Quaternion(), s = new THREE.Vector3();
     m.decompose(bindPos, bindRot, s);
-    const j = { name: node.getName(), node, parent: null, children: [], t: V(node.getTranslation()), r: Q(node.getRotation()), s: V(node.getScale()), bindRot, bindPos };
+    const j = { name: norm(node.getName()), node, parent: null, children: [], t: V(node.getTranslation()), r: Q(node.getRotation()), s: V(node.getScale()), bindRot, bindPos };
     info.set(j.name, j);
     byNode.set(node, j);
   });
@@ -89,7 +129,7 @@ function describeRig(doc) {
 function channelsOf(anim) {
   const chans = new Map();
   for (const ch of anim.listChannels()) {
-    const node = ch.getTargetNode().getName(), path = ch.getTargetPath();
+    const node = norm(ch.getTargetNode().getName()), path = ch.getTargetPath();
     const s = ch.getSampler();
     const times = Array.from(s.getInput().getArray()), values = Array.from(s.getOutput().getArray());
     chans.set(`${node}.${path}`, { times, values, size: s.getOutput().getElementSize(), interp: s.getInterpolation() });
@@ -123,11 +163,13 @@ function sourceWorldRotations(rig, chans, t) {
   }
   return world;
 }
-function sourceHipsPosition(rig, chans, t) {
+function sourceHipsPosition(rig, chans, t, mirror = false) {
   const hips = rig.info.get('Hips');
   const tr = chans.get('Hips.translation');
   const local = tr ? sample(tr, t, new THREE.Vector3()) : hips.t.clone();
-  return local.applyMatrix4(hips.above);
+  const w = local.applyMatrix4(hips.above).multiplyScalar(rig.unit ?? 1);
+  if (mirror) w.x = -w.x;
+  return w;
 }
 
 // ---- target ----
@@ -150,7 +192,9 @@ const bindRotOf = (name) => target.info.get(name).bindRot;
 
 // Mixamo-style pose -> target local rotations for one frame. `yaw` turns the whole pose
 // about the vertical axis (used to aim the kick straight ahead).
-function retargetFrame(srcRig, chans, t, yaw = 0) {
+// A left-right mirror of a world rotation (x stays, the turn about y and z flips).
+const mirrorQ = (q) => new THREE.Quaternion(q.x, -q.y, -q.z, q.w);
+function retargetFrame(srcRig, chans, t, yaw = 0, mirror = false) {
   const srcWorld = sourceWorldRotations(srcRig, chans, t);
   const yawQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
   const world = new Map();
@@ -158,11 +202,12 @@ function retargetFrame(srcRig, chans, t, yaw = 0) {
   const srcOf = new Map(Object.entries(MAP).map(([s, tg]) => [tg, s]));
   for (const j of target.order) {
     const parentWorld = j.parent ? world.get(j.parent.name) : new THREE.Quaternion();
-    const src = srcOf.get(j.name);
+    const src = srcOf.get(mirror ? swapLR(j.name) : j.name);
     let local, w;
     if (src && srcRig.info.has(src)) {
       const sj = srcRig.info.get(src);
-      const delta = srcWorld.get(src).clone().multiply(sj.bindRot.clone().invert());
+      let delta = srcWorld.get(src).clone().multiply(sj.bindRot.clone().invert());
+      if (mirror) delta = mirrorQ(delta);
       w = yawQ.clone().multiply(delta).multiply(bindRotOf(j.name));
       local = parentWorld.clone().invert().multiply(w);
     } else {
@@ -193,10 +238,19 @@ const ease = (k) => k * k * (3 - 2 * k);
 const idleLocalPelvis = idlePelvisWorld.clone().applyQuaternion(rootRot.clone().invert());
 const idleLowestToe = (() => { const p = targetPositions(idleRot, idleLocalPelvis); return Math.min(p.get('ball_l').y, p.get('ball_r').y); })();
 
-async function retargetClip(name, file, limb) {
+async function retargetClip({ name, file, limb, contactAt, noaim, mirror, loop = false, keepStart = false, keepEnd = false, turn = 0 }) {
   const doc = await io.read(file);
   const rig = describeRig(doc);
-  const anim = doc.getRoot().listAnimations()[0];
+  // Mixamo works in centimetres on a different body: hips motion is scaled by the ratio of our
+  // pelvis height to its hips height at rest, so a stride is our stride. (The Meshy rig was bound
+  // to our own body in metres; its clips stay exactly as they were.)
+  if (opt.map === 'mixamo') {
+    const h = rig.info.get('Hips');
+    rig.unit = idlePelvisWorld.y / h.t.clone().applyMatrix4(h.above).y;
+  }
+  // The longest take: Mixamo exports also carry an empty "Take 001", sometimes listed first.
+  const takeLength = (a) => Math.max(0, ...a.listChannels().map((c) => { const t = c.getSampler().getInput().getArray(); return t[t.length - 1] ?? 0; }));
+  const anim = doc.getRoot().listAnimations().reduce((best, a) => (takeLength(a) > takeLength(best) ? a : best));
   const chans = channelsOf(anim);
   let dur = 0;
   for (const c of chans.values()) dur = Math.max(dur, c.times[c.times.length - 1]);
@@ -204,7 +258,7 @@ async function retargetClip(name, file, limb) {
   const n = Math.floor(dur / dt) + 1;
   // Pass A: full-rate frames, unyawed, to find the move and the kick direction.
   const raw = [];
-  for (let i = 0; i < n; i++) raw.push({ t: i * dt, locals: retargetFrame(rig, chans, i * dt).locals, hips: sourceHipsPosition(rig, chans, i * dt) });
+  for (let i = 0; i < n; i++) raw.push({ t: i * dt, locals: retargetFrame(rig, chans, i * dt, 0, mirror).locals, hips: sourceHipsPosition(rig, chans, i * dt, mirror) });
   const energy = raw.map((f, i) => {
     if (i === 0) return 0;
     let e = 0;
@@ -215,8 +269,8 @@ async function retargetClip(name, file, limb) {
   const active = energy.map((e) => e > peak * 0.4);
   let first = active.indexOf(true), last = active.lastIndexOf(true);
   if (first < 0) { first = 0; last = n - 1; }
-  const start = Math.max(0, first - Math.round(0.1 * opt.fps));
-  const end = Math.min(n - 1, last + Math.round(0.15 * opt.fps));
+  const start = keepStart ? 0 : Math.max(0, first - Math.round(0.1 * opt.fps));
+  const end = keepEnd ? n - 1 : Math.min(n - 1, last + Math.round(0.15 * opt.fps));
   const idx = [];
   for (let i = start; i <= end; i++) idx.push(i);
   const h0 = raw[start].hips.clone();
@@ -230,26 +284,34 @@ async function retargetClip(name, file, limb) {
     d.y += dy;
     return idlePelvisWorld.clone().add(d).applyQuaternion(rootRot.clone().invert());
   };
-  // Contact: the striking limb's highest frame (kicks and knees peak at full extension).
+  // Contact: a kick's or knee's highest frame (they peak at full extension).
   // With no limb given, the foot that goes highest is the kicking one.
-  const candidates = limb === 'auto' ? ['ball_l', 'ball_r'] : [limb];
+  const candidates = limb === 'auto' ? ['ball_l', 'ball_r'] : limb === 'hands' ? ['hand_l', 'hand_r'] : [limb];
   let contactIdx = 0, best = -Infinity;
   const travelled = (i) => { const p = targetPositions(raw[i].locals, pelvisLocalAt(raw[i].hips, 0, true)); return p; };
+  // A punch or an elbow (an arm limb) lands where it reaches farthest out from the body, at torso
+  // height or above (a hand swung low is a wind-up); its highest frame is usually the guard.
+  const armStrike = candidates.every((c) => /^(hand|lowerarm|upperarm)_/.test(c));
   idx.forEach((i, k) => {
     const p = travelled(i);
-    for (const c of candidates) { const y = p.get(c).y; if (y > best) { best = y; contactIdx = k; limb = c; } }
+    for (const c of candidates) {
+      const q = p.get(c), pel = p.get('pelvis');
+      const score = armStrike ? (q.y >= 0.9 ? Math.hypot(q.x - pel.x, q.z - pel.z) : -Infinity) : q.y;
+      if (score > best) { best = score; contactIdx = k; limb = c; }
+    }
   });
+  if (contactAt !== null) contactIdx = Math.max(0, Math.min(idx.length - 1, Math.round(contactAt * opt.fps) - start));
   // Aim: where the limb is at contact relative to where the root started, travel included.
   const pc = travelled(idx[contactIdx]);
   const p0 = travelled(idx[0]);
   const aim = pc.get(limb).clone().sub(p0.get('pelvis'));
   const reach = Math.hypot(aim.x, aim.z);
-  const yaw = -Math.atan2(aim.x, aim.z);
+  const yaw = (noaim ? 0 : -Math.atan2(aim.x, aim.z)) + THREE.MathUtils.degToRad(turn);
   // Pass B: yawed so the kick lands straight ahead, then aligned so the lowest planted toe
   // sits where the idle's does (joint pivots differ between the two rigs).
   yawQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
-  const lead = Math.round(0.08 * opt.fps), tail = Math.round(0.15 * opt.fps);
-  const kept = idx.map((i) => ({ locals: retargetFrame(rig, chans, i * dt, yaw).locals, hips: raw[i].hips }));
+  const lead = keepStart ? 0 : Math.round(0.08 * opt.fps), tail = keepEnd ? 0 : Math.round(0.15 * opt.fps);
+  const kept = idx.map((i) => ({ locals: retargetFrame(rig, chans, i * dt, yaw, mirror).locals, hips: raw[i].hips }));
   let lowest = Infinity;
   kept.forEach((f, k) => {
     if (k < lead || k > kept.length - 1 - tail) return;
@@ -311,7 +373,30 @@ for (const r of target.roots) armature.addChild(nodes.get(r.name));
 scene.addChild(armature);
 
 const results = [];
-for (const job of jobs) results.push(await retargetClip(job.name, job.file, job.limb));
+for (const job of jobs) results.push(await retargetClip(job));
+// --append: carry over the clips already in the output that this run does not replace.
+let keptData = {};
+if (opt.append) {
+  const { existsSync } = await import('node:fs');
+  const { pathToFileURL } = await import('node:url');
+  if (existsSync(opt.out)) {
+    const old = await io.read(opt.out);
+    for (const a of old.getRoot().listAnimations()) {
+      if (results.some((r) => r.name === a.getName())) continue;
+      const anim = out.createAnimation(a.getName());
+      for (const ch of a.listChannels()) {
+        const sm = ch.getSampler(), node = nodes.get(ch.getTargetNode().getName());
+        if (!node) continue;
+        const inp = out.createAccessor().setType('SCALAR').setArray(sm.getInput().getArray().slice()).setBuffer(buffer);
+        const outp = out.createAccessor().setType(sm.getOutput().getType()).setArray(sm.getOutput().getArray().slice()).setBuffer(buffer);
+        const s2 = out.createAnimationSampler().setInput(inp).setOutput(outp).setInterpolation(sm.getInterpolation());
+        anim.addSampler(s2).addChannel(out.createAnimationChannel().setTargetNode(node).setTargetPath(ch.getTargetPath()).setSampler(s2));
+      }
+    }
+    const prev = await import(pathToFileURL(inRepo(opt.data)).href + '?t=' + Date.now());
+    keptData = Object.fromEntries(Object.entries(prev.MOCAP_DATA).filter(([k]) => !results.some((r) => r.name === k)));
+  }
+}
 for (const clip of results) {
   const anim = out.createAnimation(clip.name);
   const input = out.createAccessor().setType('SCALAR').setArray(new Float32Array(clip.times)).setBuffer(buffer);
@@ -332,8 +417,8 @@ for (const clip of results) {
 }
 await io.write(opt.out, out);
 // Generated per-clip data for the game: duration, contact frame, striking limb and root motion.
-const dataPath = inRepo('src/config/mocapData.js');
-const data = Object.fromEntries(results.map((r) => [r.name, { duration: r.duration, contact: r.contact, limb: r.limb, reach: r.reach, fps: r.fps, root: r.root }]));
+const dataPath = inRepo(opt.data);
+const data = { ...keptData, ...Object.fromEntries(results.map((r) => [r.name, { duration: r.duration, contact: r.contact, limb: r.limb, reach: r.reach, fps: r.fps, root: r.root }])) };
 const { writeFileSync } = await import('node:fs');
 const header = '// Generated by scripts/retarget-mocap.mjs; do not edit by hand.\n'
   + '// Per clip: baked duration and contact frame (clip seconds), the striking limb and where it is\n'

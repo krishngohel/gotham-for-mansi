@@ -26,7 +26,7 @@ describe('createStrikeChooser', () => {
   it('rotates the punch and kick finishers', () => {
     const c = createStrikeChooser();
     expect([c.punchFinisher(), c.punchFinisher(), c.punchFinisher(), c.punchFinisher()]).toEqual([...PUNCH_FINISHERS, PUNCH_FINISHERS[0]]);
-    expect([c.kickFinisher(), c.kickFinisher(), c.kickFinisher()]).toEqual([...KICK_FINISHERS, KICK_FINISHERS[0]]);
+    expect(Array.from({ length: KICK_FINISHERS.length + 1 }, () => c.kickFinisher())).toEqual([...KICK_FINISHERS, KICK_FINISHERS[0]]);
   });
   it('cycles four kicks at range, and a knee or a front kick at point-blank', () => {
     const c = createStrikeChooser();

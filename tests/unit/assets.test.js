@@ -29,7 +29,8 @@ describe('built assets', () => {
       const t = anim.listChannels()[0].getSampler().getInput();
       const dur = t.getMax([0])[0];
       expect(dur).toBeGreaterThan(0.3);
-      expect(dur).toBeLessThan(3);
+      // Strikes run under 3 s; looping guards, taunts and the get-up from the floor run longer.
+      expect(dur).toBeLessThan(6.5);
       // The generated data must describe this very pack.
       const d = MOCAP_DATA[anim.getName()];
       expect(Math.abs(dur - d.duration)).toBeLessThan(2e-3);

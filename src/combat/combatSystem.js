@@ -21,7 +21,7 @@ const PUNCHES = ['Punch_Jab', 'Punch_Cross', 'Punch_Jab'];
 // Where each strike lands, for the goon's reaction (src/actors/reactions.js).
 const REACT = {
   Punch_Jab: 'head', Punch_Cross: 'head', Elbow_Strike: 'head', Punch_Uppercut: 'head',
-  Punch_Hook_L: 'spin', Melee_Hook: 'spin', Kick_Round: 'spin', Kick_Side: 'gut', Kick_Low: 'spin',
+  Punch_Hook_L: 'spin', Melee_Hook: 'spin', Kick_Round: 'spin', Kick_Side: 'gut', Kick_Low: 'sweep',
   Kick_Front: 'gut', Knee_Strike: 'gut',
 };
 const STRIKE_SPEED = { Punch_Uppercut: 1.45, Punch_Hook_L: 1.4, Elbow_Strike: 1.45, Punch_Backfist: 1.35, Punch_Hammer: 1.3, Kick_Side: 1.35, Kick_Axe: 1.3, Kick_Low: 1.4 };
@@ -30,6 +30,8 @@ const STRIKE_SPEED = { Punch_Uppercut: 1.45, Punch_Hook_L: 1.4, Elbow_Strike: 1.
 // the lunge spin kick. All are mocap clips from public/assets/anims_mocap.glb.
 
 const KICK_SPEED = MOCAP_SPEED;
+// A mocap clip's own playback speed wins over the code-posed clip's of the same name.
+const strikeSpeed = (clip, fallback) => MOCAP_SPEED[clip] ?? STRIKE_SPEED[clip] ?? fallback;
 // Hit-stop per kind of blow (seconds of frozen time for both fighters).
 const STOP = { punch: 0.05, kick: 0.065, heavy: 0.11, finisher: 0.13, counter: 0.1 };
 const WORDS = {
@@ -308,11 +310,11 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     // A goon on the floor: the two-fisted hammer straight down onto him (it used to borrow a
     // sword swing, with no sword).
     if (ground) { clip = reach.Punch_Hammer ? 'Punch_Hammer' : 'Sword_Attack'; speed = clip === 'Punch_Hammer' ? 1.7 : 1.8; }
-    else if (move === 'heavy') { clip = choose.punchFinisher(); speed = STRIKE_SPEED[clip] ?? 1.35; }
-    else if (move === 'spinKick') { clip = choose.kickFinisher(); speed = STRIKE_SPEED[clip] ?? KICK_SPEED[clip]; }
-    else if (isKick) { clip = choose.kick(range); speed = STRIKE_SPEED[clip] ?? KICK_SPEED[clip]; }
+    else if (move === 'heavy') { clip = choose.punchFinisher(); speed = strikeSpeed(clip, 1.35); }
+    else if (move === 'spinKick') { clip = choose.kickFinisher(); speed = strikeSpeed(clip, 1.3); }
+    else if (isKick) { clip = choose.kick(range); speed = strikeSpeed(clip, 1.3); }
     else if (beatdown) { clip = beatIdx++ % 2 ? 'Knee_Strike' : PUNCHES[(beatIdx >> 1) % PUNCHES.length]; speed = clip === 'Knee_Strike' ? KICK_SPEED.Knee_Strike : 2.6; }
-    else { clip = choose.punch(punchChain, range); speed = STRIKE_SPEED[clip] ?? 1.8; }
+    else { clip = choose.punch(punchChain, range); speed = strikeSpeed(clip, 1.8); }
     const start = MOCAP_START[clip] ?? 0;
     const spin = move === 'spinKick';
     const ap = approach(target, clip, speed, start, { fallbackReach: 1.0 * target.scale, fallbackContact: 0.11 });
@@ -344,8 +346,10 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
             const f = clip === 'Punch_Hammer' ? { word: 'BADOOM!', launch: 0.4 } : clip === 'Punch_Backfist' ? { word: word('spin'), launch: 4.5 } : { word: word('heavy'), launch: 3 };
             landHit('heavy', target, { ...f, power: 1.8, crit: true, stopTime: STOP.heavy });
           }
+          // The flip kick comes down from the top of a front flip: the biggest launch of all.
           else if (spin) landHit('spinKick', target, clip === 'Kick_Axe'
             ? { word: 'KRUNCH!', power: 2.2, launch: 0.5, crit: true, stopTime: STOP.finisher }
+            : clip === 'Kick_Flip' ? { word: 'WHAM!', power: 2.4, launch: 8, crit: true, stopTime: STOP.finisher }
             : { word: word('spin'), power: 2.2, launch: 6.5, crit: true, stopTime: STOP.finisher });
           else if (juggle) landHit(isKick ? 'kick' : 'punch', target, { word: rng.chance(0.4) ? 'JUGGLE!' : null, power: 1.2, stopTime: isKick ? STOP.kick : STOP.punch });
           // The uppercut pops the goon up off his feet, ready for a juggle; an elbow hits a bit harder.
@@ -376,9 +380,9 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
       // each lunging so it connects on its contact frame.
       const usable = COUNTERS.filter((c) => c === 'Kick_Front' || c === 'Melee_Hook' || reach[c]);
       const clip = usable[counterIdx++ % usable.length];
-      const speed = clip === 'Kick_Front' ? 2.2 : clip === 'Melee_Hook' ? 1.9 : (STRIKE_SPEED[clip] ?? 1.6) * 1.2;
-      // The mocap front kick starts past its wind-up; the code-authored fallback has none.
-      const start = clip === 'Kick_Front' && reach.Kick_Front?.root ? 0.3 : 0;
+      // Counters are quicker than the same blow in freeflow, and start past the wind-up (mocap).
+      const speed = clip === 'Kick_Front' ? 2.2 : strikeSpeed(clip, 1.6) * 1.35;
+      const start = reach[clip]?.root ? (clip === 'Kick_Front' ? 0.3 : MOCAP_START[clip] ?? 0) : 0;
       ap = approach(target, clip, speed, start, { fallbackReach: 1.1 * target.scale, fallbackContact: 0.12 });
       hitAt = ap.impactAt;
       stepEnd = Math.max(0.3, hitAt + 0.14);

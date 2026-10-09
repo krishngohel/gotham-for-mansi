@@ -4,7 +4,7 @@
 // uppercuts), never the same clip twice running, an elbow instead of a cross when she's close.
 // The chain's fourth blow is a finisher, rotating through three big ones. Kicks cycle front,
 // roundhouse, side and low (a knee or a front kick at point-blank range), and the kick chain's
-// third blow rotates between the spinning heel kick and the axe kick. A clip the build doesn't
+// third blow rotates through the spinning heel kick, the axe kick and the front flip kick. A clip the build doesn't
 // have (`has(clip)` false) is skipped for one that it does.
 
 export const PUNCH_TIERS = [
@@ -14,7 +14,7 @@ export const PUNCH_TIERS = [
 ];
 export const PUNCH_FINISHERS = ['Melee_Hook', 'Punch_Backfist', 'Punch_Hammer'];
 export const KICKS = ['Kick_Front', 'Kick_Round', 'Kick_Side', 'Kick_Low'];
-export const KICK_FINISHERS = ['Kick_Spin', 'Kick_Axe'];
+export const KICK_FINISHERS = ['Kick_Spin', 'Kick_Axe', 'Kick_Flip'];
 export const CLOSE = 1.2;       // closer than this, an elbow instead of a cross
 export const POINT_BLANK = 1.3; // closer than this, no stepping kicks
 

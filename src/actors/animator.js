@@ -46,6 +46,9 @@ export function createAnimator(root, clips) {
     // Creates the actions up front, so a clip's first play mid-fight doesn't build its bindings.
     prime(names) { for (const n of names) action(n); },
     get currentName() { return current?.getClip().name ?? null; },
+    // The playing action itself (a goon's strike speeds up from its held wind-up without a restart).
+    get currentAction() { return current; },
+    has: (name) => clips.has(name),
     update(dt) { mixer.update(dt); },
   };
 }

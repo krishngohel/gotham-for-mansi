@@ -815,6 +815,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     const api = {
       hero, follow, combat, hud, comicFx, flow, encounters, balloons, boss, finale, comic, grapple, update, spawn, despawn, side,
       batwing, nightwing, radio, vehicles, cinematic, interiors, party, prompts,
+      // Renders a posed shot of the live city (comic panels; scripts/clip-sheet.mjs films clips with it).
+      stage,
       // Impact frames test hook: pin(ms) samples `ms` into the sequence the next fire() starts.
       impact: {
         fire: (tier, target) => fireImpact(tier, target),
