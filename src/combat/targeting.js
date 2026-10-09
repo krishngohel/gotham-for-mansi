@@ -21,3 +21,16 @@ export function selectTarget(origin, dir, enemies, { range = 8, allowDown = fals
   if (best) return best;
   return nearestD <= closeRange ? nearest : null;
 }
+
+// Attacks auto-attach: the goon in the held direction, else the focus (the one being fought),
+// else the nearest in range. A press never whiffs while a goon is in range.
+export function selectAttackTarget(origin, dir, enemies, { range = 14, focus = null, focusRange = 6, allowDown = false, retargetAngle = 1.22 } = {}) {
+  const hasDir = dir && Math.hypot(dir.x, dir.z) > 0.2;
+  if (hasDir) {
+    const t = selectTarget(origin, dir, enemies, { range, allowDown, maxAngle: retargetAngle, closeRange: 0 });
+    if (t && t !== focus) return t;
+  }
+  const ok = (e) => e && e.alive && (allowDown || !e.down) && enemies.includes(e);
+  if (ok(focus) && Math.hypot(focus.x - origin.x, focus.z - origin.z) <= focusRange) return focus;
+  return selectTarget(origin, null, enemies, { range, allowDown });
+}

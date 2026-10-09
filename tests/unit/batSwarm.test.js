@@ -189,7 +189,7 @@ describe('Bat Swarm from combat', () => {
     expect(hero.control).toBeNull();
     expect(combat.combo.value).toBe(9);
     // The pause ends with the swarm: an idle player decays to 0 again.
-    for (let i = 0; i < 120; i++) combat.update(DT, ctxFor(null, f));
+    for (let i = 0; i < 200; i++) combat.update(DT, ctxFor(null, f)); // past the 3 s timeout
     expect(combat.combo.value).toBe(0);
   });
 

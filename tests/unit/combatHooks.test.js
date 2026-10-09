@@ -69,18 +69,18 @@ describe('armor hooks', () => {
 });
 
 describe('combat hooks', () => {
-  it('Steady Flow keeps the combo through the first hit taken', () => {
-    const { combat } = setup({ owned: tree.combat.slice(0, 2) });
+  // Every combo run shrugs off one hit taken; Steady Flow adds a second.
+  const hitsSurvived = (owned) => {
+    const { combat } = setup({ owned });
     const g = makeGoon('g', 'grunt', 0, 1.5);
     combat.setEnemies([g]);
     for (let i = 0; i < 5; i++) combat.combo.hit();
-    g.attack = 'grunt';
-    combat.update(0.016, ctxWith());
-    expect(combat.combo.value).toBe(5);
-    g.attack = 'grunt';
-    combat.update(0.016, ctxWith());
-    expect(combat.combo.value).toBe(0);
-  });
+    let n = 0;
+    for (; n < 5; n++) { g.attack = 'grunt'; combat.update(0.016, ctxWith()); if (combat.combo.value === 0) break; }
+    return n;
+  };
+  it('a combo survives the first hit taken', () => expect(hitsSurvived([])).toBe(1));
+  it('Steady Flow keeps the combo through a second hit taken', () => expect(hitsSurvived(tree.combat.slice(0, 2))).toBe(2));
   it('Quick Reflexes lengthens counterable wind-ups only', () => {
     const { combat } = setup({ owned: ['reflexes'] });
     const g = makeGoon('g', 'grunt', 0, 3), b = makeGoon('b', 'brute', 1, 4);

@@ -1,7 +1,7 @@
 // Freeflow combat: turns hero input into moves against enemies and resolves enemy attacks on the hero.
 import * as THREE from 'three';
 import { resolveHit, DIFFICULTY, inShockwave, shouldDiveBomb } from './rules.js';
-import { selectTarget } from './targeting.js';
+import { selectTarget, selectAttackTarget } from './targeting.js';
 import { createCombo } from './combo.js';
 import { createDirector } from './director.js';
 import { createInputBuffer } from './inputBuffer.js';
@@ -44,12 +44,16 @@ const CHAIN = 4;
 const BEATS = MOCAP_BEATS;
 
 export function createCombat({ hero, follow, time, events, rng, getDifficulty, reach = {}, effects = BASE_EFFECTS, getChainDiscount = () => effects.chainDiscount, useGadget = null, stealthStart = null, stealthHold = null }) {
-  const combo = createCombo({ timeout: 1.5, ready: effects.specialAt, shield: effects.comboShield });
+  // Combos are easy to keep (owner, 2026-10-08): 3 s between hits, and one hit taken is free
+  // (WayneTech Steady Flow adds another).
+  const combo = createCombo({ timeout: 3.0, ready: effects.specialAt, shield: effects.comboShield + 1 });
   let difficulty = getDifficulty();
   const director = createDirector({ ...DIFFICULTY[difficulty], rng });
   let enemies = [];
-  const inputBuffer = createInputBuffer(0.3);
+  const inputBuffer = createInputBuffer(0.45);
   let punchChain = 0, kickChain = 0, chainT = 0;
+  // The goon being fought: attacks stay on him unless the stick points at another goon.
+  let focus = null;
   // Which regular kick and which beatdown strike comes next (variety only; not chain state).
   let beatIdx = 0, counterIdx = 0;
   const COUNTERS = ['Melee_Hook', 'Elbow_Strike', 'Kick_Front', 'Punch_Uppercut'];
@@ -218,7 +222,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
   // target, the lunge that puts the limb 0.15 m (scaled) inside the target's body without
   // the bodies overlapping, and how much of the clip's own root motion fits before it would
   // carry the body through the target. `place(t)` moves the hero along that plan.
-  function approach(target, clip, speed, start = 0, { fallbackReach = 0.9, fallbackContact = 0.15, maxLunge = 12 } = {}) {
+  function approach(target, clip, speed, start = 0, { fallbackReach = 0.9, fallbackContact = 0.15, maxLunge = 14 } = {}) {
     const entry = reach[clip];
     const from = hero.pos.clone();
     const dx = target.pos.x - from.x, dz = target.pos.z - from.z;
@@ -298,7 +302,8 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     const beatdown = target.type === 'brute' && target.stunned;
     const juggle = !!target.air;
     // Chains: the fourth punch is a heavy haymaker, the third kick the lunge spin kick.
-    chainT = 1.1;
+    chainT = 2.0;
+    focus = target;
     let finisher = null;
     if (!ground && !beatdown && !juggle) {
       if (isKick) { kickChain += 1; punchChain = 0; if (kickChain >= 3) { finisher = 'spinKick'; kickChain = 0; } }
@@ -364,7 +369,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
   function whiff() {
     let t = 0;
     hero.bat.animator.play('Punch_Jab', { once: true, timeScale: 1.8, fade: 0.05 });
-    combo.miss();
+    // A swing at nothing no longer costs the combo (owner: combos way easier to keep).
     punchChain = kickChain = 0;
     events.emit('whiff');
     return { name: 'whiff', combat: true, canChain: () => t > 0.2, update(dt) { t += dt; return t > 0.3; } };
@@ -774,7 +779,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     }
     if (action === 'punch' || action === 'kick') {
       if (inAir) {
-        const target = selectTarget(hero.pos, inputDir(ctx), list, { range: hero.state === 'glide' ? 14 : 10, maxAngle: 1.3 });
+        const target = selectAttackTarget(hero.pos, inputDir(ctx), list, { range: 16, focus });
         if (target && target.pos.y <= hero.pos.y + 1 && (hero.state === 'glide' || action === 'kick')) {
           hero.control = airKick(target, hero.state === 'glide' ? 'diveBomb' : 'jumpKick');
           return true;
@@ -783,7 +788,8 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
         if (action === 'punch' && hero.state === 'air' && engaged().length) { hero.control = airSlam(); return true; }
         return false;
       }
-      const target = selectTarget(hero.pos, inputDir(ctx), list, { range: action === 'kick' ? 10 : 9, allowDown: true });
+      // Auto-attach: any goon within 14 m is fair game, so a press never whiffs in a fight.
+      const target = selectAttackTarget(hero.pos, inputDir(ctx), list, { range: 14, focus, allowDown: true });
       if (!target) { if (engaged().length) { hero.control = whiff(); return true; } return false; }
       // Predator stealth: in a quiet room, a punch on a goon who hasn't noticed Batman is swallowed.
       if (stealthHold && stealthHold(action, target)) return true;
@@ -978,7 +984,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     // What gadgets land their hits through: the same bookkeeping as every other move.
     gadgetApi: { landHit, areaBlast, canSee, inputDir, alive, director, critical, batarang, faceTo },
     // Re-read the WayneTech effects after a purchase.
-    applyEffects() { combo.setReady(effects.specialAt); combo.setShield(effects.comboShield); },
+    applyEffects() { combo.setReady(effects.specialAt); combo.setShield(effects.comboShield + 1); },
     get enemies() { return enemies; },
     setEnemies(list) {
       enemies = list;
