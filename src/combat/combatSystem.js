@@ -11,6 +11,7 @@ import { CHAIN_RULES, chainForAction, chainAvailability, selectChainTargets, cha
 import { SWARM, swarmTargets, swarmAvailability, swarmTimeline, createSwarmControl } from './batSwarm.js';
 import { buildChainTimeline } from './chainTimeline.js';
 import { createStrikeChooser } from './strikeChoice.js';
+import { classifyDir, selectMove } from './moveSelect.js';
 import { createChainControl, CHAIN_SHOTS } from './chainControl.js';
 import { BASE_EFFECTS, hurtDamage } from '../progress/upgrades.js';
 
@@ -23,6 +24,8 @@ const REACT = {
   Punch_Jab: 'head', Punch_Cross: 'head', Elbow_Strike: 'head', Punch_Uppercut: 'head',
   Punch_Hook_L: 'spin', Melee_Hook: 'spin', Kick_Round: 'spin', Kick_Side: 'gut', Kick_Low: 'sweep',
   Kick_Front: 'gut', Knee_Strike: 'gut',
+  Punch_BodyJab: 'gut', Punch_BodyHook: 'gut', Punch_ShortHook: 'spin', Punch_LeadUppercut: 'head', Elbow_Head: 'head',
+  Kick_Push: 'gut', Knee_Muay: 'gut',
 };
 const STRIKE_SPEED = { Punch_Uppercut: 1.45, Punch_Hook_L: 1.4, Elbow_Strike: 1.45, Punch_Backfist: 1.35, Punch_Hammer: 1.3, Kick_Side: 1.35, Kick_Axe: 1.3, Kick_Low: 1.4 };
 // Regular kicks alternate the front push kick and the roundhouse (the front kick alone at
@@ -296,7 +299,27 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
   }
   const clipLength = (clip) => reach[clip]?.duration ?? 1;
 
-  function strike(kind, target) {
+  function landMove(mv, target) {
+    landHit(mv.kind, target, { word: mv.word, power: mv.power, launch: mv.launch, crit: mv.crit, stopTime: STOP[mv.stop] ?? STOP.kick, react: mv.react });
+    events.emit('moveLanded', { id: mv.id, name: mv.name });
+  }
+  // The held direction (relative to the target), sprint and airborne state pick a movement move.
+  function pickMove(action, target, ctx, air) {
+    const m = ctx.input.move;
+    const held = Math.hypot(m.x, m.y) > 0.2;
+    const to = { x: target.pos.x - hero.pos.x, z: target.pos.z - hero.pos.z };
+    return selectMove({
+      action, air,
+      dir: held ? classifyDir(inputDir(ctx), to) : 'none',
+      airFromSprint: !!hero.airFromSprint,
+      sprint: !air && (!!ctx.input.down?.('sprint') || hero.speed > 8),
+      targetDown: !air && target.down && target.alive && !target.air,
+      has: (c) => !!hero.bat.animator.has?.(c),
+    });
+  }
+  // mv: a movement move from src/combat/moveSelect.js (sprint, away, side, stomp), or null for
+  // the punch / kick rotation.
+  function strike(kind, target, mv = null) {
     const isKick = kind === 'kick';
     const ground = target.down && target.alive && !target.air;
     const beatdown = target.type === 'brute' && target.stunned;
@@ -309,27 +332,31 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
       if (isKick) { kickChain += 1; punchChain = 0; if (kickChain >= 3) { finisher = 'spinKick'; kickChain = 0; } }
       else { punchChain += 1; kickChain = 0; if (punchChain >= CHAIN) { finisher = 'heavy'; punchChain = 0; } }
     }
-    const move = ground ? 'punch' : beatdown ? 'beatdown' : finisher ?? kind;
+    // A movement move counts toward the chain but replaces the finisher it would have been.
+    if (mv) finisher = null;
+    const move = mv ? mv.kind : ground ? 'punch' : beatdown ? 'beatdown' : finisher ?? kind;
     const range = Math.hypot(target.pos.x - hero.pos.x, target.pos.z - hero.pos.z);
     let clip, speed;
     // A goon on the floor: the two-fisted hammer straight down onto him (it used to borrow a
     // sword swing, with no sword).
-    if (ground) { clip = reach.Punch_Hammer ? 'Punch_Hammer' : 'Sword_Attack'; speed = clip === 'Punch_Hammer' ? 1.7 : 1.8; }
+    if (mv) { clip = mv.clip; speed = strikeSpeed(clip, 1.3); }
+    else if (ground) { clip = reach.Punch_Hammer ? 'Punch_Hammer' : 'Sword_Attack'; speed = clip === 'Punch_Hammer' ? 1.7 : 1.8; }
     else if (move === 'heavy') { clip = choose.punchFinisher(); speed = strikeSpeed(clip, 1.35); }
     else if (move === 'spinKick') { clip = choose.kickFinisher(); speed = strikeSpeed(clip, 1.3); }
     else if (isKick) { clip = choose.kick(range); speed = strikeSpeed(clip, 1.3); }
     else if (beatdown) { clip = beatIdx++ % 2 ? 'Knee_Strike' : PUNCHES[(beatIdx >> 1) % PUNCHES.length]; speed = clip === 'Knee_Strike' ? KICK_SPEED.Knee_Strike : 2.6; }
     else { clip = choose.punch(punchChain, range); speed = strikeSpeed(clip, 1.8); }
     const start = MOCAP_START[clip] ?? 0;
-    const spin = move === 'spinKick';
+    const spin = !mv && move === 'spinKick';
     const ap = approach(target, clip, speed, start, { fallbackReach: 1.0 * target.scale, fallbackContact: 0.11 });
     const impactAt = ap.impactAt;
-    const end = beatdown ? impactAt + 0.12
+    const end = mv ? Math.min((clipLength(clip) - start) / speed, impactAt + (mv.stop === 'finisher' ? 0.45 : mv.stop === 'heavy' ? 0.32 : 0.28))
+      : beatdown ? impactAt + 0.12
       : Math.min((clipLength(clip) - start) / speed, impactAt + (spin ? 0.45 : move === 'heavy' ? 0.32 : isKick ? 0.35 : 0.22));
     let t = 0, hit = false, refaced = false;
     hero.bat.face(ap.yaw);
     hero.bat.animator.play(clip, { once: true, timeScale: speed, fade: start ? 0.1 : 0.05, startAt: start });
-    events.emit('swing', { kind, finisher: move === 'heavy' || spin });
+    events.emit('swing', { kind, finisher: mv ? mv.crit : move === 'heavy' || spin });
     return {
       name: 'strike', combat: true,
       canChain: () => hit && t > impactAt + 0.04,
@@ -345,6 +372,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
         if (!hit && t >= impactAt) {
           hit = true;
           if (!target.alive) return false;
+          if (mv) { landMove(mv, target); return t >= end; }
           // Each finisher lands its own way: the hammer and the axe kick drive the goon straight
           // down, the backfist and the spin kick send him flying, the haymaker lifts him.
           if (move === 'heavy') {
@@ -359,7 +387,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
           else if (juggle) landHit(isKick ? 'kick' : 'punch', target, { word: rng.chance(0.4) ? 'JUGGLE!' : null, power: 1.2, stopTime: isKick ? STOP.kick : STOP.punch });
           // The uppercut pops the goon up off his feet, ready for a juggle; an elbow hits a bit harder.
           else if (clip === 'Punch_Uppercut') landHit(move, target, { word: rng.chance(0.6) ? word('uppercut') : null, power: 1.3, launch: 3.4, stopTime: STOP.kick, react: 'head' });
-          else landHit(move, target, { word: isKick && rng.chance(0.4) ? word('kick') : clip === 'Elbow_Strike' && rng.chance(0.5) ? 'KRAK!' : null, power: isKick ? 1.6 : clip === 'Elbow_Strike' ? 1.2 : 1, launch: isKick ? (clip === 'Kick_Low' ? 1 : clip === 'Kick_Side' ? 3 : 2) : 0, stopTime: isKick ? STOP.kick : STOP.punch, react: REACT[clip] ?? null });
+          else landHit(move, target, { word: isKick && rng.chance(0.4) ? word('kick') : clip === 'Elbow_Strike' && rng.chance(0.5) ? 'KRAK!' : null, power: clip === 'Kick_Push' ? 2.4 : isKick ? 1.6 : clip === 'Elbow_Strike' || clip === 'Elbow_Head' ? 1.2 : 1, launch: isKick ? (clip === 'Kick_Low' ? 1 : clip === 'Kick_Side' ? 3 : 2) : 0, stopTime: isKick ? STOP.kick : STOP.punch, react: REACT[clip] ?? null });
         }
         return t >= end;
       },
@@ -538,11 +566,14 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     };
   }
 
-  function airKick(target, kind) {
+  function airKick(target, kind, mv = null) {
     const from = hero.pos.clone();
     const d = from.distanceTo(target.pos);
-    // Stop where the flying kick's foot (from the reach table) ends inside the target.
-    const fly = reach.Kick_Flying;
+    focus = target;
+    // Stop where the kick's foot (from the reach table) ends inside the target. A movement move
+    // (axe kick, hurricane, backflip kick, leaping smash) plays its own clip.
+    const clip = mv ? mv.clip : 'Kick_Flying';
+    const fly = reach[clip];
     const stop = fly ? 0.15 * target.scale + fly.reach.z + 0.25 : 1.0;
     const to = new THREE.Vector3().lerpVectors(from, target.pos, Math.max(0, (d - stop) / (d || 1)));
     to.y = target.pos.y;
@@ -553,9 +584,9 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     hero.cape.setWings(false);
     hero.bat.tilt.rotation.set(0, 0, 0);
     // Play the flying kick so its extension frame arrives exactly when the flight ends.
-    const start = MOCAP_START.Kick_Flying ?? 0;
+    const start = MOCAP_START[clip] ?? 0;
     const contact = fly?.contact ?? 0.3;
-    hero.bat.animator.play('Kick_Flying', { once: true, timeScale: THREE.MathUtils.clamp((contact - start) / dur, 0.7, 2.5), fade: 0.05, startAt: start });
+    hero.bat.animator.play(clip, { once: true, timeScale: THREE.MathUtils.clamp((contact - start) / dur, 0.7, 2.5), fade: 0.05, startAt: start });
     events.emit(kind === 'diveBomb' ? 'diveBomb' : 'jumpKick');
     return {
       name: kind, combat: true,
@@ -566,7 +597,8 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
         hero.pos.lerpVectors(from, to, k);
         if (!hit && k >= 1) {
           hit = true;
-          if (target.alive) landHit(kind, target, { word: kind === 'diveBomb' ? word('dive') : word('kick'), power: 1.8, stopTime: 0.1, launch: 4.5, crit: kind === 'diveBomb' });
+          if (target.alive && mv) landMove(mv, target);
+          else if (target.alive) landHit(kind, target, { word: kind === 'diveBomb' ? word('dive') : word('kick'), power: 1.8, stopTime: 0.1, launch: 4.5, crit: kind === 'diveBomb' });
           if (kind === 'diveBomb') for (const e of alive()) if (e !== target && e.pos.distanceTo(hero.pos) < 3) landHit('diveBomb', e, { power: 1.3, launch: 3 });
           hero.vel.set(0, 0, 0);
           hero.grounded = true;
@@ -780,9 +812,13 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     if (action === 'punch' || action === 'kick') {
       if (inAir) {
         const target = selectAttackTarget(hero.pos, inputDir(ctx), list, { range: 16, focus });
-        if (target && target.pos.y <= hero.pos.y + 1 && (hero.state === 'glide' || action === 'kick')) {
-          hero.control = airKick(target, hero.state === 'glide' ? 'diveBomb' : 'jumpKick');
-          return true;
+        if (target && target.pos.y <= hero.pos.y + 1) {
+          const mv = hero.state === 'air' ? pickMove(action, target, ctx, true) : null;
+          if (mv?.air) { hero.control = airKick(target, 'jumpKick', mv); return true; }
+          if (hero.state === 'glide' || action === 'kick') {
+            hero.control = airKick(target, hero.state === 'glide' ? 'diveBomb' : 'jumpKick');
+            return true;
+          }
         }
         // Punch in the air with nobody to kick: hammer down.
         if (action === 'punch' && hero.state === 'air' && engaged().length) { hero.control = airSlam(); return true; }
@@ -794,7 +830,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
       // Predator stealth: in a quiet room, a punch on a goon who hasn't noticed Batman is swallowed.
       if (stealthHold && stealthHold(action, target)) return true;
       if (target.down && target.alive && !target.air && action === 'punch') events.emit('groundTakedown', { target });
-      hero.control = strike(action, target);
+      hero.control = strike(action, target, pickMove(action, target, ctx, false));
       return true;
     }
     if (action === 'throw' && !inAir) {

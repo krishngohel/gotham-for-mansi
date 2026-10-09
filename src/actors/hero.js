@@ -63,13 +63,17 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
     frozen: false,
     airRuns: 0,      // wall runs used since last touching the ground
     lastClimbT: 99,  // seconds since leaving a ladder, ledge or zipline
+    airFromSprint: false, // left the ground at sprint speed (a sprint jump: movement combos)
     crouched: false, // crouch toggle: slow, silent, harder to see (Part D)
     perched: false,  // standing on a gargoyle or other perch (set by src/stealth/stealthSystem.js)
     // Traversal numbers WayneTech upgrades (game.js points this at the live effects object).
     tuning: { boostUp: 15, boostOut: 9, diveGain: 1, glideMax: 48, wallRunTime: 1.2, ladderSlide: 9, diveRadius: 4 },
   };
 
-  function setState(s) { h.state = s; h.stateT = 0; }
+  function setState(s) {
+    if (s === 'air' && h.state === 'ground') h.airFromSprint = h.speed > 9;
+    h.state = s; h.stateT = 0;
+  }
 
   function setCrouch(v) {
     if (h.crouched === v) return;
@@ -113,6 +117,7 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
       if (e) h.combat.takedown(e, 'drop');
     }
     h.airRuns = 0;
+    h.airFromSprint = false;
     h.grounded = true;
     h.airT = 0;
     cape.setWings(false);

@@ -8,12 +8,12 @@
 // have (`has(clip)` false) is skipped for one that it does.
 
 export const PUNCH_TIERS = [
-  ['Punch_Jab', 'Punch_Cross'],
-  ['Punch_Cross', 'Punch_Hook_L', 'Punch_Jab'],
-  ['Punch_Uppercut', 'Punch_Hook_L', 'Punch_Cross'],
+  ['Punch_Jab', 'Punch_Cross', 'Punch_BodyJab'],
+  ['Punch_Cross', 'Punch_Hook_L', 'Punch_Jab', 'Punch_ShortHook', 'Punch_BodyHook'],
+  ['Punch_Uppercut', 'Punch_Hook_L', 'Punch_Cross', 'Punch_LeadUppercut', 'Elbow_Head'],
 ];
 export const PUNCH_FINISHERS = ['Melee_Hook', 'Punch_Backfist', 'Punch_Hammer'];
-export const KICKS = ['Kick_Front', 'Kick_Round', 'Kick_Side', 'Kick_Low'];
+export const KICKS = ['Kick_Front', 'Kick_Push', 'Kick_Round', 'Kick_Low', 'Kick_Side', 'Knee_Muay'];
 export const KICK_FINISHERS = ['Kick_Spin', 'Kick_Axe', 'Kick_Flip'];
 export const CLOSE = 1.2;       // closer than this, an elbow instead of a cross
 export const POINT_BLANK = 1.3; // closer than this, no stepping kicks

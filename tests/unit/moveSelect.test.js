@@ -37,9 +37,9 @@ describe('selectMove', () => {
     expect(sel({ action: 'punch', sprint: true }).id).toBe('runUppercut');
     expect(sel({ dir: 'away' }).id).toBe('spinBackKick');
     expect(sel({ action: 'punch', dir: 'away' }).id).toBe('spinBackfist');
-    expect(sel({ dir: 'left' }).clip).toBe('Kick_SideRound_L');
+    expect(sel({ dir: 'left' }).clip).toBe('Kick_SideRound_M');
     expect(sel({ dir: 'right' }).clip).toBe('Kick_SideRound');
-    expect(sel({ action: 'punch', dir: 'left' }).clip).toBe('Punch_SideHook_L');
+    expect(sel({ action: 'punch', dir: 'left' }).clip).toBe('Punch_SideHook_M');
     expect(sel({ action: 'punch', dir: 'right' }).clip).toBe('Punch_SideHook');
   });
   it('a downed goon wins over everything; punching him keeps the hammer', () => {

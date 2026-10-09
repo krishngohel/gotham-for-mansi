@@ -48,7 +48,7 @@ export function selectMove({ action, dir = 'none', sprint = false, air = false, 
   if (dir === 'away') return pick(kick ? 'spinBackKick' : 'spinBackfist');
   if (dir === 'left' || dir === 'right') {
     const id = kick ? 'sideRound' : 'sideHook';
-    return pick(id, byId[id].clip + (dir === 'left' ? '_L' : ''));
+    return pick(id, byId[id].clip + (dir === 'left' ? '_M' : ''));
   }
   return null;
 }
