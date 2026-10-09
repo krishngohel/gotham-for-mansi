@@ -5,6 +5,7 @@ import { promptText } from './prompts.js';
 import { drawProgressMap } from './progressMap.js';
 import { whatsNewItems, whatsNewHeadline } from './whatsNew.js';
 import MANSI from '../mansi.config.js';
+import { MOVE_TABLE } from '../combat/moveSelect.js';
 
 const MOVING_AROUND = ['ladder', 'ledge', 'zip', 'wallrun', 'divebomb', 'takedown'];
 const PREDATOR = ['crouch', 'silent', 'perch', 'perchDrop', 'distract', 'vent', 'ledgeStealth', 'spotted', 'rifle'];
@@ -241,6 +242,13 @@ export function createMenus({ root, settings, storage, input, sound = () => {}, 
     for (const [a, k] of PAD_LAYOUT) pad.appendChild(el('div', 'help-row', `<span>${a}</span><kbd>${k}</kbd>`));
     cols.appendChild(pad);
     node.appendChild(cols);
+    node.appendChild(el('h3', '', 'Moves'));
+    node.appendChild(el('p', 'tip', 'How you move picks the strike: hold a direction, sprint or jump while you punch or kick. Attacks find the nearest goon on their own.'));
+    for (const m of MOVE_TABLE) {
+      const p = el('p', 'tip', m.input);
+      p.prepend(el('b', '', `${m.name}: `));
+      node.appendChild(p);
+    }
     node.appendChild(el('h3', '', 'Moving around'));
     for (const id of MOVING_AROUND) node.appendChild(el('p', 'tip', promptText(id, settings.bindings)));
     node.appendChild(el('h3', '', 'Predator'));

@@ -299,8 +299,12 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
   }
   const clipLength = (clip) => reach[clip]?.duration ?? 1;
 
+  // The first time each movement move lands, its name is the comic word ("FLYING KNEE!").
+  const movesSeen = new Set();
   function landMove(mv, target) {
-    landHit(mv.kind, target, { word: mv.word, power: mv.power, launch: mv.launch, crit: mv.crit, stopTime: STOP[mv.stop] ?? STOP.kick, react: mv.react });
+    const first = !movesSeen.has(mv.id);
+    movesSeen.add(mv.id);
+    landHit(mv.kind, target, { word: first ? mv.name.toUpperCase() + '!' : mv.word, power: mv.power, launch: mv.launch, crit: mv.crit, stopTime: STOP[mv.stop] ?? STOP.kick, react: mv.react });
     events.emit('moveLanded', { id: mv.id, name: mv.name });
   }
   // The held direction (relative to the target), sprint and airborne state pick a movement move.
