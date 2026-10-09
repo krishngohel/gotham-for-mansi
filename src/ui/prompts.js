@@ -17,7 +17,13 @@ const ENTRIES = [
   ['dive', (k) => `Gliding: hold ${k('sprint')} to dive and build speed, then hold ${k('back')} to swoop back up. Speed buys height.`],
   ['grapple', (k) => `Look at a ledge until the blue marker appears, then press ${k('grapple')} to grapple up.`],
   ['grappleBoost', (k) => `Tap ${k('jump')} during a grapple to launch over the ledge and keep gliding.`],
-  ['punch', (k) => `Click ${k('punch')} to punch. You leap to whichever goon you steer toward.`],
+  ['punch', (k) => `Click ${k('punch')} to punch. Attacks leap to the goon you steer toward, or the nearest one, so keep swinging.`],
+  ['combo', () => `Every hit builds your combo. It lasts three seconds between hits, survives one hit taken, and a miss never resets it.`],
+  // Movement combos (src/combat/moveSelect.js): how she moves picks the strike.
+  ['movesDirection', (k) => `How you move picks the strike. Hold away from a goon and press ${k('kick')} for a spinning back kick, or ${k('punch')} for a spinning backfist. Hold to his side for a roundhouse or a hook.`],
+  ['movesSprint', (k) => `Hold ${k('sprint')} and press ${k('kick')} for a flying knee, or ${k('punch')} for a running uppercut.`],
+  ['movesAir', (k) => `Jump with ${k('jump')}, then ${k('kick')} for an axe kick, or hold away from him for a backflip kick. Hold ${k('sprint')}, jump, then ${k('kick')} for a hurricane kick, or ${k('punch')} for a leaping smash.`],
+  ['stomp', (k) => `He's down! Press ${k('kick')} to stomp him, or ${k('punch')} to hammer him.`],
   ['kick', (k) => `Press ${k('kick')} to kick. Kicks hit harder and reach farther. In the air it is a jump-kick.`],
   ['counter', (k) => `A blue bolt over a goon means an attack is coming. Tap ${k('block')} to counter it.`],
   ['block', (k) => `Hold ${k('block')} to block when a counter is too late.`],
@@ -77,6 +83,14 @@ const ENTRIES = [
 ];
 
 export const PROMPT_IDS = ENTRIES.map(([id]) => id);
+
+// The card that teaches each movement move (MOVE_TABLE ids): landing the move skips its card.
+export const PROMPT_FOR_MOVE = {
+  spinBackKick: 'movesDirection', spinBackfist: 'movesDirection', sideRound: 'movesDirection', sideHook: 'movesDirection',
+  flyingKnee: 'movesSprint', runUppercut: 'movesSprint',
+  airAxe: 'movesAir', backflipKick: 'movesAir', hurricane: 'movesAir', leapSmash: 'movesAir',
+  stomp: 'stomp',
+};
 
 // `equipped`: the gadget on the fire key, for prompts that need a particular one (null: unknown).
 export function promptText(id, bindings, equipped = null) {
@@ -138,6 +152,8 @@ export function createPromptQueue(hud, getBindings, isEnabled, isBusy = () => fa
     },
     // A new story step began: anything queued two or more steps ago is now stale.
     newStep() { gen += 1; },
+    // She did the thing a card teaches: a queued card is skipped, one on screen stays to be read.
+    learned(id) { if (current !== id) this.done(id); },
     // Marks a prompt as done early (the player already did the thing).
     done(id) {
       seen.add(id);

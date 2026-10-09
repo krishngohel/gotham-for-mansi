@@ -45,7 +45,7 @@ import { glyphCode } from '../stealth/brain.js';
 import { createComicFx } from '../ui/comicFx.js';
 import { createComic } from '../ui/comic.js';
 import { createMenus } from '../ui/menus.js';
-import { createPromptQueue, chainLockedText, chainCostText, QUIET_CONTROLS } from '../ui/prompts.js';
+import { createPromptQueue, chainLockedText, chainCostText, QUIET_CONTROLS, PROMPT_FOR_MOVE } from '../ui/prompts.js';
 import { createWaypoint, createBeacon } from '../ui/waypoint.js';
 import { createAudio } from '../audio/audio.js';
 import { createVoice } from '../audio/voice.js';
@@ -579,6 +579,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     events.on('hint', ({ id, arg }) => HINTS[id] && hud.hint(HINTS[id](arg), HINT_MS[id] ?? 3000));
     events.on('bossStaggered', () => hud.hint(HINTS.finish(), 3500));
     events.on('chainTied', () => prompts.show(['chainTied']));
+    // Landing a movement move skips the tutorial card that teaches it.
+    events.on('moveLanded', ({ id }) => { if (PROMPT_FOR_MOVE[id]) prompts.learned(PROMPT_FOR_MOVE[id]); });
     // A dropped chain (teleport, respawn, restart) leaves the tether stretched to stale goon
     // spots until it times out on its own; clear it the moment the chain actually breaks.
     events.on('chainBroken', () => chainFx.clear());
@@ -678,7 +680,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     // so it must not run every frame), and each one stops checking once it has shown.
     let hintCheckT = 0;
     let glideHighT = 0;
-    const hintShown = { ladder: false, zip: false, divebomb: false, drive: false, fly: false };
+    const hintShown = { ladder: false, zip: false, divebomb: false, drive: false, fly: false, stomp: false };
     // The controls for a vehicle, the first time she gets in one.
     events.on('vehicleEnter', () => { if (!hintShown.drive) { prompts.show(['drive'], { first: true }); hintShown.drive = true; } });
     events.on('wingEnter', () => { if (!hintShown.fly) { prompts.show(['fly'], { first: true }); hintShown.fly = true; } });
@@ -716,6 +718,8 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
             }
           }
           if (!hintShown.zip && ctx.grappleTarget?.zip) { prompts.show(['zip']); hintShown.zip = true; }
+          // The first goon on the floor near her: kick to stomp, punch to hammer.
+          if (!hintShown.stomp && combat.enemies.some((e) => e.alive && e.down && !e.air && e.pos.distanceTo(hero.pos) < 5)) { prompts.show(['stomp'], { first: true }); hintShown.stomp = true; }
           if (!hintShown.divebomb) {
             // Sampled once per throttle tick, not every frame: the timer advances by the
             // tick length instead of by `real`, so it still reads as "~3s continuously high".
