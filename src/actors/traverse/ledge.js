@@ -97,7 +97,9 @@ export function createLedgeControl(h, { collision, events }, { ledge }) {
       }
       if (input.pressed('jump') || input.move.y > 0.5) {
         phase = 'up'; t = 0;
-        h.bat.animator.play('ClimbUp_1m', { once: true, timeScale: 1.5, fade: 0.08 });
+        // The clip is a step up from standing: start it at the push-up (hands already on the
+        // edge, from hanging) with a slower blend, or the hands flick down to the waist and back.
+        h.bat.animator.play('ClimbUp_1m', { once: true, timeScale: 1.5, fade: 0.2, startAt: 0.25 });
         return false;
       }
       if (input.pressed('sprint') || backT >= DROP_HOLD) {

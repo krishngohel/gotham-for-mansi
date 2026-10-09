@@ -225,7 +225,11 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
   // target, the lunge that puts the limb 0.15 m (scaled) inside the target's body without
   // the bodies overlapping, and how much of the clip's own root motion fits before it would
   // carry the body through the target. `place(t)` moves the hero along that plan.
-  function approach(target, clip, speed, start = 0, { fallbackReach = 0.9, fallbackContact = 0.15, maxLunge = 14 } = {}) {
+  // travel: a long lunge (over 3 m: auto-attach reaches 14) takes the time it needs instead of
+  // being squeezed before the clip's contact frame. `delay` is how long the hero sprints before
+  // the strike clip should start; the returned impactAt already includes it. Counters pass
+  // travel: false and keep their snap.
+  function approach(target, clip, speed, start = 0, { fallbackReach = 0.9, fallbackContact = 0.15, maxLunge = 14, travel = true, lungeSpeed = 20 } = {}) {
     const entry = reach[clip];
     const from = hero.pos.clone();
     const dx = target.pos.x - from.x, dz = target.pos.z - from.z;
@@ -245,7 +249,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
       rmx = rmContact[0] - rmStart[0];
       rmz = rmContact[1] - rmStart[1];
     }
-    const impactAt = Math.max(0.03, (contactClip - start) / speed);
+    const clipImpact = Math.max(0.03, (contactClip - start) / speed);
     // Scale the clip's step down when the target is closer than the step plus the limb.
     let k = 1;
     let lungeDist = d - inside - limbZ - rmz;
@@ -256,7 +260,13 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     lungeDist = THREE.MathUtils.clamp(Math.min(lungeDist, standOff), -0.35, maxLunge);
     if (rmz > 0.05 && lungeDist + k * rmz > standOff) k = THREE.MathUtils.clamp((standOff - lungeDist) / rmz, 0, 1);
     const yaw = baseYaw - Math.atan2(limbX + k * rmx, limbZ + k * rmz);
-    const lungeT = Math.min(THREE.MathUtils.clamp(Math.abs(lungeDist) / 20, 0.05, 0.24), Math.max(0.03, impactAt - 0.03));
+    const quick = Math.min(THREE.MathUtils.clamp(Math.abs(lungeDist) / 20, 0.05, 0.24), Math.max(0.03, clipImpact - 0.03));
+    // About 20 m/s on a smooth start and stop (the quick lunge's ease-out peaks at twice its
+    // average: 12 m in a quarter second read as a teleport).
+    const long = travel && Math.abs(lungeDist) > 3;
+    const lungeT = long ? Math.max(quick, Math.abs(lungeDist) / lungeSpeed) : quick;
+    const delay = long ? Math.max(0, lungeT + 0.03 - clipImpact) : 0;
+    const impactAt = clipImpact + delay;
     const sx = Math.sin(baseYaw), sz = Math.cos(baseYaw), fx = Math.sin(yaw), fz = Math.cos(yaw);
     // The target keeps staggering while the blow is on its way: follow that drift so the
     // limb still lands where the target is on the contact frame. The drift is frozen on
@@ -268,10 +278,10 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     // the roof is refused (same guard as the dodge roll).
     const planned = from.clone(), prev = new THREE.Vector3();
     return {
-      yaw, impactAt, lungeDist, k, from,
+      yaw, impactAt, lungeDist, k, from, delay,
       place(t) {
         const e = Math.min(1, t / lungeT);
-        const l = lungeDist * (1 - (1 - e) * (1 - e));
+        const l = lungeDist * (long ? e * e * (3 - 2 * e) : 1 - (1 - e) * (1 - e));
         if (!frozen) {
           const track = Math.min(1, t / impactAt);
           driftX = (target.pos.x - tx0) * track;
@@ -280,7 +290,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
         }
         let mx = driftX, mz = driftZ;
         if (entry && k > 0) {
-          rootMotionAt(entry, start + t * speed, rmNow);
+          rootMotionAt(entry, start + Math.max(0, t - delay) * speed, rmNow);
           const rx = (rmNow[0] - rmStart[0]) * k, rz = (rmNow[1] - rmStart[1]) * k;
           // Clip-space x is the character's left.
           mx += fz * rx + fx * rz;
@@ -344,7 +354,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     // A goon on the floor: the two-fisted hammer straight down onto him (it used to borrow a
     // sword swing, with no sword).
     if (mv) { clip = mv.clip; speed = strikeSpeed(clip, 1.3); }
-    else if (ground) { clip = reach.Punch_Hammer ? 'Punch_Hammer' : 'Sword_Attack'; speed = clip === 'Punch_Hammer' ? 1.7 : 1.8; }
+    else if (ground) { clip = reach.Punch_Hammer ? 'Punch_Hammer' : 'Sword_Attack'; speed = clip === 'Punch_Hammer' ? 1.5 : 1.8; }
     else if (move === 'heavy') { clip = choose.punchFinisher(); speed = strikeSpeed(clip, 1.35); }
     else if (move === 'spinKick') { clip = choose.kickFinisher(); speed = strikeSpeed(clip, 1.3); }
     else if (isKick) { clip = choose.kick(range); speed = strikeSpeed(clip, 1.3); }
@@ -354,12 +364,20 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     const spin = !mv && move === 'spinKick';
     const ap = approach(target, clip, speed, start, { fallbackReach: 1.0 * target.scale, fallbackContact: 0.11 });
     const impactAt = ap.impactAt;
-    const end = mv ? Math.min((clipLength(clip) - start) / speed, impactAt + (mv.stop === 'finisher' ? 0.45 : mv.stop === 'heavy' ? 0.32 : 0.28))
+    const clipEnd = (clipLength(clip) - start) / speed + ap.delay;
+    const end = mv ? Math.min(clipEnd, impactAt + (mv.stop === 'finisher' ? 0.45 : mv.stop === 'heavy' ? 0.32 : 0.28))
       : beatdown ? impactAt + 0.12
-      : Math.min((clipLength(clip) - start) / speed, impactAt + (spin ? 0.45 : move === 'heavy' ? 0.32 : isKick ? 0.35 : 0.22));
+      : Math.min(clipEnd, impactAt + (spin ? 0.45 : move === 'heavy' ? 0.32 : isKick ? 0.35 : 0.22));
     let t = 0, hit = false, refaced = false;
+    // Big moves can't be interrupted (Arkham style): a goon's blow landing mid spin or mid flip
+    // would have to blend her from upside down to a flinch, which has no clean path.
+    if (mv || spin || move === 'heavy') hero.invulnerable = Math.max(hero.invulnerable, end + 0.05);
     hero.bat.face(ap.yaw);
-    hero.bat.animator.play(clip, { once: true, timeScale: speed, fade: start ? 0.1 : 0.05, startAt: start });
+    // A long lunge sprints first; the strike starts so its contact lands on arrival.
+    let swung = false;
+    const swing = () => { swung = true; hero.bat.animator.play(clip, { once: true, timeScale: speed, fade: start ? 0.1 : 0.08, startAt: start }); };
+    if (ap.delay > 0.02) hero.bat.animator.play('Sprint_Loop', { fade: 0.08, timeScale: 1.3 });
+    else swing();
     events.emit('swing', { kind, finisher: mv ? mv.crit : move === 'heavy' || spin });
     return {
       name: 'strike', combat: true,
@@ -368,6 +386,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
       interruptible: () => !hit && t < impactAt - 0.02,
       update(dt) {
         t += dt;
+        if (!swung && t >= ap.delay) swing();
         ap.place(t);
         // Once the hit-stop has passed, square up to where the target actually is (a step
         // with lateral root motion leaves the body off the line), so the next target pick
@@ -400,7 +419,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
 
   function whiff() {
     let t = 0;
-    hero.bat.animator.play('Punch_Jab', { once: true, timeScale: 1.8, fade: 0.05 });
+    hero.bat.animator.play('Punch_Jab', { once: true, timeScale: 1.8, fade: 0.1 });
     // A swing at nothing no longer costs the combo (owner: combos way easier to keep).
     punchChain = kickChain = 0;
     events.emit('whiff');
@@ -410,7 +429,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
   function counter(targets) {
     let i = 0, t = 0, hit = false;
     const bigCounter = combo.value >= 5 || targets.length > 1;
-    let ap = null, hitAt = 0.12, stepEnd = 0.3;
+    let ap = null, hitAt = 0.12, stepEnd = 0.3, swung = true, swingClip = null;
     const setup = () => {
       const target = targets[i];
       // Rotate through a hook, an elbow, an uppercut and a front kick (a fresh one each counter),
@@ -420,11 +439,15 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
       // Counters are quicker than the same blow in freeflow, and start past the wind-up (mocap).
       const speed = clip === 'Kick_Front' ? 2.2 : strikeSpeed(clip, 1.6) * 1.35;
       const start = reach[clip]?.root ? (clip === 'Kick_Front' ? 0.3 : MOCAP_START[clip] ?? 0) : 0;
-      ap = approach(target, clip, speed, start, { fallbackReach: 1.1 * target.scale, fallbackContact: 0.12 });
+      // A far counter (up to 7.5 m) closes at 30 m/s instead of in one blink, then strikes.
+      ap = approach(target, clip, speed, start, { fallbackReach: 1.1 * target.scale, fallbackContact: 0.12, lungeSpeed: 30 });
       hitAt = ap.impactAt;
       stepEnd = Math.max(0.3, hitAt + 0.14);
+      hero.invulnerable = Math.max(hero.invulnerable, hitAt + 0.15);
       hero.bat.face(ap.yaw);
-      hero.bat.animator.play(clip, { once: true, timeScale: speed, fade: 0.04, startAt: start });
+      swingClip = () => hero.bat.animator.play(clip, { once: true, timeScale: speed, fade: 0.06, startAt: start });
+      if (ap.delay > 0.02) { swung = false; hero.bat.animator.play('Sprint_Loop', { fade: 0.06, timeScale: 1.4 }); }
+      else { swung = true; swingClip(); }
       t = 0; hit = false;
     };
     // Countered attackers freeze mid-windup until the counter lands, and Batman can't be hit
@@ -439,6 +462,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
       canChain: () => i === targets.length - 1 && hit && t > 0.2,
       update(dt) {
         t += dt;
+        if (!swung && t >= ap.delay) { swung = true; swingClip(); }
         ap.place(t);
         if (!hit && t >= hitAt) {
           hit = true;
@@ -547,7 +571,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     if (!target.finishable) combo.spend();
     hero.invulnerable = 1;
     const start = MOCAP_START.Kick_Round ?? 0, speed = 1.3;
-    const ap = approach(target, 'Kick_Round', speed, start, { fallbackReach: 1.1, fallbackContact: 0.3 });
+    const ap = approach(target, 'Kick_Round', speed, start, { fallbackReach: 1.1, fallbackContact: 0.3, travel: false });
     const contact = ap.impactAt;
     hero.bat.face(ap.yaw);
     hero.bat.animator.play('Kick_Round', { once: true, timeScale: speed, fade: 0.05, startAt: start });
@@ -583,6 +607,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     to.y = target.pos.y;
     const dur = kind === 'diveBomb' ? Math.max(0.25, d / 30) : Math.max(0.28, d / 22);
     let t = 0, hit = false;
+    hero.invulnerable = Math.max(hero.invulnerable, dur + 0.3);
     const baseYaw = Math.atan2(target.pos.x - from.x, target.pos.z - from.z);
     hero.bat.face(fly ? baseYaw - Math.atan2(fly.reach.x, fly.reach.z) : baseYaw);
     hero.cape.setWings(false);
@@ -590,7 +615,7 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
     // Play the flying kick so its extension frame arrives exactly when the flight ends.
     const start = MOCAP_START[clip] ?? 0;
     const contact = fly?.contact ?? 0.3;
-    hero.bat.animator.play(clip, { once: true, timeScale: THREE.MathUtils.clamp((contact - start) / dur, 0.7, 2.5), fade: 0.05, startAt: start });
+    hero.bat.animator.play(clip, { once: true, timeScale: THREE.MathUtils.clamp((contact - start) / dur, 0.7, 2.5), fade: 0.12, startAt: start });
     events.emit(kind === 'diveBomb' ? 'diveBomb' : 'jumpKick');
     return {
       name: kind, combat: true,
@@ -731,7 +756,9 @@ export function createCombat({ hero, follow, time, events, rng, getDifficulty, r
 
   function stagger(anim, dur, name = 'stagger') {
     let t = 0;
-    hero.bat.animator.play(anim, { once: true, timeScale: 1.3, fade: 0.05 });
+    // A blend long enough to unwind whatever she was mid-way through (a spinning kick turns her
+    // half round) without the whole body whipping round in three frames.
+    hero.bat.animator.play(anim, { once: true, timeScale: 1.3, fade: 0.12 });
     return { name, combat: true, canChain: () => false, update(dt) { t += dt; return t > dur; } };
   }
 

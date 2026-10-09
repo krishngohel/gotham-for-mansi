@@ -17,7 +17,7 @@ export function classifyDir(move, toTarget) {
 
 const M = (o) => ({ power: 1.4, launch: 2, crit: false, react: null, word: null, stop: 'kick', air: false, ...o });
 export const MOVE_TABLE = [
-  M({ id: 'stomp', name: 'Stomp', input: 'Kick a goon on the floor', action: 'kick', clip: 'Stomp', kind: 'heavy', power: 1.8, launch: 0.3, word: 'STOMP!', stop: 'heavy' }),
+  M({ id: 'stomp', name: 'Stomp', input: 'Kick a goon on the floor', action: 'kick', clip: 'Stomp', kind: 'kick', power: 1.8, launch: 0.3, word: 'STOMP!', stop: 'heavy' }),
   M({ id: 'hurricane', name: 'Hurricane Kick', input: 'Sprint, jump, kick', action: 'kick', clip: 'Kick_Hurricane', kind: 'spinKick', power: 2.4, launch: 7, crit: true, word: 'HURRICANE!', stop: 'finisher', air: true }),
   M({ id: 'leapSmash', name: 'Leaping Smash', input: 'Sprint, jump, punch', action: 'punch', clip: 'Smash_Leap', kind: 'heavy', power: 2.2, launch: 0.5, crit: true, word: 'SMASH!', stop: 'finisher', air: true }),
   M({ id: 'backflipKick', name: 'Backflip Kick', input: 'Jump, hold back, kick', action: 'kick', clip: 'Kick_BackFlip', kind: 'spinKick', power: 2.4, launch: 8, crit: true, word: 'WHAM!', stop: 'finisher', air: true }),

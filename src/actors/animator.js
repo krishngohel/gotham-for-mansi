@@ -15,22 +15,31 @@ export function sanitizeClip(clip) {
 
 export function createAnimator(root, clips) {
   const mixer = new THREE.AnimationMixer(root);
+  // Two actions per clip: replaying the clip that is playing (the same hit reaction twice, the
+  // same strike again) restarts it on the other one and crossfades, where a single action could
+  // only jump back to its first frame. The twin is made the first time it is needed.
   const actions = new Map();
   let current = null;
-  const action = (name) => {
-    if (!actions.has(name)) {
+  const action = (name, twin = false) => {
+    let pair = actions.get(name);
+    if (!pair) {
       const clip = clips.get(name);
       if (!clip) throw new Error(`Missing animation clip ${name}`);
-      actions.set(name, mixer.clipAction(clip));
+      pair = [mixer.clipAction(clip), null];
+      actions.set(name, pair);
     }
-    return actions.get(name);
+    if (twin && !pair[1]) pair[1] = mixer.clipAction(pair[0].getClip().clone());
+    return twin ? pair[1] : pair[0];
   };
   return {
     mixer,
     // `startAt` begins the clip partway in (clip seconds), which skips a long wind-up.
     play(name, { fade = 0.15, once = false, timeScale = 1, startAt = 0 } = {}) {
-      const next = action(name);
-      if (next === current && !once) { next.timeScale = timeScale; return next; }
+      let next = action(name);
+      if (current && current.getClip().name === name) {
+        if (!once) { current.timeScale = timeScale; return current; }
+        next = current === next ? action(name, true) : next;
+      }
       next.reset();
       next.time = startAt;
       next.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, Infinity);

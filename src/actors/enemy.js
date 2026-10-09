@@ -49,7 +49,7 @@ export function createEnemy({ id, type, assets, scene, collision, rng, events = 
     knock: new THREE.Vector3(),
     vel: new THREE.Vector3(), air: false, airFrom: 0, thrown: false,
     idlePose: rng.pick(IDLE_POSES),
-    guard: rng.pick(GUARDS), tauntT: 0, tauntCd: rng.range(3, 8),
+    guard: rng.pick(GUARDS), tauntT: 0, tauntCd: rng.range(3, 8), locoName: null, locoT: 0,
     glyph: null,
     tiedWith: null, tiedT: 0,
     frozenT: 0, danceT: 0, lostT: 0, shattered: false,
@@ -86,6 +86,16 @@ export function createEnemy({ id, type, assets, scene, collision, rng, events = 
   const WALKING = new Set(['patrol', 'search', 'hunt']);
   const MELEE_DY = 2.5; // metres up or down a punch, knife or charge can still reach
   const play = (name, opts) => ch.animator.play(name, opts);
+  // Locomotion clips (guard, strafe, walk, jog) hold for at least LOCO_HOLD seconds once picked:
+  // a goon whose speed flickers round zero (crowding round Batman, circling) used to swap clips
+  // every few frames, and each swap back cut off a clip that was still fading out (a pop).
+  const LOCO_HOLD = 0.35;
+  const loco = (name, opts) => {
+    const cur = ch.animator.currentName;
+    if (cur !== name && cur === e.locoName && e.locoT > 0) return;
+    if (cur !== name) { e.locoName = name; e.locoT = LOCO_HOLD; }
+    play(name, opts);
+  };
   const has = (name) => ch.animator.has?.(name) ?? false;
   // A strike clip winds up over `dur` seconds to its cocked pose (a beat before contact) and holds
   // there; strikeFire() then lands the contact frame STRIKE_LAND seconds after the wind-up ends.
@@ -94,7 +104,9 @@ export function createEnemy({ id, type, assets, scene, collision, rng, events = 
     const d = MOCAP_DATA[name];
     if (!d || !has(name)) { play(fallback, { once: true, timeScale: fallbackScale, fade: 0.1 }); return; }
     const cocked = Math.max(0.05, d.contact - 0.14);
-    play(name, { once: true, timeScale: cocked / Math.max(0.2, dur), fade: 0.12 });
+    // A long blend: the guard stance is a crouch and the clip starts upright, and the wind-up is
+    // slow anyway (0.6 s or more).
+    play(name, { once: true, timeScale: cocked / Math.max(0.2, dur), fade: 0.25 });
   };
   const strikeFire = () => {
     const a = ch.animator.currentAction, d = a && MOCAP_DATA[a.getClip().name];
@@ -308,6 +320,15 @@ export function createEnemy({ id, type, assets, scene, collision, rng, events = 
     const wasWindup = e.state === 'windup' || e.state === 'attack';
     e.glyph = null;
     tmp.set(pos.x - from.x, 0, pos.z - from.z).normalize();
+    // Already lying on the floor: a blow keeps him there. Replaying a fall or a flinch would stand
+    // him up for a frame first (every such clip starts on its feet).
+    const lying = e.down && !e.air && (e.state === 'down' || e.state === 'ko');
+    if (lying && (result.outcome === 'hit' || result.outcome === 'knockdown')) {
+      setState('down');
+      e.downT = Math.max(e.downT, 1.6);
+      e.knock.copy(tmp).multiplyScalar(0.6 * power);
+      return wasWindup;
+    }
     switch (result.outcome) {
       case 'hit':
         // A low sweep takes a grunt's feet out: a short spell on the floor (brutes and bosses
@@ -342,7 +363,7 @@ export function createEnemy({ id, type, assets, scene, collision, rng, events = 
         e.down = true;
         e.knock.copy(tmp).multiplyScalar(3.5 * power);
         if (launch || e.air) e.launch(tmp.x * 4 * power, Math.max(launch, e.air ? 4 : 0), tmp.z * 4 * power);
-        play(rng.chance(0.5) ? 'Death01' : 'Hit_Knockback', { once: true, timeScale: 1.1, fade: 0.05 });
+        if (!lying) play(rng.chance(0.5) ? 'Death01' : 'Hit_Knockback', { once: true, timeScale: 1.1, fade: 0.05 });
         if (type === 'harley') events?.emit('harleyDown', { target: e });
         break;
       case 'stun':
@@ -371,6 +392,7 @@ export function createEnemy({ id, type, assets, scene, collision, rng, events = 
 
   e.update = (dt, ctx) => {
     const { hero, others } = ctx;
+    if (e.locoT > 0) e.locoT -= dt;
     ch.groundAt = enemyPlantsFeet(e) ? groundUnderFoot : null;
     // Frozen by a counter until its blow lands (with a failsafe).
     if (e.countered) {
@@ -446,12 +468,12 @@ export function createEnemy({ id, type, assets, scene, collision, rng, events = 
           if (rng.chance(0.35)) { e.tauntT = 1.6; play(rng.pick(TAUNTS), { once: true, timeScale: 1.35, fade: 0.2 }); }
         }
         if (e.tauntT > 0) speed = 0;
-        else if (speed > 2) play('Jog_Fwd_Loop', { fade: 0.2 });
-        else if (speed > 0 && melee && squared && Math.abs(lateral) > 0.55 && has('Goon_Strafe_L')) play(lateral > 0 ? 'Goon_Strafe_R' : 'Goon_Strafe_L', { fade: 0.2, timeScale: speed / 1.65 });
-        else if (speed > 0) play(type === 'brute' ? 'Zombie_Walk_Fwd_Loop' : WALK, { fade: 0.2 });
-        else if (type === 'knife') play(has('Goon_Knife_Idle') ? 'Goon_Knife_Idle' : 'Sword_Idle', { fade: 0.25 });
-        else if (melee && has(e.guard)) play(e.guard, { fade: 0.25 });
-        else play(type === 'brute' ? 'Idle_FoldArms_Loop' : IDLE, { fade: 0.25 });
+        else if (speed > 2) loco('Jog_Fwd_Loop', { fade: 0.2 });
+        else if (speed > 0 && melee && squared && Math.abs(lateral) > 0.55 && has('Goon_Strafe_L')) loco(lateral > 0 ? 'Goon_Strafe_R' : 'Goon_Strafe_L', { fade: 0.2, timeScale: Math.max(0.5, speed / 1.65) });
+        else if (speed > 0) loco(type === 'brute' ? 'Zombie_Walk_Fwd_Loop' : WALK, { fade: 0.2 });
+        else if (type === 'knife') loco(has('Goon_Knife_Idle') ? 'Goon_Knife_Idle' : 'Sword_Idle', { fade: 0.25 });
+        else if (melee && has(e.guard)) loco(e.guard, { fade: 0.25 });
+        else loco(type === 'brute' ? 'Idle_FoldArms_Loop' : IDLE, { fade: 0.25 });
         break;
       }
       case 'windup': {

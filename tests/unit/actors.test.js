@@ -97,3 +97,38 @@ describe('foot planting gate', () => {
     expect(enemyPlantsFeet({ air: false, down: false, alive: false })).toBe(false);
   });
 });
+
+describe('replaying the clip that is already playing', () => {
+  // A goon hit twice with the same reaction, a downed goon knocked down again, the same strike
+  // twice: the restart must crossfade from where the clip was, never snap to its first frame.
+  it('blends from the current pose instead of snapping to frame 0', () => {
+    const root = new THREE.Object3D();
+    const bone = new THREE.Bone();
+    bone.name = 'pelvis';
+    root.add(bone);
+    const q90 = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2);
+    const clip = new THREE.AnimationClip('Hit', 1, [new THREE.QuaternionKeyframeTrack('pelvis.quaternion', [0, 1], [0, 0, 0, 1, q90.x, q90.y, q90.z, q90.w])]);
+    const anim = createAnimator(root, new Map([['Hit', clip]]));
+    anim.play('Hit', { once: true, fade: 0 });
+    anim.update(0.8);
+    const before = bone.quaternion.clone();
+    anim.play('Hit', { once: true, fade: 0.2 });
+    anim.update(1 / 60);
+    // Snapping would put it back at the identity (0 degrees) pose; a blend stays near 72 degrees.
+    expect(bone.quaternion.angleTo(before)).toBeLessThan(0.1);
+    anim.update(0.4);
+    expect(anim.currentName).toBe('Hit');
+    // Once the blend is over it is the restarted clip that plays (0.4 s in, ~36 degrees).
+    expect(bone.quaternion.angleTo(new THREE.Quaternion())).toBeLessThan(0.75);
+  });
+  it('a restart keeps alternating cleanly', () => {
+    const root = new THREE.Object3D();
+    const bone = new THREE.Bone();
+    bone.name = 'pelvis';
+    root.add(bone);
+    const clip = new THREE.AnimationClip('Hit', 1, [new THREE.QuaternionKeyframeTrack('pelvis.quaternion', [0, 1], [0, 0, 0, 1, 0, 0.7071, 0, 0.7071])]);
+    const anim = createAnimator(root, new Map([['Hit', clip]]));
+    for (let i = 0; i < 5; i++) { const a = anim.play('Hit', { once: true, fade: 0.1 }); anim.update(0.3); expect(anim.currentAction).toBe(a); }
+    expect(anim.mixer._actions.filter((a) => a.isRunning()).length).toBeLessThanOrEqual(2);
+  });
+});

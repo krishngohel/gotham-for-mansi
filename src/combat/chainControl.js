@@ -136,8 +136,8 @@ export function createChainControl(hero, api, { chain, targets, stealth, timelin
     gripOn = true; gripT = 0; gripUx = ux / d; gripUz = uz / d;
     gripStarts[0].copy(a.pos);
     gripStarts[1].copy(b.pos);
-    if (live(a)) a.ch.animator.play('Hit_Head', { once: true, timeScale: 0.45, fade: 0.05 });
-    if (live(b)) b.ch.animator.play('Hit_Head', { once: true, timeScale: 0.45, fade: 0.05 });
+    if (live(a)) a.ch.animator.play('Hit_Head', { once: true, timeScale: 0.45, fade: 0.08 });
+    if (live(b)) b.ch.animator.play('Hit_Head', { once: true, timeScale: 0.45, fade: 0.08 });
   }
   // Both goons snap to Batman's hands, then squeeze in as the smash reaches its contact frame.
   function holdGrip(dt, s) {
@@ -164,7 +164,7 @@ export function createChainControl(hero, api, { chain, targets, stealth, timelin
       const e = targets[j], a = (j / n) * Math.PI * 2;
       pullStarts[j].copy(e.pos);
       pullEnds[j].set(center.x + Math.sin(a) * 0.35, e.pos.y, center.z + Math.cos(a) * 0.35);
-      if (live(e)) e.ch.animator.play('Hit_Chest', { once: true, timeScale: 1.6, fade: 0.05 });
+      if (live(e)) e.ch.animator.play('Hit_Chest', { once: true, timeScale: 1.6, fade: 0.08 });
     }
   }
   function stepPull(dt) {
@@ -218,7 +218,7 @@ export function createChainControl(hero, api, { chain, targets, stealth, timelin
       case 'diveBomb': api.shockwave(center, 4.5, { crit: false, word: null }); break;
       default: break;
     }
-    if (s.thenClip) hero.bat.animator.play(s.thenClip, { once: true, timeScale: 0.9, fade: 0.04 });
+    if (s.thenClip) hero.bat.animator.play(s.thenClip, { once: true, timeScale: 0.9, fade: 0.08 });
     if (s.word && hit) api.word(s.word, at, s.finisher);
     const focus = e ?? pileFocus();
     if (s.finisher) api.critical(focus, { slow: 0.9, scale: 0.25, shot: CHAIN_SHOTS[chain.id], variant: chain.id, impact: 2 });
@@ -260,7 +260,7 @@ export function createChainControl(hero, api, { chain, targets, stealth, timelin
       if (s.clip && !clipOn && t >= s.clipStart) {
         clipOn = true;
         const startAt = Math.max((t - dt - s.clipStart) * s.speed, 1e-6 - dt * s.speed);
-        hero.bat.animator.play(s.clip, { once: true, timeScale: s.speed, fade: 0.05, startAt });
+        hero.bat.animator.play(s.clip, { once: true, timeScale: s.speed, fade: 0.1, startAt });
       }
       if (s.lunge > 0 && s.at !== 'stay') move(s);
       holdGrip(dt, s);
