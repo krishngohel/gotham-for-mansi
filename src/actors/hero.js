@@ -134,7 +134,9 @@ export function createHero({ assets, suit, scene, collision, events, climbables 
     h.glide.speed = Math.max(14, hs);
     h.glide.heading = hs > 1 ? Math.atan2(vel.x, vel.z) : bat.yaw;
     cape.setWings(true);
-    bat.animator.play('Glide', { fade: 0.25 });
+    // Arms straight out in a T, the cape spread between them as wings (the owner's pick over a
+    // swept-back pose).
+    bat.animator.play('A_TPose', { fade: 0.25 });
     events.emit('glideStart');
   }
 

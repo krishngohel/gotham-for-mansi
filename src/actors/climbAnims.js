@@ -55,19 +55,6 @@ export function buildClimbClips(model, clips, fwd = 1) {
     T('spine_02', 'spineFwd', [[0, 0.1], [1, 0.1]]),
   ]);
   const M = (n, axes, keys) => trackMulti(n, r(n), axes.map((a) => ax[a]), keys);
-  // Gliding (Arkham style): arms out wide and swept back, holding the cape's edges open as
-  // wings, elbows soft, chest up and head lifted to look ahead, legs together and trailing with
-  // a slight bend. A slow breath of movement so it never freezes. Replaces the A_TPose it used.
-  const glide = clip('Glide', 2, [
-    M('upperarm_r', ['armUpR', 'armBackR'], [[0, 1.3, 0.55], [1, 1.36, 0.5], [2, 1.3, 0.55]]),
-    M('upperarm_l', ['armUpL', 'armBackL'], [[0, 1.3, 0.55], [1, 1.36, 0.5], [2, 1.3, 0.55]]),
-    T('lowerarm_r', 'elbowR', [[0, -0.5], [2, -0.5]]), T('lowerarm_l', 'elbowL', [[0, 0.25], [2, 0.25]]),
-    T('spine_02', 'spineFwd', [[0, -0.18], [1, -0.22], [2, -0.18]]),
-    T('neck_01', 'neckUp', [[0, -0.35], [2, -0.35]]),
-    M('thigh_r', ['thighFwdR', 'legInR'], [[0, -0.12, 0.28], [1, -0.08, 0.28], [2, -0.12, 0.28]]),
-    M('thigh_l', ['thighFwdL', 'legInL'], [[0, -0.08, 0.28], [1, -0.12, 0.28], [2, -0.08, 0.28]]),
-    T('calf_r', 'kneeR', [[0, 0.3], [2, 0.3]]), T('calf_l', 'kneeL', [[0, 0.2], [2, 0.2]]),
-  ]);
   // A long fall: arms out for balance (one higher), one knee drawn up and the other leg trailing,
   // a slow tumble of the limbs. Short hops keep the library's Jump_Loop.
   const fall = clip('Fall_Loop', 1.6, [
@@ -118,5 +105,5 @@ export function buildClimbClips(model, clips, fwd = 1) {
     T('lowerarm_r', 'elbowR', [[0, -0.61], [0.25, -0.66], [0.55, 0.64], [0.9, -0.61]]), T('lowerarm_l', 'elbowL', [[0, 0.15], [0.25, 0.1], [0.55, 1.4], [0.9, 0.15]]),
     T('spine_02', 'spineFwd', [[0, 0], [0.55, 0.45], [0.9, 0]]),
   ]);
-  return [ladderHold, glide, fall, hang, shimmy, zip, wallRun, dive, yank];
+  return [ladderHold, fall, hang, shimmy, zip, wallRun, dive, yank];
 }
