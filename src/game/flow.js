@@ -4,6 +4,7 @@ import { FIGHTS } from './fights.js';
 import { SCENES } from './scenes.js';
 import { createObjectives, checkpointFor } from './objectives.js';
 import { bannerText, createGate } from './storyCues.js';
+import { createNudge } from './nudge.js';
 import { tickedBy, CHECKLIST, CHECKLIST_TITLE } from './partyChecklist.js';
 import { SITES } from '../world/mapData.js';
 import { saveProgress, BALLOON_COUNT } from '../core/save.js';
@@ -38,6 +39,9 @@ export function createFlow(d) {
   // card, no radio line or banner either).
   const clearScreen = () => mode === 'play' && !comic?.playing && !theGame()?.cinematic?.active;
   let lastBanner = null, stepAge = 0;
+  // Travel steps only: a fight, a chase or a cutscene already tells her what to do.
+  const nudge = createNudge();
+  const NUDGE_TYPES = new Set([undefined, 'reach', 'board', 'interior', 'collect']);
   const bannerGate = createGate({ canShow: clearScreen, show: (text) => hud.banner?.(text) });
   const checklistGate = createGate({
     canShow: () => clearScreen() && !radio?.playing && !hud.bannerShowing,
@@ -229,6 +233,7 @@ export function createFlow(d) {
     }
     hud.setObjective(s.text ?? '');
     stepAge = 0;
+    nudge.reset();
     const banner = bannerText(s, lastBanner);
     if (banner) { lastBanner = banner; bannerGate.set(banner); }
     const item = tickedBy(s.id);
@@ -411,6 +416,13 @@ export function createFlow(d) {
       stepAge += dt;
       bannerGate.update();
       checklistGate.update();
+      if (s && target && NUDGE_TYPES.has(s.type)) {
+        const running = !side.holdStory() && !radio?.playing && clearScreen();
+        if (nudge.update(dt, Math.hypot(hero.pos.x - target.x, hero.pos.z - target.z), running)) {
+          radio?.say([s.nudge ?? { speaker: 'alfred', portrait: 'alfred', text: s.text }]);
+          waypoint.pulse?.();
+        }
+      }
       encounters.update(dt, hero);
       if (s && target && !side.holdStory() && s.type !== 'fight' && s.type !== 'boss' && s.type !== 'cutscene' && !ASYNC_TYPES.has(s.type)) {
         const dxz = Math.hypot(hero.pos.x - target.x, hero.pos.z - target.z);

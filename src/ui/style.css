@@ -64,6 +64,8 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0 6px; margin: 0 2px; bo
 .waypoint .wp-diamond path { fill: var(--signal); stroke: var(--ink); stroke-width: 3; }
 .waypoint .wp-diamond .wp-core { fill: var(--ink); }
 .waypoint .wp-arrow { display: none; }
+.waypoint.pulse svg { animation: wppulse 0.5s ease-in-out 3; }
+@keyframes wppulse { 50% { transform: scale(1.8); } }
 .waypoint .wp-arrow path { fill: var(--signal); stroke: var(--ink); stroke-width: 3; }
 .waypoint.off .wp-diamond { display: none; }
 .waypoint.off .wp-arrow { display: block; }

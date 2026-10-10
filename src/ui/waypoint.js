@@ -45,6 +45,8 @@ export function createWaypoint(root) {
       arrow.style.transform = `rotate(${Math.atan2(-y, x)}rad)`;
     },
     hide() { el.style.display = 'none'; },
+    // The idle nudge: a few beats so the eye finds it.
+    pulse() { el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse'); },
   };
 }
 
