@@ -56,6 +56,7 @@ import { createCinematic } from '../ui/cinematic.js';
 import { createParty } from './party.js';
 import { createGCPDLobby } from './gcpdLobby.js';
 import { guestsUpTo, celebrateAt } from './partyStory.js';
+import { CHECKLIST_TITLE, checklistAt } from './partyChecklist.js';
 import { createFx } from './fx.js';
 import { createStealthFx } from '../stealth/stealthFx.js';
 import { createGadgetFx } from '../gadgets/gadgetFx.js';
@@ -865,14 +866,16 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
   // Built fresh on every pause so the info line and the challenge button are current.
   function pauseOptions() {
     const side = game.side;
+    const party = checklistAt(progress.step ?? 0, STEPS);
     const opts = {
       onResume: resume,
       onRestart: () => { resume(); game.flow.respawn({ manual: true }); },
       onTitle: () => { side.save(); location.search = ''; },
-      info: { ...side.pauseInfo(), wayneFree: game.wayne.free },
+      info: { ...side.pauseInfo(), wayneFree: game.wayne.free, party: `${party.filter((c) => c.done).length}/${party.length}` },
       onQuitChallenge: () => { side.challenges.quit(); resume(); },
       onChallenges: () => menus.challengesPage(side.challengesPage(), { onBack: () => menus.pause(opts), onRead: () => readPage('goldStandard', () => menus.pause(opts)) }),
       onProgress: () => menus.progressPage(side.progressPage(), { onBack: () => menus.pause(opts), onRead: () => readPage('fromKrishn', () => menus.pause(opts)) }),
+      onParty: () => menus.partyPage({ title: CHECKLIST_TITLE, items: party }, { onBack: () => menus.pause(opts) }),
       onWayneTech: openWayneTech,
       onPhoto: () => { menus.hide(); game.photo.open(); },
     };
