@@ -285,7 +285,9 @@ export function createFlow(d) {
       d.follow?.settlePitch?.(0.12, 2.5);
     });
     if (ASYNC_TYPES.has(s.type)) startAsync(s);
-    if (s.type === 'interior' && s.lines?.length) radio?.say(s.lines);
+    // Hand-off lines on a plain step (reach, fight, collect, interior): what just happened and
+    // why she is going where she is going. Async beats play their own lines in startAsync().
+    if (!ASYNC_TYPES.has(s.type) && s.type !== 'cutscene' && s.lines?.length) radio?.say(s.lines);
     if (s.type === 'credits') {
       progress.finished = true;
       save();

@@ -75,6 +75,10 @@ describe('story data', () => {
     }
     expect(STEPS.at(-1).type).toBe('credits');
   });
+  it('the balloon run is gone and its Batwing tip moved to the plaza walk', () => {
+    expect(STEPS.some((s) => s.id === 'armadaRun')).toBe(false);
+    expect(STEPS.find((s) => s.id === 'toPlaza').tutorial).toContain('callBatwing');
+  });
   it('no player-facing text uses em or en dashes', () => {
     for (const s of STEPS) {
       if (s.text) expect(s.text, s.id).not.toMatch(DASH);
@@ -90,9 +94,10 @@ describe('story data', () => {
       }
     }
   });
+  // 'armada' (the Batwing balloon run) left the story on 2026-10-10; the type itself still works.
   it('every new Part S mission type appears at least once', () => {
     const types = new Set(STEPS.map((s) => s.type));
-    for (const t of [...ASYNC_TYPES, 'interior']) expect(types, t).toContain(t);
+    for (const t of [...ASYNC_TYPES, 'interior'].filter((t) => t !== 'armada')) expect(types, t).toContain(t);
   });
   it('stealth fights name their room and an entry site', () => {
     for (const [id, f] of Object.entries(FIGHTS)) {

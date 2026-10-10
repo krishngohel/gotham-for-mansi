@@ -29,6 +29,9 @@ describe('resolveStep: stepId only, no numeric fallback', () => {
     expect(resolveStep({ step: 17, stepId: 'gone' })).toBe(0);
     expect(resolveStep({ step: 999, stepId: 'gone' })).toBe(0);
   });
+  it('a save on a retired step lands on the step that replaced it', () => {
+    expect(resolveStep({ stepId: 'armadaRun' })).toBe(idx('nightwingTagRadio'));
+  });
   it('no id at all starts over', () => {
     expect(resolveStep({})).toBe(0);
     expect(resolveStep({ step: 25 })).toBe(0);

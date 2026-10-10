@@ -11,9 +11,14 @@ registerProgressField('stepId', { sanitize: (v) => (typeof v === 'string' && ID.
 
 // The saved step id, read against the current story; a save with no id (fresh, or one whose id no
 // longer exists) starts over at the top.
+// Steps taken out of the story, and where a save sitting on one carries on (the Batwing balloon
+// run was cut on 2026-10-10).
+export const RETIRED = { armadaRun: 'nightwingTagRadio' };
+
 export function resolveStep(progress, steps = STEPS) {
-  if (progress?.stepId) {
-    const i = steps.findIndex((s) => s.id === progress.stepId);
+  const id = RETIRED[progress?.stepId] ?? progress?.stepId;
+  if (id) {
+    const i = steps.findIndex((s) => s.id === id);
     if (i >= 0) return i;
   }
   return 0;
