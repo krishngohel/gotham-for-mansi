@@ -26,6 +26,12 @@ const REACTIONS = { head: 'Hit_Head_Snap', gut: 'Hit_Gut_Fold', spin: 'Hit_Spin'
 // Primed here, at spawn, so the first chain of a fight doesn't build an action mid-chain.
 // createEnemy (and so this prime) runs once per spawn, for the whole wave in the same frame; only
 // scene.add is spread one goon per frame (game.js's reveal step).
+// Where each KO clip starts going over. Both open on their feet (Death01 sags for 0.8 s), and a
+// critical KO plays in slow motion, so from frame 0 a knocked-out goon stood for over a second.
+export const KO_FALL = {
+  Death01: { startAt: 0.6, timeScale: 1.3 },
+  Hit_Knockback: { startAt: 0.3, timeScale: 1.2 },
+};
 export const CHAIN_HOLD_CLIPS = ['Idle_Shield_Break', 'Hit_Head', 'Hit_Chest', 'Hit_Knockback'];
 // States wake() lets finish on their own instead of jumping straight to 'alert' (see e.wake below).
 const WAKE_HOLD_STATES = ['tied', 'down', 'getup', 'chained', 'grabbed'];
@@ -363,7 +369,10 @@ export function createEnemy({ id, type, assets, scene, collision, rng, events = 
         e.down = true;
         e.knock.copy(tmp).multiplyScalar(3.5 * power);
         if (launch || e.air) e.launch(tmp.x * 4 * power, Math.max(launch, e.air ? 4 : 0), tmp.z * 4 * power);
-        if (!lying) play(rng.chance(0.5) ? 'Death01' : 'Hit_Knockback', { once: true, timeScale: 1.1, fade: 0.05 });
+        if (!lying) {
+          const clip = rng.chance(0.5) ? 'Death01' : 'Hit_Knockback';
+          play(clip, { once: true, fade: 0.1, ...KO_FALL[clip] });
+        }
         if (type === 'harley') events?.emit('harleyDown', { target: e });
         break;
       case 'stun':
