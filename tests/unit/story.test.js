@@ -137,3 +137,20 @@ describe('balloons and personal content', () => {
     for (const m of [...MANSI.balloonMessages, MANSI.finalMessage]) expect(m).not.toMatch(DASH);
   });
 });
+
+describe('story hand-offs', () => {
+  const DASH2 = new RegExp(`[${String.fromCharCode(0x2013, 0x2014)}]`);
+  const TRAVEL = [undefined, 'reach', 'board', 'interior', 'collect'];
+  it('every fight that hands over to a travel step says why on the radio', () => {
+    for (let i = 0; i < STEPS.length - 1; i++) {
+      if (STEPS[i].type !== 'fight' || !TRAVEL.includes(STEPS[i + 1].type) || STEPS[i + 1].type === 'board') continue;
+      expect(STEPS[i + 1].lines?.length, STEPS[i + 1].id).toBeGreaterThan(0);
+    }
+  });
+  it('every travel step has a nudge line, and no line uses a dash', () => {
+    for (const s of STEPS) {
+      if (TRAVEL.includes(s.type) && s.text) expect(s.nudge?.text, s.id).toBeTruthy();
+      for (const l of [...(s.lines ?? []), ...(s.nudge ? [s.nudge] : [])]) expect(l.text, s.id).not.toMatch(DASH2);
+    }
+  });
+});
