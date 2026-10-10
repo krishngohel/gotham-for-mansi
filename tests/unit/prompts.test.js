@@ -330,7 +330,7 @@ describe('prompt queue: step tips and quiet moments', () => {
   it('side tips wait while it is quiet; step tips do not', () => {
     const hud = fakeHud();
     let quiet = true;
-    const q = createPromptQueue(hud, B, () => true, () => false, () => null, () => true, () => quiet);
+    const q = createPromptQueue(hud, B, () => true, () => false, () => null, () => true, (own) => !own && quiet);
     q.show(['photo']);
     q.update(0.1);
     expect(hud.shown.length).toBe(0);

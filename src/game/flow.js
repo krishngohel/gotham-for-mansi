@@ -235,7 +235,8 @@ export function createFlow(d) {
     stepAge = 0;
     nudge.reset();
     const banner = bannerText(s, lastBanner);
-    if (banner) { lastBanner = banner; bannerGate.set(banner); }
+    // Shown this frame when it can be, before the 'step' listeners below push their own cards.
+    if (banner) { lastBanner = banner; bannerGate.set(banner); bannerGate.update(); }
     const item = tickedBy(s.id);
     if (item) checklistGate.set(item);
     target = siteOf(s);
@@ -410,8 +411,9 @@ export function createFlow(d) {
       hud.setBalloons(progress.balloons.length, BALLOON_COUNT);
       enterStep();
     },
-    // Side tips hold off while a goal is being announced or someone is talking (prompts.js quiet).
-    quiet() { return stepAge < 8 || !!hud.bannerShowing || !!radio?.playing; },
+    // Tip cards hold off while a goal is being announced (prompts.js quiet); side tips also wait
+    // out a radio line and the first seconds of a step.
+    quiet(own = false) { return !!hud.bannerShowing || (!own && (stepAge < 8 || !!radio?.playing)); },
     update(dt, camera) {
       t += dt;
       if (mode !== 'play') return;

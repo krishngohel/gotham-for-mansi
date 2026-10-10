@@ -206,7 +206,13 @@ export function createHud(root) {
       cap.classList.add('new');
     },
     // One card at a time: one arriving over another waits its turn (src/ui/cardQueue.js).
-    card(title, text, ms = 7000) { cards.push(title, text, ms); },
+    // A card that arrives under a new goal's banner (a gadget unlocked as the step begins) waits
+    // for the banner to finish instead of covering it.
+    card(title, text, ms = 7000) {
+      const wait = bannerUntil - performance.now();
+      if (wait > 0) setTimeout(() => cards.push(title, text, ms), wait);
+      else cards.push(title, text, ms);
+    },
     // The action is starting (a fight, getting into a vehicle): a card that has had its moment
     // (minMs on screen) comes down now instead of covering the view for the rest of its time.
     dismissCard(minMs = 1500) { cards.dismiss(minMs); },

@@ -138,13 +138,13 @@ export const QUIET_CONTROLS = new Set(['silent', 'perchDrop', 'chain', 'swarm', 
 //
 // A step's own tips (`first`) belong to that step: dropStepTips() takes them away once the fight
 // they were for is over. Every other tip (photo mode, detective vision, gadget news) is a side tip
-// and waits while quiet() says the moment is taken (a new goal's banner, a radio line, the first
-// seconds of a step).
+// and waits while quiet(false) says the moment is taken (a new goal's banner, a radio line, the
+// first seconds of a step); a step's own tips only wait out quiet(true) (the banner).
 export function createPromptQueue(hud, getBindings, isEnabled, isBusy = () => false, getEquipped = () => null, relevance = () => true, quiet = () => false) {
   const queue = []; // { id, gen, own }
   const seen = new Set();
   let current = null, currentOwn = false;
-  const ready = (q) => relevance(q.id) === true && (q.own || !quiet());
+  const ready = (q) => relevance(q.id) === true && !quiet(q.own);
   let t = 0, gen = 0;
   const has = (id) => queue.some((q) => q.id === id);
   const hide = () => { current = null; hud.hideHint(); };

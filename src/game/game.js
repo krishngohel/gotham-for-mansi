@@ -370,7 +370,7 @@ export async function startGame({ canvas, hudRoot, params, onProgress = () => {}
     };
     const prompts = createPromptQueue(hud, () => settings.bindings, () => settings.hints, (id) => follow.actionActive || (QUIET_CONTROLS.has(hero.control?.name) && id !== hero.control?.name), () => gadgets?.state.equipped ?? null, promptRelevance,
       // flow is created further down: read it through the game object once it exists.
-      () => window.__game?.flow?.quiet?.() ?? false);
+      (own) => window.__game?.flow?.quiet?.(own) ?? false);
     const waypoint = createWaypoint(hudRoot.querySelector('.hud') ?? hudRoot);
     const beacon = createBeacon(scene);
     const boss = createBoss({ assets, scene, rng, combat, events, hud, spawn, despawn, hero, time, getDifficulty: () => settings.difficulty, collision: world.collision, effects });
