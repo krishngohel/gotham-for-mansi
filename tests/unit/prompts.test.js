@@ -312,3 +312,33 @@ describe('createPromptQueue: cards arrive while they still apply', () => {
     expect(hud.calls.at(-1)).toBe(text('punch'));
   });
 });
+
+describe('prompt queue: step tips and quiet moments', () => {
+  const fakeHud = () => ({ shown: [], hidden: false, hint(t) { this.shown.push(t); }, hideHint() { this.hidden = true; } });
+  const B = () => DEFAULT_BINDINGS;
+  it("a fight's own tips go when the fight is over", () => {
+    const hud = fakeHud();
+    const q = createPromptQueue(hud, B, () => true);
+    q.show(['punch', 'kick'], { first: true });
+    q.update(0.1);
+    expect(hud.shown.length).toBe(1);
+    q.dropStepTips();
+    expect(hud.hidden).toBe(true);
+    for (let i = 0; i < 20; i++) q.update(1);
+    expect(hud.shown.length).toBe(1);
+  });
+  it('side tips wait while it is quiet; step tips do not', () => {
+    const hud = fakeHud();
+    let quiet = true;
+    const q = createPromptQueue(hud, B, () => true, () => false, () => null, () => true, () => quiet);
+    q.show(['photo']);
+    q.update(0.1);
+    expect(hud.shown.length).toBe(0);
+    q.show(['glide'], { first: true });
+    q.update(0.1);
+    expect(hud.shown.length).toBe(1);
+    quiet = false;
+    for (let i = 0; i < 8; i++) q.update(1);
+    expect(hud.shown.length).toBe(2);
+  });
+});

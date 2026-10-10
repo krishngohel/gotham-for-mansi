@@ -319,8 +319,11 @@ export function createFlow(d) {
   }
 
   function advance(ev) {
+    const prev = objectives.step;
     if (!objectives.handle(ev)) return false;
     events.emit('objectiveDone', ev);
+    // A fight's own tip cards are about that fight: they leave with it.
+    if (prev?.type === 'fight') prompts.dropStepTips?.();
     enterStep();
     return true;
   }

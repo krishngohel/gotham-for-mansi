@@ -135,10 +135,16 @@ export const QUIET_CONTROLS = new Set(['silent', 'perchDrop', 'chain', 'swarm', 
 // can answer 'wait' (keep it queued, show it later: an on-foot tip while she drives) or 'drop' (it
 // can no longer apply: the driving card once she is out of the car). A card on screen that stops
 // applying comes down at once.
-export function createPromptQueue(hud, getBindings, isEnabled, isBusy = () => false, getEquipped = () => null, relevance = () => true) {
-  const queue = []; // { id, gen }
+//
+// A step's own tips (`first`) belong to that step: dropStepTips() takes them away once the fight
+// they were for is over. Every other tip (photo mode, detective vision, gadget news) is a side tip
+// and waits while quiet() says the moment is taken (a new goal's banner, a radio line, the first
+// seconds of a step).
+export function createPromptQueue(hud, getBindings, isEnabled, isBusy = () => false, getEquipped = () => null, relevance = () => true, quiet = () => false) {
+  const queue = []; // { id, gen, own }
   const seen = new Set();
-  let current = null;
+  let current = null, currentOwn = false;
+  const ready = (q) => relevance(q.id) === true && (q.own || !quiet());
   let t = 0, gen = 0;
   const has = (id) => queue.some((q) => q.id === id);
   const hide = () => { current = null; hud.hideHint(); };
@@ -147,11 +153,16 @@ export function createPromptQueue(hud, getBindings, isEnabled, isBusy = () => fa
     show(ids, { first = false } = {}) {
       for (const id of first ? [...ids].reverse() : ids) {
         if (seen.has(id) || has(id) || current === id) continue;
-        if (first) queue.unshift({ id, gen }); else queue.push({ id, gen });
+        if (first) queue.unshift({ id, gen, own: true }); else queue.push({ id, gen, own: false });
       }
     },
     // A new story step began: anything queued two or more steps ago is now stale.
     newStep() { gen += 1; },
+    // The fight these tips were for is over: its cards go, on screen or queued.
+    dropStepTips() {
+      for (let i = queue.length - 1; i >= 0; i--) if (queue[i].own) queue.splice(i, 1);
+      if (current && currentOwn) hide();
+    },
     // She did the thing a card teaches: a queued card is skipped, one on screen stays to be read.
     learned(id) { if (current !== id) this.done(id); },
     // Marks a prompt as done early (the player already did the thing).
@@ -170,24 +181,26 @@ export function createPromptQueue(hud, getBindings, isEnabled, isBusy = () => fa
       if (current) {
         const r = relevance(current);
         if (r === 'drop') hide();
-        else if (r === 'wait') { queue.unshift({ id: current, gen }); hide(); }
+        else if (r === 'wait') { queue.unshift({ id: current, gen, own: currentOwn }); hide(); }
       }
       // The next card that applies right now; 'wait' ones stay queued for later.
-      const nextIdx = current ? -1 : queue.findIndex((q) => relevance(q.id) === true);
+      const nextIdx = current ? -1 : queue.findIndex(ready);
       const candidate = current ?? (nextIdx >= 0 ? queue[nextIdx].id : undefined);
       // isBusy is asked about the prompt that would be on screen: a vehicle's own controls card may
       // show while that vehicle is in use, when everything else waits.
-      if (isBusy(candidate)) { if (current) { queue.unshift({ id: current, gen }); hide(); } return; }
+      if (isBusy(candidate)) { if (current) { queue.unshift({ id: current, gen, own: currentOwn }); hide(); } return; }
       t -= dt;
       if (current && t > 0) return;
       if (current) { seen.add(current); current = null; }
-      const i = queue.findIndex((q) => relevance(q.id) === true);
+      const i = queue.findIndex(ready);
       if (i < 0) return;
-      const next = queue.splice(i, 1)[0].id;
+      const picked = queue.splice(i, 1)[0];
+      const next = picked.id;
       current = next;
+      currentOwn = picked.own;
       t = 6.5;
       hud.hint(promptText(next, getBindings(), getEquipped()), 6200);
     },
-    reset() { queue.length = 0; seen.clear(); current = null; gen = 0; },
+    reset() { queue.length = 0; seen.clear(); current = null; currentOwn = false; gen = 0; },
   };
 }
