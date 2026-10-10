@@ -34,8 +34,8 @@ next step (the kick card on the walk to the yard); timed side tips (photo mode, 
   |---|---|
   | Gifts | `toNeon` (after the freighter presents) |
   | DJ rig and band gear | `aceClueRadio` |
-  | Cake | `crasherReveal` |
   | Fireworks | `harleyRadio` (after Harley's van chase) |
+  | Cake | `crasherReveal` |
   | Guests and the band | `rescueGuestsRadio` |
 
   `checklistAt(stepIndex, steps)` returns every item with `done`. Derived from the save's step, so
