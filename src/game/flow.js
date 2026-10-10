@@ -3,6 +3,8 @@ import { STEPS, tutorialFor } from './story.js';
 import { FIGHTS } from './fights.js';
 import { SCENES } from './scenes.js';
 import { createObjectives, checkpointFor } from './objectives.js';
+import { bannerText, createGate } from './storyCues.js';
+import { tickedBy, CHECKLIST, CHECKLIST_TITLE } from './partyChecklist.js';
 import { SITES } from '../world/mapData.js';
 import { saveProgress, BALLOON_COUNT } from '../core/save.js';
 import MANSI from '../mansi.config.js';
@@ -31,6 +33,16 @@ export function createFlow(d) {
 
   const save = () => saveProgress(storage, progress);
   const theGame = () => (typeof window !== 'undefined' ? window.__game : null);
+
+  // Cues wait until the screen is hers: no comic page or cinematic up (and, for the checklist
+  // card, no radio line or banner either).
+  const clearScreen = () => mode === 'play' && !comic?.playing && !theGame()?.cinematic?.active;
+  let lastBanner = null, stepAge = 0;
+  const bannerGate = createGate({ canShow: clearScreen, show: (text) => hud.banner?.(text) });
+  const checklistGate = createGate({
+    canShow: () => clearScreen() && !radio?.playing && !hud.bannerShowing,
+    show: (item) => hud.card(CHECKLIST_TITLE, `${item.got} (${CHECKLIST.indexOf(item) + 1}/${CHECKLIST.length})`, 6500),
+  });
 
   function siteOf(s) {
     if (!s) return null;
@@ -216,6 +228,11 @@ export function createFlow(d) {
       if (G?.batwing?.active) G.batwing.exit();
     }
     hud.setObjective(s.text ?? '');
+    stepAge = 0;
+    const banner = bannerText(s, lastBanner);
+    if (banner) { lastBanner = banner; bannerGate.set(banner); }
+    const item = tickedBy(s.id);
+    if (item) checklistGate.set(item);
     target = siteOf(s);
     fightStarted = false;
     waypoint.update(null);
@@ -385,10 +402,15 @@ export function createFlow(d) {
       hud.setBalloons(progress.balloons.length, BALLOON_COUNT);
       enterStep();
     },
+    // Side tips hold off while a goal is being announced or someone is talking (prompts.js quiet).
+    quiet() { return stepAge < 8 || !!hud.bannerShowing || !!radio?.playing; },
     update(dt, camera) {
       t += dt;
       if (mode !== 'play') return;
       const s = objectives.step;
+      stepAge += dt;
+      bannerGate.update();
+      checklistGate.update();
       encounters.update(dt, hero);
       if (s && target && !side.holdStory() && s.type !== 'fight' && s.type !== 'boss' && s.type !== 'cutscene' && !ASYNC_TYPES.has(s.type)) {
         const dxz = Math.hypot(hero.pos.x - target.x, hero.pos.z - target.z);

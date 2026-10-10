@@ -103,6 +103,7 @@ export function createHud(root) {
     <div class="hud-combo hidden"><span class="x">x</span><span class="n">0</span></div>
     <div class="hud-chains hidden">${CHAIN_ICON.map((p, i) => `<div class="chain-ico" data-n="${i + 1}"><svg viewBox="0 0 48 48">${p}</svg><b>${i + 1}</b></div>`).join('')}</div>
     <div class="hud-caption"><div class="obj"></div><div class="balloons">${BALLOON}<span>0/12</span></div></div>
+    <div class="hud-banner"></div>
     <svg class="hud-health" viewBox="0 0 120 120">
       <circle class="track" cx="60" cy="60" r="${R}" stroke-dasharray="${arcDash(1)}" transform="rotate(135 60 60)"/>
       <circle class="bar" cx="60" cy="60" r="${R}" stroke-dasharray="${arcDash(1)}" transform="rotate(135 60 60)"/>
@@ -124,6 +125,10 @@ export function createHud(root) {
   const bar = el.querySelector('.bar');
   const obj = el.querySelector('.obj');
   const captionEl = el.querySelector('.hud-caption');
+  // A new goal shows big in the middle for BANNER_MS, then the corner caption carries it.
+  const bannerEl = el.querySelector('.hud-banner');
+  const BANNER_MS = 2300;
+  let bannerUntil = 0;
   const balloons = el.querySelector('.balloons span');
   const layer = el.querySelector('.hud-layer');
   const glyphs = new Map();
@@ -244,6 +249,14 @@ export function createHud(root) {
       flashEl.classList.add('fade');
     },
     setVisible(v) { el.style.display = v ? '' : 'none'; },
+    banner(text) {
+      bannerEl.textContent = text;
+      bannerEl.classList.remove('show');
+      void bannerEl.offsetWidth;
+      bannerEl.classList.add('show');
+      bannerUntil = performance.now() + BANNER_MS;
+    },
+    get bannerShowing() { return performance.now() < bannerUntil; },
     bossBar(visible, fraction = 1) {
       bossEl.classList.toggle('show', visible);
       if (visible) bossFill.style.width = `${Math.max(0, Math.min(1, fraction)) * 100}%`;
